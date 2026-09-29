@@ -1,0 +1,30 @@
+--- a/_sqleet/row.c
++++ b/_sqleet/row.c
+@@ -23,0 +24 @@
++/* 小仓构建兼容修改：移除Python 3.9起废弃的tp_print接口。 */
+@@ -180,5 +180,0 @@
+-static int pysqlite_row_print(pysqlite_Row* self, FILE *fp, int flags)
+-{
+-    return (&PyTuple_Type)->tp_print(self->data, fp, flags);
+-}
+-
+@@ -239 +235 @@
+-        (printfunc)pysqlite_row_print,                  /* tp_print */
++        0,                                              /* tp_vectorcall_offset */
+--- a/setup.cfg
++++ b/setup.cfg
+@@ -27 +27 @@
+-python_requires = >=3.6, <3.9
++python_requires = >=3.10, <3.11
+--- a/setup.py
++++ b/setup.py
+@@ -2 +1,0 @@
+-import sys
+@@ -11,4 +10 @@
+-if sys.platform != "win32":
+-    sqleet_defines.append(('MODULE_NAME', '"sqleet"'))
+-else:
+-    sqleet_defines.append(('MODULE_NAME', '\\"sqleet\\"'))
++sqleet_defines.append(('MODULE_NAME', '"sqleet"'))
+@@ -29,0 +26 @@
++                   extra_compile_args=["/utf-8"],
