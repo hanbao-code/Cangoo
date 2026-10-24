@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN" data-pdm-m4-slice="1" data-pdm-editor-theme="DARK" data-pdm-editor-font="100">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; script-src-attr 'none'; style-src 'self'; style-src-attr 'none'; img-src 'self'; font-src 'self'; connect-src 'none'; worker-src 'none'; child-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>编辑密码</title>
+  <script src="scripts/editor_appearance.js"></script>
+  <link rel="stylesheet" href="styles/tokens.css">
+  <link rel="stylesheet" href="styles/platform_colors.css">
+  <link rel="stylesheet" href="styles/canvas.css">
+  <link rel="stylesheet" href="styles/focus_visibility.css">
+  <link rel="stylesheet" href="styles/editor.css">
+</head>
+<body>
+  <main id="editor-app" class="editor-app" aria-labelledby="editor-title">
+    <h1 id="editor-title" class="editor-visually-hidden">编辑密码</h1>
+    <form id="editor-form" class="editor-form" novalidate>
+      <div class="editor-content editor-form-content">
+        <label class="modal-field" for="editor-platform"><span id="label-platform" class="modal-field-label">平台 <b class="required">*</b></span>
+          <input id="editor-platform" class="modal-field-input" type="text" autocomplete="off" required data-pdm-sensitive="true">
+        </label>
+        <label class="modal-field" for="editor-account"><span id="label-account" class="modal-field-label">账号</span>
+          <input id="editor-account" class="modal-field-input" type="text" autocomplete="username" data-pdm-sensitive="true">
+        </label>
+        <label class="modal-field" for="editor-password"><span id="label-password" class="modal-field-label">密码</span>
+          <span class="password-field-wrap editor-password-wrap">
+            <input id="editor-password" class="modal-field-input" type="password" autocomplete="new-password" data-pdm-sensitive="true">
+            <span class="pw-actions">
+              <button id="editor-toggle-password" type="button" class="pw-action-btn" aria-label="显示密码" title="显示密码"><svg class="svg-fill" width="16" height="16" viewBox="0 0 256 256" aria-hidden="true"><path d="M247.31,124.76c-.35-.79-8.82-19.58-27.65-38.41C194.57,61.26,162.88,48,128,48S61.43,61.26,36.34,86.35C17.51,105.18,9,124,8.69,124.76a8,8,0,0,0,0,6.5c.35.79,8.82,19.57,27.65,38.4C61.43,194.74,93.12,208,128,208s66.57-13.26,91.66-38.34c18.83-18.83,27.3-37.61,27.65-38.4A8,8,0,0,0,247.31,124.76ZM128,168a40,40,0,1,1,40-40A40,40,0,0,1,128,168Z"/></svg></button>
+              <button id="editor-generate" type="button" class="pw-action-btn" aria-label="生成密码" title="生成密码"><svg class="svg-fill" width="16" height="16" viewBox="0 0 256 256" aria-hidden="true"><path d="M192,32H64A32,32,0,0,0,32,64V192a32,32,0,0,0,32,32H192a32,32,0,0,0,32-32V64A32,32,0,0,0,192,32ZM92,176a12,12,0,1,1,12-12A12,12,0,0,1,92,176Zm0-72a12,12,0,1,1,12-12A12,12,0,0,1,92,104Zm36,36a12,12,0,1,1,12-12A12,12,0,0,1,128,140Zm36,36a12,12,0,1,1,12-12A12,12,0,0,1,164,176Zm0-72a12,12,0,1,1,12-12A12,12,0,0,1,164,104Z"/></svg></button>
+            </span>
+          </span>
+        </label>
+        <label class="modal-field" for="editor-notes"><span id="label-notes" class="modal-field-label">备注</span>
+          <textarea id="editor-notes" class="modal-field-input" rows="6" data-pdm-sensitive="true"></textarea>
+        </label>
+        <fieldset class="modal-field editor-totp">
+          <legend id="label-totp" class="modal-field-label">动态验证码密钥</legend>
+          <p id="editor-totp-hint" class="modal-field-hint">现有密钥不会显示。留空将保留原值。</p>
+          <input id="editor-totp" class="modal-field-input" type="text" autocomplete="off" spellcheck="false" aria-describedby="editor-totp-hint" data-pdm-sensitive="true">
+          <button id="editor-totp-remove" type="button" class="modal-inline-action" hidden>移除现有密钥</button>
+        </fieldset>
+        <fieldset class="modal-field editor-recovery">
+          <legend id="label-recovery" class="modal-field-label">恢复码（可选）</legend>
+          <p id="editor-recovery-hint" class="modal-field-hint">一行一个，可保存网站或应用提供的一组恢复码。</p>
+          <textarea id="editor-recovery" class="modal-field-input" rows="3" autocomplete="off" spellcheck="false" aria-describedby="editor-recovery-hint editor-recovery-backup" data-pdm-sensitive="true"></textarea>
+          <p id="editor-recovery-backup" class="modal-field-hint">请另留一份独立安全副本；本库打不开时，这里的恢复码也无法取用。</p>
+          <button id="editor-recovery-remove" type="button" class="modal-inline-action" hidden>移除整组恢复码</button>
+        </fieldset>
+      </div>
+    </form>
+    <footer class="modal-footer editor-footer">
+      <div class="editor-content editor-footer-content">
+        <button id="editor-favorite" type="button" class="modal-fav-toggle" aria-pressed="false"><svg aria-hidden="true" class="svg-fill" viewBox="0 0 24 24"><path d="m12 3 2.8 5.8 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.7l6.2-.9L12 3Z"/></svg><span id="label-favorite">收藏</span></button>
+        <div id="editor-feedback" class="editor-feedback">
+          <span id="editor-state" class="editor-state" role="status" aria-live="polite"></span>
+          <p id="editor-error" class="editor-error" role="alert" aria-live="assertive"></p>
+        </div>
+        <div class="modal-footer-right">
+          <button id="editor-cancel" type="button" class="btn btn-sm">取消</button>
+          <button id="editor-save" type="submit" form="editor-form" class="btn btn-primary btn-sm">保存</button>
+        </div>
+      </div>
+    </footer>
+  </main>
+  <script src="vendor/qwebchannel.js"></script>
+  <script src="scripts/security_lifecycle.js"></script>
+  <script src="scripts/focus_visibility.js"></script>
+  <script src="scripts/editor_runtime.js"></script>
+</body>
+</html>

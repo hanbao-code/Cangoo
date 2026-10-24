@@ -1,0 +1,9 @@
+.note-editor-content { min-height: 100%; }
+.note-content-field { flex: 1 1 auto; min-height: calc(260px * var(--editor-scale)); display: flex; flex-direction: column; }
+.note-content-field textarea.modal-field-input { flex: 1 1 auto; min-height: calc(220px * var(--editor-scale)); resize: none; line-height: 1.6; }
+#note-editor-delete { flex: 0 0 auto; }
+#note-editor-delete[hidden] { display: none !important; }
+@media (max-height: 520px) {
+  .note-content-field { min-height: calc(180px * var(--editor-scale)); }
+  .note-content-field textarea.modal-field-input { min-height: calc(140px * var(--editor-scale)); }
+}

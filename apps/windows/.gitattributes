@@ -1,0 +1,20 @@
+# Keep text checkouts deterministic across developer Git configurations.
+* text=auto eol=lf
+
+# Repository binary assets must never pass through line-ending conversion.
+*.ico binary !eol
+*.png binary !eol
+*.ttf binary !eol
+
+# 运行时与生成器依赖这些明确的检出换行形式。两个前端 vendor 文件及 crypto 使用 CRLF；
+# 两个历史混合换行的 core 文件保持原始字节，避免 Git 自动改写。
+core/crypto.py text eol=crlf
+# 这四份已核构建输入保留CRLF，避免首次提交后重新检出改变来源摘要。
+core/__init__.py text eol=crlf
+core/dictionaries/leaked_cn.txt text eol=crlf
+core/dictionaries/phrases.txt text eol=crlf
+core/dictionaries/pinyin.txt text eol=crlf
+desktop/frontend/vendor/dictionaries.js text eol=crlf
+desktop/frontend/vendor/qwebchannel.js text eol=crlf
+core/config.py -text !eol whitespace=cr-at-eol
+core/security.py -text !eol whitespace=cr-at-eol

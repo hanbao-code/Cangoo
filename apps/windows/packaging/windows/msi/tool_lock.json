@@ -1,0 +1,66 @@
+{
+  "schema": 1,
+  "wix_version": "7.0.0",
+  "wix_commit": "b8977d6f88e7b68e000bac226a2814f236770570",
+  "runtime_version": "10.0.13",
+  "runtime": {
+    "url": "https://builds.dotnet.microsoft.com/dotnet/Runtime/10.0.13/dotnet-runtime-10.0.13-win-x64.zip",
+    "sha512": "2b98792ce86adc50899764ad2e4d21bd25cfda5432eeb0b4dfe7944f3ea049f9e0570a8f4aee92314d97cdb5f8b7be1363d501fc5012e680371e607af648ef40",
+    "archive": "net10/downloads/dotnet-runtime-10.0.13-win-x64.zip",
+    "directory": "net10/runtime"
+  },
+  "packages": [
+    {
+      "id": "wix",
+      "version": "7.0.0",
+      "url": "https://api.nuget.org/v3-flatcontainer/wix/7.0.0/wix.7.0.0.nupkg",
+      "sha512": "e066dda035a39b442604bc89f0f3e29275e89a3239bc76ade07dbb001e8d346cc5a5b12137d5f0d2488f428919df31fc17545c8ef0d29fcc860d7c0ac655bc4e",
+      "archive": "downloads/wix.7.0.0.nupkg",
+      "directory": "packages/wix/7.0.0"
+    },
+    {
+      "id": "wixtoolset.bootstrapperapplications.wixext",
+      "version": "7.0.0",
+      "url": "https://api.nuget.org/v3-flatcontainer/wixtoolset.bootstrapperapplications.wixext/7.0.0/wixtoolset.bootstrapperapplications.wixext.7.0.0.nupkg",
+      "sha512": "e0263db7c1539af1f8fef0e85a774035b10b7f661fb2de139146e375141ffb0b74804f63ea99c8bd8c0228b71fd254532c1174e25e11765da1d331f8fc69c08f",
+      "archive": "downloads/wixtoolset.bootstrapperapplications.wixext.7.0.0.nupkg",
+      "directory": "packages/wixtoolset.bootstrapperapplications.wixext/7.0.0"
+    },
+    {
+      "id": "wixtoolset.wixstandardbootstrapperapplicationfunctionapi",
+      "version": "7.0.0",
+      "url": "https://api.nuget.org/v3-flatcontainer/wixtoolset.wixstandardbootstrapperapplicationfunctionapi/7.0.0/wixtoolset.wixstandardbootstrapperapplicationfunctionapi.7.0.0.nupkg",
+      "sha512": "6e833f4a3daffd0dc909405cb7e25e28d9825718e6281261093864fabb2731c3e5f04557ecd5542185bc32cc6cf603e00e67b08d50ed956eb7e15cdc2cb7e271",
+      "archive": "downloads/wixtoolset.wixstandardbootstrapperapplicationfunctionapi.7.0.0.nupkg",
+      "directory": "packages/wixtoolset.wixstandardbootstrapperapplicationfunctionapi/7.0.0"
+    },
+    {
+      "id": "wixtoolset.bootstrapperapplicationapi",
+      "version": "7.0.0",
+      "url": "https://api.nuget.org/v3-flatcontainer/wixtoolset.bootstrapperapplicationapi/7.0.0/wixtoolset.bootstrapperapplicationapi.7.0.0.nupkg",
+      "sha512": "7b1313267a6513756c5efa097e839fffa41a1b7aec7d7c5cdc10e3d5e3a2ca674656dc65874ab847b71e6679fb5e8f00fc46198264092b281a1a430ac25a8541",
+      "archive": "downloads/wixtoolset.bootstrapperapplicationapi.7.0.0.nupkg",
+      "directory": "packages/wixtoolset.bootstrapperapplicationapi/7.0.0"
+    },
+    {
+      "id": "wixtoolset.dutil",
+      "version": "7.0.0",
+      "url": "https://api.nuget.org/v3-flatcontainer/wixtoolset.dutil/7.0.0/wixtoolset.dutil.7.0.0.nupkg",
+      "sha512": "78106b7cd21b3ac73ca08e02cba7fd95cdba9dd6f28d6ccd97b313171d0241aa3f04a3285ecd72f9528508754568ca14470959da8a7ab6e82f44c3eee5bb5ed8",
+      "archive": "downloads/wixtoolset.dutil.7.0.0.nupkg",
+      "directory": "packages/wixtoolset.dutil/7.0.0"
+    }
+  ],
+  "native_compiler": {
+    "architecture": "x64",
+    "msvc": "14.44.35207",
+    "windows_sdk": "10.0.26100.0"
+  },
+  "wix_eula": "The builder must explicitly confirm applicability with --accept-wix-eula; no global acceptance or tool installation is performed.",
+  "source_archive": {
+    "filename": "wix-b8977d6f88e7b68e000bac226a2814f236770570.zip",
+    "commit": "b8977d6f88e7b68e000bac226a2814f236770570",
+    "url": "https://codeload.github.com/wixtoolset/wix/zip/b8977d6f88e7b68e000bac226a2814f236770570",
+    "sha256": "7383d9b68f9ad31188566d0e6cb0b0d59b0056e55b8959e736cd83bc38eb548f"
+  }
+}

@@ -1,0 +1,156 @@
+html[data-pdm-m4-slice="1"] :focus,
+html[data-pdm-m4-slice="1"] :focus-visible {
+  outline: none;
+}
+
+/* 可用性透明度直接切换，避免连接时整片控件同时渐变。 */
+html[data-pdm-m4-slice="1"] button,
+html[data-pdm-m4-slice="1"] a[href],
+html[data-pdm-m4-slice="1"] select,
+html[data-pdm-m4-slice="1"] input,
+html[data-pdm-m4-slice="1"] textarea,
+html[data-pdm-m4-slice="1"] [contenteditable="true"],
+html[data-pdm-m4-slice="1"] [tabindex] {
+  transition-property:
+    background-color, border-color, color, box-shadow, transform !important;
+}
+
+html[data-pdm-m4-slice="1"] input:not([type]),
+html[data-pdm-m4-slice="1"] input[type="date"],
+html[data-pdm-m4-slice="1"] input[type="datetime-local"],
+html[data-pdm-m4-slice="1"] input[type="email"],
+html[data-pdm-m4-slice="1"] input[type="month"],
+html[data-pdm-m4-slice="1"] input[type="number"],
+html[data-pdm-m4-slice="1"] input[type="password"],
+html[data-pdm-m4-slice="1"] input[type="search"],
+html[data-pdm-m4-slice="1"] input[type="tel"],
+html[data-pdm-m4-slice="1"] input[type="text"],
+html[data-pdm-m4-slice="1"] input[type="time"],
+html[data-pdm-m4-slice="1"] input[type="url"],
+html[data-pdm-m4-slice="1"] input[type="week"],
+html[data-pdm-m4-slice="1"] textarea,
+html[data-pdm-m4-slice="1"] [contenteditable="true"],
+html[data-pdm-m4-slice="1"] .input,
+html[data-pdm-m4-slice="1"] .note-textarea,
+html[data-pdm-m4-slice="1"] .quickbar-input,
+html[data-pdm-m4-slice="1"] .modal-field-input {
+  transition-property: background-color, color, transform !important;
+}
+
+html[data-pdm-m4-slice="1"][data-pdm-focus-controller-ready="true"]
+  [data-pdm-keyboard-ring="true"] {
+  outline: 2px solid var(--accent) !important;
+  outline-offset: 2px !important;
+}
+
+html[data-pdm-m4-slice="1"] input:not([type]):focus,
+html[data-pdm-m4-slice="1"] input[type="date"]:focus,
+html[data-pdm-m4-slice="1"] input[type="datetime-local"]:focus,
+html[data-pdm-m4-slice="1"] input[type="email"]:focus,
+html[data-pdm-m4-slice="1"] input[type="month"]:focus,
+html[data-pdm-m4-slice="1"] input[type="number"]:focus,
+html[data-pdm-m4-slice="1"] input[type="password"]:focus,
+html[data-pdm-m4-slice="1"] input[type="search"]:focus,
+html[data-pdm-m4-slice="1"] input[type="tel"]:focus,
+html[data-pdm-m4-slice="1"] input[type="text"]:focus,
+html[data-pdm-m4-slice="1"] input[type="time"]:focus,
+html[data-pdm-m4-slice="1"] input[type="url"]:focus,
+html[data-pdm-m4-slice="1"] input[type="week"]:focus,
+html[data-pdm-m4-slice="1"] textarea:focus,
+html[data-pdm-m4-slice="1"] [contenteditable="true"]:focus,
+html[data-pdm-m4-slice="1"] .input:focus,
+html[data-pdm-m4-slice="1"] .note-textarea:focus,
+html[data-pdm-m4-slice="1"] .quickbar-input:focus,
+html[data-pdm-m4-slice="1"] .modal-field-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  outline: none !important;
+}
+
+html[data-pdm-m4-slice="1"] .num-input:focus {
+  border-color: var(--accent);
+  outline: none !important;
+}
+
+html[data-pdm-m4-slice="1"] input:not([type])[data-pdm-keyboard-ring="true"],
+html[data-pdm-m4-slice="1"] input[type="date"][data-pdm-keyboard-ring="true"],
+html[data-pdm-m4-slice="1"] input[type="datetime-local"][data-pdm-keyboard-ring="true"],
+html[data-pdm-m4-slice="1"] input[type="email"][data-pdm-keyboard-ring="true"],
+html[data-pdm-m4-slice="1"] input[type="month"][data-pdm-keyboard-ring="true"],
+html[data-pdm-m4-slice="1"] input[type="number"][data-pdm-keyboard-ring="true"],
+html[data-pdm-m4-slice="1"] input[type="password"][data-pdm-keyboard-ring="true"],
+html[data-pdm-m4-slice="1"] input[type="search"][data-pdm-keyboard-ring="true"],
+html[data-pdm-m4-slice="1"] input[type="tel"][data-pdm-keyboard-ring="true"],
+html[data-pdm-m4-slice="1"] input[type="text"][data-pdm-keyboard-ring="true"],
+html[data-pdm-m4-slice="1"] input[type="time"][data-pdm-keyboard-ring="true"],
+html[data-pdm-m4-slice="1"] input[type="url"][data-pdm-keyboard-ring="true"],
+html[data-pdm-m4-slice="1"] input[type="week"][data-pdm-keyboard-ring="true"],
+html[data-pdm-m4-slice="1"] textarea[data-pdm-keyboard-ring="true"],
+html[data-pdm-m4-slice="1"] [contenteditable="true"][data-pdm-keyboard-ring="true"] {
+  outline: none !important;
+}
+
+html[data-pdm-m4-slice="1"] .recent-select:focus-visible,
+html[data-pdm-m4-slice="1"] .recent-remove:focus-visible,
+html[data-pdm-m4-slice="1"] .nav-item:focus,
+html[data-pdm-m4-slice="1"] .sort-trigger:focus,
+html[data-pdm-m4-slice="1"] .global-search-clear:focus-visible,
+html[data-pdm-m4-slice="1"] .quickbar-clear:focus-visible,
+html[data-pdm-m4-slice="1"] .delete-cancel:focus-visible,
+html[data-pdm-m4-slice="1"] .ie-secret-toggle:focus {
+  outline: none;
+}
+
+html[data-pdm-m4-slice="1"] .nav-item:focus:not(:hover) {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+html[data-pdm-m4-slice="1"] .nav-item.active:focus:not(:hover) {
+  color: var(--accent-text);
+}
+
+html[data-pdm-m4-slice="1"] .quickbar-clear:focus:not(:hover) {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+html[data-pdm-m4-slice="1"] .global-search-clear:focus:not(:hover) {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+html[data-pdm-m4-slice="1"] .ie-secret-toggle:focus:not(:hover) {
+  background: transparent;
+  color: var(--accent-text);
+}
+
+html[data-pdm-m4-slice="1"]:not([data-pdm-focus-controller-ready="true"])
+  button:focus,
+html[data-pdm-m4-slice="1"]:not([data-pdm-focus-controller-ready="true"])
+  a[href]:focus,
+html[data-pdm-m4-slice="1"]:not([data-pdm-focus-controller-ready="true"])
+  select:focus,
+html[data-pdm-m4-slice="1"]:not([data-pdm-focus-controller-ready="true"])
+  input[type="button"]:focus,
+html[data-pdm-m4-slice="1"]:not([data-pdm-focus-controller-ready="true"])
+  input[type="checkbox"]:focus,
+html[data-pdm-m4-slice="1"]:not([data-pdm-focus-controller-ready="true"])
+  input[type="color"]:focus,
+html[data-pdm-m4-slice="1"]:not([data-pdm-focus-controller-ready="true"])
+  input[type="file"]:focus,
+html[data-pdm-m4-slice="1"]:not([data-pdm-focus-controller-ready="true"])
+  input[type="image"]:focus,
+html[data-pdm-m4-slice="1"]:not([data-pdm-focus-controller-ready="true"])
+  input[type="radio"]:focus,
+html[data-pdm-m4-slice="1"]:not([data-pdm-focus-controller-ready="true"])
+  input[type="range"]:focus,
+html[data-pdm-m4-slice="1"]:not([data-pdm-focus-controller-ready="true"])
+  input[type="reset"]:focus,
+html[data-pdm-m4-slice="1"]:not([data-pdm-focus-controller-ready="true"])
+  input[type="submit"]:focus,
+html[data-pdm-m4-slice="1"]:not([data-pdm-focus-controller-ready="true"])
+  [tabindex]:not([tabindex="-1"]):not(input):not(textarea):not([contenteditable="true"]):focus {
+  outline: 2px solid var(--accent) !important;
+  outline-offset: 2px !important;
+}

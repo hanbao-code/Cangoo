@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="$(var.ProductName)" Manufacturer="hanbao-code"
+           Version="$(var.ProductVersion)" ProductCode="$(var.ProductCode)"
+           UpgradeCode="$(var.UpgradeCode)" Scope="perUserOrMachine"
+           InstallerVersion="500" Language="2052" Codepage="936" Compressed="yes">
+    <SummaryInformation Codepage="936" />
+    <MajorUpgrade Schedule="afterInstallInitialize" MigrateFeatures="yes"
+                  DowngradeErrorMessage="已安装较新版本的小仓。请使用较新版本的安装包。 A newer version of Cangoo is already installed." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <!-- 普通维护入口由 Burn 提供；MSI 仍支持标准修复与卸载。 -->
+    <Property Id="ARPSYSTEMCOMPONENT" Value="1" />
+    <Property Id="ARPPRODUCTICON" Value="Cangoo.exe" />
+    <Property Id="MSIRESTARTMANAGERCONTROL" Value="DisableShutdown" />
+    <Property Id="REBOOT" Value="ReallySuppress" />
+    <Property Id="CANGOODESKTOP" Secure="yes" />
+    <Icon Id="Cangoo.exe" SourceFile="$(var.AppIcon)" />
+    <SetProperty Id="ARPINSTALLLOCATION" Value="[INSTALLFOLDER]"
+                 Before="RegisterProduct" Sequence="execute" />
+
+    <?ifdef AcceptanceInstallDir?>
+      <!-- 隔离候选由构建器固定到公开工作目录，正式构建不得传入此宏。 -->
+      <Property Id="INSTALLFOLDER" Value="$(var.AcceptanceInstallDir)" />
+    <?endif?>
+    <StandardDirectory Id="ProgramFiles6432Folder">
+      <Directory Id="INSTALLFOLDER" Name="Cangoo" />
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder" />
+    <StandardDirectory Id="DesktopFolder" />
+
+    <Feature Id="Main" Title="$(var.ProductName)" Level="1" AllowAbsent="no" AllowAdvertise="no">
+      <!-- 构建器先核对冻结清单；本层仅收集干净的程序文件，按目标路径生成组件身份。 -->
+      <Files Directory="INSTALLFOLDER" Include="$(var.PayloadDir)\**" />
+      <Component Id="StartMenuShortcutComponent" Directory="ProgramMenuFolder" Guid="*">
+        <Shortcut Id="StartMenuShortcut" Name="$(var.ProductName)" Target="[INSTALLFOLDER]Cangoo.exe"
+                  WorkingDirectory="INSTALLFOLDER" Icon="Cangoo.exe" />
+        <RegistryValue Root="HKMU" Key="Software\hanbao-code\Cangoo\Installer\$(var.UpgradeCode)"
+                       Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </Feature>
+
+    <!-- 首装通过普通属性选择；修复、升级沿用 MSI 已安装特性，不重设选择。 -->
+    <Feature Id="DesktopShortcut" Title="桌面快捷方式" Level="2" AllowAdvertise="no">
+      <Level Value="1" Condition="CANGOODESKTOP = 1" />
+      <Component Id="DesktopShortcutComponent" Directory="DesktopFolder" Guid="*">
+        <Shortcut Id="DesktopShortcut" Name="$(var.ProductName)" Target="[INSTALLFOLDER]Cangoo.exe"
+                  WorkingDirectory="INSTALLFOLDER" Icon="Cangoo.exe" />
+        <RegistryValue Root="HKMU" Key="Software\hanbao-code\Cangoo\Installer\$(var.UpgradeCode)"
+                       Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </Feature>
+  </Package>
+</Wix>

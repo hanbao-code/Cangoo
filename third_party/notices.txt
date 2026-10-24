@@ -1,5 +1,5 @@
 pysqleet 31.1.3
-
+============================================================
 Copyright 2021 (C) Robert Kearns
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
@@ -9,7 +9,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 pycryptodome 3.23.0
-
+============================================================
 The source code in PyCryptodome is partially in the public domain
 and partially released under the BSD 2-Clause license.
 
@@ -74,7 +74,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 argon2-cffi 25.1.0
-
+============================================================
 The MIT License (MIT)
 
 Copyright (c) 2015 Hynek Schlawack and the argon2-cffi contributors
@@ -99,7 +99,7 @@ SOFTWARE.
 
 
 argon2-cffi-bindings 25.1.0
-
+============================================================
 The MIT License (MIT)
 
 Copyright (c) 2021 Hynek Schlawack
@@ -124,7 +124,7 @@ SOFTWARE.
 
 
 cffi 2.0.0
-
+============================================================
 This package has been mostly done by Armin Rigo with help from
 Maciej Fijałkowski. The idea is heavily based (although not directly
 copied) from LuaJIT ffi by Mike Pall.
@@ -136,7 +136,7 @@ Other contributors:
 
 
 cffi 2.0.0
-
+============================================================
 
 Except when otherwise stated (look for LICENSE files in directories or
 information at the beginning of each file) all software and
@@ -163,7 +163,7 @@ documentation is licensed as follows:
 
 
 pycparser 3.0
-
+============================================================
 pycparser -- A C parser in Python
 
 Copyright (c) 2008-2022, Eli Bendersky
@@ -194,7 +194,7 @@ OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 pypinyin 0.55.0
-
+============================================================
 The MIT License (MIT)
 
 Copyright (c) 2016 mozillazg, 闲耘 <hotoo.cn@gmail.com>
@@ -218,7 +218,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 zxcvbn 4.5.0
-
+============================================================
 MIT License
 
 Copyright (c) 2016 Daniel Wolf
@@ -243,7 +243,7 @@ SOFTWARE.
 
 
 Qt / PySide6 / Shiboken — LGPL 3.0
-
+============================================================
                    GNU LESSER GENERAL PUBLIC LICENSE
                        Version 3, 29 June 2007
 
@@ -412,7 +412,7 @@ Library.
 
 
 Qt — GPL 3.0（LGPL 随附条款 / accompanying terms）
-
+============================================================
                     GNU GENERAL PUBLIC LICENSE
                        Version 3, 29 June 2007
 
@@ -1090,7 +1090,7 @@ Public License instead of this License.  But first, please read
 
 
 pinyin-pro
-
+============================================================
 MIT License
 
 Copyright (c) 2022-present zh-lx
@@ -1115,7 +1115,7 @@ SOFTWARE.
 
 
 zxcvbn JavaScript
-
+============================================================
 Copyright (c) 2012-2016 Dan Wheeler and Dropbox, Inc.
 
 Permission is hereby granted, free of charge, to any person obtaining
@@ -1139,7 +1139,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
 Phosphor Icons
-
+============================================================
 MIT License
 
 Copyright (c) 2023 Phosphor Icons
@@ -1164,7 +1164,7 @@ SOFTWARE.
 
 
 Manrope
-
+============================================================
 Copyright 2018 The Manrope Project Authors (https://github.com/googlefonts/manrope)
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
@@ -1261,7 +1261,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
 
 JetBrains Mono
-
+============================================================
 Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono)
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
@@ -1358,7 +1358,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
 
 Python 3.10.11
-
+============================================================
 A. HISTORY OF THE SOFTWARE
 ==========================
 
@@ -2012,7 +2012,7 @@ docs/license.html_lib.
 
 
 pysqleet — pysqlite C bindings
-
+============================================================
 pysqleet-31.1.3/_sqleet/cache.c
 /* cache .c - a LRU cache
  *
@@ -2462,7 +2462,7 @@ pysqleet-31.1.3/_sqleet/util.h
  */
 
 libffi Windows x86/x64 copy bundled with CFFI 2.0.0
-
+============================================================
 ffi.c
 /* -----------------------------------------------------------------------
    ffi.c - Copyright (c) 1996, 1998, 1999, 2001  Red Hat, Inc.
@@ -2602,7 +2602,7 @@ types.c
    ----------------------------------------------------------------------- */
 
 Argon2 reference implementation (including Blake2) bundled with argon2-cffi-bindings 25.1.0
-
+============================================================
 Argon2 reference source code package - reference C implementations
 
 Copyright 2015
@@ -2920,7 +2920,7 @@ express Statement of Purpose.
 
 
 PyInstaller 6.21.0 runtime hooks
-
+============================================================
 Copyright (c) 2021-2023, PyInstaller Development Team.
 Copyright (c) 2017-2023, PyInstaller Development Team.
 
@@ -3153,7 +3153,7 @@ SOFTWARE.
 
 
 Qt 6.9.3 — qtgui — D3D12 Memory Allocator
-
+============================================================
 Copyright (c) 2019-2022 Advanced Micro Devices, Inc. All rights reserved.
 
 Copyright (c) 2019-2022 Advanced Micro Devices, Inc. All rights reserved.
@@ -3177,7 +3177,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 Qt 6.9.3 — qtgui — Vulkan Memory Allocator
-
+============================================================
 Copyright (c) 2017-2024 Advanced Micro Devices, Inc. All rights reserved.
 
 Copyright (c) 2017-2019 Advanced Micro Devices, Inc. All rights reserved.
@@ -3201,7 +3201,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 Qt 6.9.3 — qtcore — BLAKE2 (reference implementation)
-
+============================================================
 Copyright 2012, Samuel Neves <sneves@dei.uc.pt>
 
 CC0 1.0 Universal
@@ -3525,7 +3525,7 @@ For more information, please see
    limitations under the License.
 
 Qt 6.9.3 — qtcore — Efficient Binary-Decimal and Decimal-Binary Conversion Routines for IEEE Doubles
-
+============================================================
 Copyright 2006-2012, the V8 project authors
 
 Copyright 2006-2011, the V8 project authors. All rights reserved.
@@ -3556,7 +3556,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — qtcore — Easing Equations by Robert Penner
-
+============================================================
 Copyright (c) 2001 Robert Penner
 
 Copyright (c) 2001 Robert Penner
@@ -3586,7 +3586,7 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — qtgui — Emoji Segmenter
-
+============================================================
 Copyright 2019 Google LLC
 
 Apache License
@@ -3652,7 +3652,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Qt 6.9.3 — qtgui — Freetype 2
-
+============================================================
 Copyright (c) 2007-2014 Adobe Systems Incorporated
 
 Copyright (c) 2004-2025 Albert Chin-A-Young
@@ -4271,7 +4271,7 @@ Public License instead of this License.
 --- end of GPLv2.TXT ---
 
 Qt 6.9.3 — qtgui — Freetype 2 - zlib
-
+============================================================
 Copyright (C) 1995-2024 Jean-loup Gailly and Mark Adler
 
 Copyright (C) 1995-2002 Jean-loup Gailly and Mark Adler
@@ -4296,7 +4296,7 @@ Jean-loup Gailly        Mark Adler
 jloup@gzip.org          madler@alumni.caltech.edu
 
 Qt 6.9.3 — qtgui — Freetype 2 - Bitmap Distribution Format (BDF) support
-
+============================================================
 Copyright (c) 2000 Computing Research Labs, New Mexico State University
 
 Copyright (c) 2001-2014 Francesco Zappa Nardelli
@@ -4346,7 +4346,7 @@ OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR
 THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 Qt 6.9.3 — qtgui — Freetype 2 - Portable Compiled Format (PCF) support
-
+============================================================
 Copyright (c) 2001, 2012 David Turner, Robert Wilhelm, and Werner Lemberg
 
 Copyright (c) 2000-2014 Francesco Zappa Nardelli
@@ -4399,7 +4399,7 @@ used in advertising or otherwise to promote the sale, use or other dealings
 in this Software without prior written authorization from The Open Group.
 
 Qt 6.9.3 — qtgui — HarfBuzz-NG
-
+============================================================
 Copyright © 2010-2022  Google, Inc.
 
 Copyright © 2015-2020  Ebrahim Byagowi
@@ -4478,7 +4478,7 @@ ON AN "AS IS" BASIS, AND THE COPYRIGHT HOLDER HAS NO OBLIGATION TO
 PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 
 Qt 6.9.3 — qtgui — sRGB color profile icc file
-
+============================================================
 Copyright International Color Consortium, 2015
 
 For the file sRGB2014.icc:
@@ -4493,7 +4493,7 @@ shall not be misrepresented as the original profile.
 (original source location: http://www.color.org/srgbprofiles.xalter)
 
 Qt 6.9.3 — qtgui — LibJPEG-turbo
-
+============================================================
 Copyright (C) 2009-2025 D. R. Commander
 Copyright (C) 2015, 2020 Google, Inc.
 Copyright (C) 2019-2020 Arm Limited
@@ -4680,7 +4680,7 @@ commercial products, provided that all warranty or liability claims are
 assumed by the product vendor.
 
 Qt 6.9.3 — qtgui — LibPNG
-
+============================================================
 Copyright (c) 1995-2025 The PNG Reference Library Authors
 
 Copyright (c) 2000-2025 Cosmin Truta
@@ -4861,7 +4861,7 @@ this source code in a product, acknowledgment is not required but would
 be appreciated.
 
 Qt 6.9.3 — qtnetwork — The Public Suffix List
-
+============================================================
 The list was originally provided by Jo Hermans <jo.hermans@gmail.com>.
 It is now maintained on github (https://github.com/publicsuffix/list).
 
@@ -5240,7 +5240,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
   defined by the Mozilla Public License, v. 2.0.
 
 Qt 6.9.3 — qtnetwork — libpsl - C library to handle the Public Suffix List
-
+============================================================
 Copyright 2014-2016 The Chromium Authors. All rights reserved.
 
 * The following License is for the source code files
@@ -5275,7 +5275,7 @@ Copyright 2014-2016 The Chromium Authors. All rights reserved.
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — qtcore — MD4
-
+============================================================
 Written by Alexander Peslyak - better known as Solar Designer <solar@openwall.com> - in 2001, and placed in the public domain. There's absolutely no warranty.
 
 Creative Commons Legal Code
@@ -5401,7 +5401,7 @@ express Statement of Purpose.
     this CC0 or use of the Work.
 
 Qt 6.9.3 — qtgui — MD4C
-
+============================================================
 Copyright © 2016-2024 Martin Mitáš
 
 # The MIT License (MIT)
@@ -5427,7 +5427,7 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 IN THE SOFTWARE.
 
 Qt 6.9.3 — qtcore — MD5
-
+============================================================
 Written by Colin Plumb in 1993, no copyright is claimed. Ian Jackson <ian@chiark.greenend.org.uk>.
 
 Creative Commons Legal Code
@@ -5553,7 +5553,7 @@ express Statement of Purpose.
     this CC0 or use of the Work.
 
 Qt 6.9.3 — qtcore — PCRE2
-
+============================================================
 Copyright (c) 1997-2024 University of Cambridge
 
 Copyright (c) 2010-2024 Zoltan Herczeg
@@ -5663,7 +5663,7 @@ PCRE2 independently.
 End
 
 Qt 6.9.3 — qtcore — PCRE2 - Stack-less Just-In-Time Compiler
-
+============================================================
 Copyright (c) 2009-2024 Zoltan Herczeg
 
 /*
@@ -5693,7 +5693,7 @@ Copyright (c) 2009-2024 Zoltan Herczeg
  */
 
 Qt 6.9.3 — qtcore — Secure Hash Algorithms SHA-384 and SHA-512
-
+============================================================
 Copyright (c) 2011 IETF Trust and the persons identified as authors of the code.
 
 Copyright (c) 2011 IETF Trust and the persons identified as
@@ -5732,7 +5732,7 @@ OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
 EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — qtcore — Secure Hash Algorithm SHA-1
-
+============================================================
 Copyright (C) Dominik Reichl <dominik.reichl@t-online.de>
 
 Copyright (C) 2016 The Qt Company Ltd
@@ -5742,7 +5742,7 @@ by Dominik Reichl <dominik.reichl@t-online.de>
 Web: http://www.dominik-reichl.de/
 
 Qt 6.9.3 — qtcore — Secure Hash Algorithm SHA-3 - brg_endian
-
+============================================================
 Copyright (c) 1998-2013, Brian Gladman, Worcester, UK. All rights reserved.
 
 Copyright (c) 1998-2013, Brian Gladman, Worcester, UK. All rights reserved.
@@ -5761,7 +5761,7 @@ in respect of its operation, including, but not limited to, correctness
 and fitness for purpose.
 
 Qt 6.9.3 — qtcore — Secure Hash Algorithm SHA-3 - Keccak
-
+============================================================
 Guido Bertoni, Joan Daemen, Michaël Peeters and Gilles Van Assche.
 To the extent possible under law, the implementers have waived all copyright
 and related or neighboring rights to the source code in this file.
@@ -5867,7 +5867,7 @@ d. Affirmer understands and acknowledges that Creative Commons is not a party to
    has no duty or obligation with respect to this CC0 or use of the Work.
 
 Qt 6.9.3 — qtcore — SipHash Algorithm
-
+============================================================
 Copyright (C) 2012-2014 Jean-Philippe Aumasson
 
 Copyright (C) 2012-2014 Daniel J. Bernstein <djb@cr.yp.to>
@@ -5997,7 +5997,7 @@ express Statement of Purpose.
     this CC0 or use of the Work.
 
 Qt 6.9.3 — qtcore — TinyCBOR
-
+============================================================
 Copyright (C) 2015-2021 Intel Corporation
 
 MIT License
@@ -6023,14 +6023,14 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 Qt 6.9.3 — qtgui — Wintab API
-
+============================================================
 Copyright 1991-1998 by LCS/Telegraphics.
 
 The text and information contained in this file may be freely used,
 copied, or distributed without compensation or licensing restrictions.
 
 Qt 6.9.3 — qtcore — Data Compression Library (zlib)
-
+============================================================
 (C) 1995-2024 Jean-loup Gailly and Mark Adler
 
   This software is provided 'as-is', without any express or implied
@@ -6062,7 +6062,7 @@ the file ChangeLog history information documenting your changes.  Please read
 the FAQ for more information on the distribution of modified source versions.
 
 Qt 6.9.3 — qtcore — Apache Tika MimeType Definitions
-
+============================================================
 Copyright 2024 The Apache Software Foundation
 
 Apache License
@@ -6128,7 +6128,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Qt 6.9.3 — qtcore — Unicode Character Database (UCD)
-
+============================================================
 Copyright (C) 1991-2022 Unicode, Inc.
 
 UNICODE LICENSE V3
@@ -6172,7 +6172,7 @@ dealings in these Data Files or Software without prior written
 authorization of the copyright holder.
 
 Qt 6.9.3 — qtcore — Unicode Common Locale Data Repository (CLDR)
-
+============================================================
 Copyright (C) 2004-2025 Unicode, Inc.
 
 UNICODE LICENSE V3
@@ -6216,7 +6216,7 @@ dealings in these Data Files or Software without prior written
 authorization of the copyright holder.
 
 Qt 6.9.3 — qtgui — OpenGL Headers
-
+============================================================
 Copyright (c) 2013-2014 The Khronos Group Inc.
 
 Copyright (c) 2013-2014 The Khronos Group Inc.
@@ -6241,7 +6241,7 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 MATERIALS OR THE USE OR OTHER DEALINGS IN THE MATERIALS.
 
 Qt 6.9.3 — qtgui — OpenGL ES 2 Headers
-
+============================================================
 Copyright (c) 2013-2014 The Khronos Group Inc.
 
 Copyright (c) 2013-2014 The Khronos Group Inc.
@@ -6266,7 +6266,7 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 MATERIALS OR THE USE OR OTHER DEALINGS IN THE MATERIALS.
 
 Qt 6.9.3 — qtgui — Anti-aliasing rasterizer from FreeType 2
-
+============================================================
 Copyright 2000-2016 by David Turner, Robert Wilhelm, and Werner Lemberg.
 
 FREETYPE LICENSES
@@ -6827,7 +6827,7 @@ Public License instead of this License.
 --- end of GPLv2.TXT ---
 
 Qt 6.9.3 — qtgui — Smooth Scaling Algorithm
-
+============================================================
 Copyright (C) 2004, 2005 Daniel M. Duley.
 
 (C) Carsten Haitzler and various contributors.
@@ -6896,7 +6896,7 @@ FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 Qt 6.9.3 — qtgui — X Server helper
-
+============================================================
 Copyright (c) 1987, 1988 X Consortium
 
 Copyright 1987, 1988 by Digital Equipment Corporation, Maynard, Massachusetts.
@@ -6946,7 +6946,7 @@ ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
 SOFTWARE.
 
 Qt 6.9.3 — qtgui — Mipmap generator for D3D12
-
+============================================================
 Copyright (c) 2015 Microsoft
 
 The MIT License (MIT)
@@ -6972,7 +6972,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 Qt 6.9.3 — qtgui — Adobe Glyph List For New Fonts
-
+============================================================
 Copyright 2002, 2003, 2005, 2006, 2008, 2010, 2015 Adobe Systems
 
 Redistribution and use in source and binary forms, with or without
@@ -7003,7 +7003,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — qtgui — Vulkan API Registry
-
+============================================================
 Copyright (c) 2015-2022 The Khronos Group Inc.
 
 Copyright (c) 2015-2020 The Khronos Group Inc.
@@ -7091,7 +7091,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Qt 6.9.3 — qtgui — WebGradients
-
+============================================================
 Copyright (c) 2017 itmeo
 
 MIT License
@@ -7117,7 +7117,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 Qt 6.9.3 — qtqml — JavaScriptCore Macro Assembler
-
+============================================================
 Copyright (C) 2003-2018 Apple Inc. All rights reserved.
 
 Copyright (C) 2007 Justin Haygood (jhaygood@reaktix.com)
@@ -7168,7 +7168,7 @@ OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — qtpositioning — Clip2Tri Polygon Triangulation Library
-
+============================================================
 Copyright (c) 2014 Bitfighter developers
 
 The MIT License (MIT)
@@ -7194,7 +7194,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 Qt 6.9.3 — qtpositioning — Clipper Polygon Clipping Library
-
+============================================================
 Copyright Angus Johnson 2010-2017
 
 Use, modification & distribution is subject to Boost Software License Ver 1.
@@ -7247,7 +7247,7 @@ ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 Qt 6.9.3 — qtpositioning — Poly2Tri Polygon Triangulation Library
-
+============================================================
 Poly2Tri Copyright (c) 2009-2010, Poly2Tri Contributors
 
 Poly2Tri Copyright (c) 2009-2010, Poly2Tri Contributors
@@ -7279,7 +7279,7 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — qtsvg — XSVG
-
+============================================================
 Copyright 2002 USC/Information Sciences Institute
 
 Copyright  2002 USC/Information Sciences Institute
@@ -7306,7 +7306,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 
 Qt 6.9.3 — Qt WebEngine — Chromium License
-
+============================================================
 // Copyright 2015 The Chromium Authors
 //
 // Redistribution and use in source and binary forms, with or without
@@ -7336,7 +7336,7 @@ Qt 6.9.3 — Qt WebEngine — Chromium License
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — @puppeteer/replay
-
+============================================================
                               Apache License
                         Version 2.0, January 2004
                      http://www.apache.org/licenses/
@@ -7540,7 +7540,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Qt 6.9.3 — Qt WebEngine — @vscode/web-custom-data
-
+============================================================
 MIT License
 
 Copyright (c) Microsoft Corporation.
@@ -7564,7 +7564,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE
 
 Qt 6.9.3 — Qt WebEngine — AXE-CORE Accessibility Audit
-
+============================================================
 Mozilla Public License, version 2.0
 
 1. Definitions
@@ -7929,7 +7929,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
       the Mozilla Public License, v. 2.0.
 
 Qt 6.9.3 — Qt WebEngine — Abseil
-
+============================================================
                               Apache License
                         Version 2.0, January 2004
                      https://www.apache.org/licenses/
@@ -8133,7 +8133,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Qt 6.9.3 — Qt WebEngine — Acorn, a tiny, fast JavaScript parser written in JavaScript.
-
+============================================================
 MIT License
 
 Copyright (C) 2012-2022 by various contributors (see AUTHORS)
@@ -8157,7 +8157,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 Qt 6.9.3 — Qt WebEngine — Alliance for Open Media Video Codec
-
+============================================================
 Copyright (c) 2016, Alliance for Open Media. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -8186,7 +8186,7 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — Almost Native Graphics Layer Engine
-
+============================================================
 // Copyright 2018 The ANGLE Project Authors.
 // All rights reserved.
 //
@@ -8221,7 +8221,7 @@ Qt 6.9.3 — Qt WebEngine — Almost Native Graphics Layer Engine
 // POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — Android Explicit Synchronization
-
+============================================================
                               Apache License
                         Version 2.0, January 2004
                      http://www.apache.org/licenses/
@@ -8425,7 +8425,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Qt 6.9.3 — Qt WebEngine — BoringSSL
-
+============================================================
 BoringSSL is a fork of OpenSSL. As such, large parts of it fall under OpenSSL
 licensing. Files that are completely new have a Google copyright and an ISC
 license. This license is reproduced at the bottom of this file.
@@ -8680,7 +8680,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — Brotli
-
+============================================================
 Copyright (c) 2009, 2010, 2013-2016 by the Brotli Authors.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -8702,7 +8702,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 Qt 6.9.3 — Qt WebEngine — C++ Signal/Slot Library
-
+============================================================
 // sigslot.h: Signal/Slot classes
 //
 // Written by Sarah Thompson (sarah@telergy.com) 2002.
@@ -8712,7 +8712,7 @@ Qt 6.9.3 — Qt WebEngine — C++ Signal/Slot Library
 // use.
 
 Qt 6.9.3 — Qt WebEngine — CRC32C
-
+============================================================
 Copyright 2017, The CRC32C Authors.
 
 Redistribution and use in source and binary forms, with or without
@@ -8743,7 +8743,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — CSP Evaluator Core Library, a tool that allows developers to check if a Content Security Policy (CSP) serves as mitigation against XSS attacks
-
+============================================================
                               Apache License
                         Version 2.0, January 2004
                      http://www.apache.org/licenses/
@@ -8947,7 +8947,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Qt 6.9.3 — Qt WebEngine — CityHash
-
+============================================================
 // Copyright (c) 2011 Google, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -8969,7 +8969,7 @@ Qt 6.9.3 — Qt WebEngine — CityHash
 // THE SOFTWARE.
 
 Qt 6.9.3 — Qt WebEngine — CodeMirror 5
-
+============================================================
 MIT License
 
 Copyright (C) 2017 by Marijn Haverbeke <marijnh@gmail.com> and others
@@ -8993,7 +8993,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 Qt 6.9.3 — Qt WebEngine — CodeMirror 6
-
+============================================================
 MIT License
 
 Copyright (C) 2018-2021 by Marijn Haverbeke <marijnh@gmail.com> and others
@@ -9017,7 +9017,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 Qt 6.9.3 — Qt WebEngine — Compact Encoding Detection
-
+============================================================
                               Apache License
                         Version 2.0, January 2004
                      http://www.apache.org/licenses/
@@ -9221,7 +9221,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Qt 6.9.3 — Qt WebEngine — Compact Language Detector v3
-
+============================================================
 Copyright 2016 Google Inc.  All rights reserved.
 
                                  Apache License
@@ -9427,7 +9427,7 @@ Copyright 2016 Google Inc.  All rights reserved.
    limitations under the License.
 
 Qt 6.9.3 — Qt WebEngine — Crashpad
-
+============================================================
                               Apache License
                         Version 2.0, January 2004
                      http://www.apache.org/licenses/
@@ -9631,7 +9631,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Qt 6.9.3 — Qt WebEngine — Dawn
-
+============================================================
 // Copyright 2017-2023 The Dawn & Tint Authors
 //
 // Redistribution and use in source and binary forms, with or without
@@ -9660,7 +9660,7 @@ Qt 6.9.3 — Qt WebEngine — Dawn
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — Devtools-Frontend
-
+============================================================
 // Copyright 2014 The Chromium Authors. All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -9690,7 +9690,7 @@ Qt 6.9.3 — Qt WebEngine — Devtools-Frontend
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — Emoji Segmenter
-
+============================================================
                               Apache License
                         Version 2.0, January 2004
                      http://www.apache.org/licenses/
@@ -9894,7 +9894,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Qt 6.9.3 — Qt WebEngine — Expat XML Parser
-
+============================================================
 Copyright (c) 1998-2000 Thai Open Source Software Center Ltd and Clark Cooper
 Copyright (c) 2001-2025 Expat maintainers
 
@@ -9918,7 +9918,7 @@ TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 Qt 6.9.3 — Qt WebEngine — FP16
-
+============================================================
 The MIT License (MIT)
 
 Copyright (c) 2017 Facebook Inc.
@@ -9932,7 +9932,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 Qt 6.9.3 — Qt WebEngine — Fiat-Crypto: Synthesizing Correct-by-Construction Code for Cryptographic Primitives
-
+============================================================
 The MIT License (MIT)
 
 Copyright (c) 2015-2020 the fiat-crypto authors (see
@@ -9957,7 +9957,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 Qt 6.9.3 — Qt WebEngine — FlatBuffers
-
+============================================================
                               Apache License
                         Version 2.0, January 2004
                      http://www.apache.org/licenses/
@@ -10161,7 +10161,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Qt 6.9.3 — Qt WebEngine — General Purpose FFT (Fast Fourier/Cosine/Sine Transform) Package
-
+============================================================
 /*
  * http://www.kurims.kyoto-u.ac.jp/~ooura/fft.html
  * Copyright Takuya OOURA, 1996-2001
@@ -10172,7 +10172,7 @@ Qt 6.9.3 — Qt WebEngine — General Purpose FFT (Fast Fourier/Cosine/Sine Tran
  * /
 
 Qt 6.9.3 — Qt WebEngine — Google Double Conversion
-
+============================================================
 Copyright 2006-2011, the V8 project authors. All rights reserved.
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -10201,7 +10201,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — Headers for the Windows 10 WebAuthn API (webauthn.dll)
-
+============================================================
 MIT License
 
 Copyright (c) Microsoft Corporation. All rights reserved.
@@ -10225,7 +10225,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE
 
 Qt 6.9.3 — Qt WebEngine — Highway: C++ library for SIMD
-
+============================================================
                               Apache License
                         Version 2.0, January 2004
                      http://www.apache.org/licenses/
@@ -10429,7 +10429,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Qt 6.9.3 — Qt WebEngine — Implementation of WebDriver BiDi standard
-
+============================================================
                               Apache License
                         Version 2.0, January 2004
                      http://www.apache.org/licenses/
@@ -10633,7 +10633,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Qt 6.9.3 — Qt WebEngine — LevelDB: A Fast Persistent Key-Value Store
-
+============================================================
 Copyright (c) 2011 The LevelDB Authors. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -10663,7 +10663,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — Lighthouse
-
+============================================================
                               Apache License
                         Version 2.0, January 2004
                      http://www.apache.org/licenses/
@@ -10867,7 +10867,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Qt 6.9.3 — Qt WebEngine — Lighthouse i18n.js
-
+============================================================
                               Apache License
                         Version 2.0, January 2004
                      http://www.apache.org/licenses/
@@ -11071,7 +11071,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Qt 6.9.3 — Qt WebEngine — Lit
-
+============================================================
 BSD 3-Clause License
 
 Copyright (c) 2017 Google LLC. All rights reserved.
@@ -11102,7 +11102,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — Marked
-
+============================================================
 ## Marked
 
 Copyright (c) 2011-2018, Christopher Jeffrey (https://github.com/chjj/)
@@ -11144,7 +11144,7 @@ or business interruption) however caused and on any theory of liability, whether
 out of the use of this software, even if advised of the possibility of such damage.
 
 Qt 6.9.3 — Qt WebEngine — Material color utilities
-
+============================================================
                               Apache License
                         Version 2.0, January 2004
                      http://www.apache.org/licenses/
@@ -11348,7 +11348,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Qt 6.9.3 — Qt WebEngine — Metrics Protos
-
+============================================================
 // Copyright 2015 The Chromium Authors
 //
 // Redistribution and use in source and binary forms, with or without
@@ -11378,7 +11378,7 @@ Qt 6.9.3 — Qt WebEngine — Metrics Protos
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — NVidia Control X Extension Library
-
+============================================================
 /*
  * Copyright (c) 2008 NVIDIA, Corporation
  *
@@ -11403,7 +11403,7 @@ Qt 6.9.3 — Qt WebEngine — NVidia Control X Extension Library
  * /
 
 Qt 6.9.3 — Qt WebEngine — OTS (OpenType Sanitizer)
-
+============================================================
 Copyright (c) 2009-2017 The OTS Authors. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -11433,7 +11433,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — One Euro Filter
-
+============================================================
 Copyright 2019 Inria
 Author: Nicolas Roussel (nicolas.roussel@inria.fr)
 
@@ -11465,7 +11465,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — PDFium
-
+============================================================
 // Copyright 2014 The PDFium Authors
 //
 // Redistribution and use in source and binary forms, with or without
@@ -11698,7 +11698,7 @@ Qt 6.9.3 — Qt WebEngine — PDFium
    limitations under the License.
 
 Qt 6.9.3 — Qt WebEngine — PFFFT: a pretty fast FFT.
-
+============================================================
 Copyright (c) 2013  Julien Pommier ( pommier@modartt.com )
 
 Based on original fortran 77 code from FFTPACKv4 from NETLIB,
@@ -11746,7 +11746,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS WITH THE
 SOFTWARE.
 
 Qt 6.9.3 — Qt WebEngine — PSM (Private Set Membership) client side
-
+============================================================
 Copyright 2020 Google LLC
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -11966,7 +11966,7 @@ limitations under the License.
 
 
 Qt 6.9.3 — Qt WebEngine — Paul Hsieh&#x27;s SuperFastHash
-
+============================================================
 Paul Hsieh OLD BSD license
 
 Copyright (c) 2010, Paul Hsieh
@@ -11996,7 +11996,7 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — Perfetto
-
+============================================================
                                  Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/
@@ -12234,7 +12234,7 @@ May you find forgiveness for yourself and forgive others.
 May you share freely, never taking more than you give.
 
 Qt 6.9.3 — Qt WebEngine — Polymer
-
+============================================================
 // Copyright (c) 2012 The Polymer Authors. All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -12264,7 +12264,7 @@ Qt 6.9.3 — Qt WebEngine — Polymer
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — Protocol Buffers
-
+============================================================
 Copyright 2008 Google Inc.  All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -12299,7 +12299,7 @@ standalone and requires a support library to be linked with it.  This
 support library is itself covered by the above license.
 
 Qt 6.9.3 — Qt WebEngine — Protocol Buffers (javascript)
-
+============================================================
 BSD 3-Clause License
 
 Copyright (c) 2022, Google Inc.
@@ -12331,7 +12331,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — Puppeteer Core
-
+============================================================
                               Apache License
                         Version 2.0, January 2004
                      https://www.apache.org/licenses/
@@ -12535,7 +12535,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Qt 6.9.3 — Qt WebEngine — QUICHE
-
+============================================================
 // Copyright 2015 The Chromium Authors. All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -12565,7 +12565,7 @@ Qt 6.9.3 — Qt WebEngine — QUICHE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — Recurrent neural network for audio noise reduction
-
+============================================================
 Copyright (c) 2017, Mozilla
 Copyright (c) 2007-2017, Jean-Marc Valin
 Copyright (c) 2005-2017, Xiph.Org Foundation
@@ -12599,7 +12599,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — SPIR-V Headers
-
+============================================================
                               Apache License
                         Version 2.0, January 2004
                      http://www.apache.org/licenses/
@@ -12803,7 +12803,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Qt 6.9.3 — Qt WebEngine — SPIR-V Tools
-
+============================================================
                               Apache License
                         Version 2.0, January 2004
                      http://www.apache.org/licenses/
@@ -13007,7 +13007,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Qt 6.9.3 — Qt WebEngine — Selenium Atoms
-
+============================================================
                               Apache License
                         Version 2.0, January 2004
                      http://www.apache.org/licenses/
@@ -13211,7 +13211,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Qt 6.9.3 — Qt WebEngine — Simple Homomorphic Encryption Library with Lattices
-
+============================================================
                               Apache License
                         Version 2.0, January 2004
                      http://www.apache.org/licenses/
@@ -13415,7 +13415,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Qt 6.9.3 — Qt WebEngine — Sizzle
-
+============================================================
 MIT License
 ----
 
@@ -13440,7 +13440,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 Qt 6.9.3 — Qt WebEngine — Snappy: A fast compressor/decompressor
-
+============================================================
 Copyright 2011, Google Inc.
 All rights reserved.
 
@@ -13497,7 +13497,7 @@ Some of the benchmark data in testdata/ is licensed differently:
    (http://www.gutenberg.org/ebooks/53).
 
 Qt 6.9.3 — Qt WebEngine — Speech Dispatcher
-
+============================================================
                   GNU LESSER GENERAL PUBLIC LICENSE
                        Version 2.1, February 1999
 
@@ -14002,7 +14002,7 @@ necessary.  Here is a sample; alter the names:
 That's all there is to it!
 
 Qt 6.9.3 — Qt WebEngine — The Chromium Project
-
+============================================================
 // Copyright 2015 The Chromium Authors
 //
 // Redistribution and use in source and binary forms, with or without
@@ -14032,7 +14032,7 @@ Qt 6.9.3 — Qt WebEngine — The Chromium Project
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — The Diff Match and Patch libraries offer robust algorithms to perform the operations required for synchronizing plain text.
-
+============================================================
                               Apache License
                         Version 2.0, January 2004
                      http://www.apache.org/licenses/
@@ -14236,7 +14236,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Qt 6.9.3 — Qt WebEngine — The Incremental Distributed Point Functions library
-
+============================================================
                               Apache License
                         Version 2.0, January 2004
                      http://www.apache.org/licenses/
@@ -14440,7 +14440,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Qt 6.9.3 — Qt WebEngine — URI Template Parser
-
+============================================================
                               Apache License
                         Version 2.0, January 2004
                      http://www.apache.org/licenses/
@@ -14644,7 +14644,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Qt 6.9.3 — Qt WebEngine — URL Pattern Library
-
+============================================================
 The MIT License (MIT)
 
 Copyright 2020 The Chromium Authors
@@ -14669,7 +14669,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 Qt 6.9.3 — Qt WebEngine — V8 fork of fdlibm
-
+============================================================
 Copyright (C) 1993-2004 by Sun Microsystems, Inc. All rights reserved.
 
 Developed at SunSoft, a Sun Microsystems, Inc. business.
@@ -14678,7 +14678,7 @@ software is freely granted, provided that this notice
 is preserved.
 
 Qt 6.9.3 — Qt WebEngine — Volk Meta loader for Vulkan API
-
+============================================================
 Copyright (c) 2018-2019 Arseny Kapoulkine
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -14700,7 +14700,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 Qt 6.9.3 — Qt WebEngine — Vulkan API headers
-
+============================================================
                               Apache License
                         Version 2.0, January 2004
                      http://www.apache.org/licenses/
@@ -14904,7 +14904,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Qt 6.9.3 — Qt WebEngine — Vulkan Loader Components
-
+============================================================
 The majority of files in this project use the Apache 2.0 License.
 There are a few exceptions and their license can be found in the source.
 Any license deviations from Apache 2.0 are "more permissive" licenses.
@@ -15114,7 +15114,7 @@ Any license deviations from Apache 2.0 are "more permissive" licenses.
    limitations under the License.
 
 Qt 6.9.3 — Qt WebEngine — VulkanMemoryAllocator
-
+============================================================
 Copyright (c) 2017-2022 Advanced Micro Devices, Inc. All rights reserved.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -15136,7 +15136,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 Qt 6.9.3 — Qt WebEngine — Wasmparser
-
+============================================================
                               Apache License
                         Version 2.0, January 2004
                      http://www.apache.org/licenses/
@@ -15315,7 +15315,7 @@ TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
 END OF TERMS AND CONDITIONS
 
 Qt 6.9.3 — Qt WebEngine — Web Vitals
-
+============================================================
                               Apache License
                         Version 2.0, January 2004
                      http://www.apache.org/licenses/
@@ -15519,7 +15519,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Qt 6.9.3 — Qt WebEngine — WebKit
-
+============================================================
 (WebKit doesn't distribute an explicit license.  This LICENSE is derived from
 license text in the source.)
 
@@ -16489,7 +16489,7 @@ DAMAGES.
                      END OF TERMS AND CONDITIONS
 
 Qt 6.9.3 — Qt WebEngine — WebM container parser and writer.
-
+============================================================
 Copyright (c) 2010, Google Inc. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -16521,7 +16521,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — WebP image encoder/decoder
-
+============================================================
 Copyright (c) 2010, Google Inc. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -16577,7 +16577,7 @@ for these implementations of WebM shall terminate as of the date such
 litigation is filed.
 
 Qt 6.9.3 — Qt WebEngine — WebRTC
-
+============================================================
 Copyright (c) 2011, The WebRTC project authors. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -16609,7 +16609,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — Wicked Good XPath
-
+============================================================
 The MIT License
 
 Copyright (c) 2007 Cybozu Labs, Inc.
@@ -16634,7 +16634,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 Qt 6.9.3 — Qt WebEngine — Wuffs (Wrangling Untrusted File Formats Safely)
-
+============================================================
                               Apache License
                         Version 2.0, January 2004
                      http://www.apache.org/licenses/
@@ -16838,7 +16838,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Qt 6.9.3 — Qt WebEngine — Zstandard
-
+============================================================
 BSD License
 
 For Zstandard software
@@ -16871,7 +16871,7 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — cpuinfo
-
+============================================================
 Copyright (c) 2019 Google LLC
 Copyright (c) 2017-2018 Facebook Inc.
 Copyright (C) 2012-2017 Georgia Institute of Technology
@@ -16901,7 +16901,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — d3
-
+============================================================
 Copyright 2010-2023 Mike Bostock
 
 Permission to use, copy, modify, and/or distribute this software for any purpose
@@ -16917,7 +16917,7 @@ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 
 Qt 6.9.3 — Qt WebEngine — dav1d is an AV1 decoder :)
-
+============================================================
 Copyright © 2018, VideoLAN and dav1d authors
 All rights reserved.
 
@@ -16943,7 +16943,7 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — fast_float
-
+============================================================
 MIT License
 
 Copyright (c) 2021 The fast_float authors
@@ -16973,7 +16973,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 Qt 6.9.3 — Qt WebEngine — ffmpeg
-
+============================================================
 # License
 
 Most files in FFmpeg are under the GNU Lesser General Public License version 2.1
@@ -17737,7 +17737,7 @@ necessary.  Here is a sample; alter the names:
 That's all there is to it!
 
 Qt 6.9.3 — Qt WebEngine — flac
-
+============================================================
 Copyright (C) 2000-2009  Josh Coalson
 Copyright (C) 2011-2022  Xiph.Org Foundation
 
@@ -17769,7 +17769,7 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — fontconfig
-
+============================================================
 fontconfig/COPYING
 
 Copyright © 2000,2001,2002,2003,2004,2006,2007 Keith Packard
@@ -17972,7 +17972,7 @@ fontconfig/src/ftglue.[ch]
  * /
 
 Qt 6.9.3 — Qt WebEngine — google-glog&#x27;s symbolization library
-
+============================================================
 // Copyright (c) 2006, Google Inc.
 // All rights reserved.
 //
@@ -18003,7 +18003,7 @@ Qt 6.9.3 — Qt WebEngine — google-glog&#x27;s symbolization library
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — google-jstemplate
-
+============================================================
                               Apache License
                         Version 2.0, January 2004
                      http://www.apache.org/licenses/
@@ -18207,7 +18207,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Qt 6.9.3 — Qt WebEngine — harfbuzz-ng
-
+============================================================
 HarfBuzz is licensed under the so-called "Old MIT" license.  Details follow.
 For parts of HarfBuzz that are licensed under different licenses see individual
 files names COPYING in subdirectories where applicable.
@@ -18252,7 +18252,7 @@ ON AN "AS IS" BASIS, AND THE COPYRIGHT HOLDER HAS NO OBLIGATION TO
 PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 
 Qt 6.9.3 — Qt WebEngine — hunspell
-
+============================================================
                           MOZILLA PUBLIC LICENSE
                                 Version 1.1
 
@@ -18724,7 +18724,7 @@ EXHIBIT A -Mozilla Public License.
      Original Code Source Code for Your Modifications.]
 
 Qt 6.9.3 — Qt WebEngine — icu
-
+============================================================
 UNICODE LICENSE V3
 
 COPYRIGHT AND PERMISSION NOTICE
@@ -19239,7 +19239,7 @@ suitability of this software for any purpose.  It is provided "as is"
 without express or implied warranty.
 
 Qt 6.9.3 — Qt WebEngine — inspector protocol
-
+============================================================
 // Copyright 2016 The Chromium Authors. All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -19269,7 +19269,7 @@ Qt 6.9.3 — Qt WebEngine — inspector protocol
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — intl-messageformat
-
+============================================================
 Copyright (c) 2019, Oath Inc.
 
 Licensed under the terms of the New BSD license. See below for terms.
@@ -19305,7 +19305,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — ipcz
-
+============================================================
 // Copyright 2022 The Chromium Authors
 //
 // Redistribution and use in source and binary forms, with or without
@@ -19335,7 +19335,7 @@ Qt 6.9.3 — Qt WebEngine — ipcz
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — jsoncpp
-
+============================================================
 The JsonCpp library's source code, including accompanying documentation,
 tests and demonstration applications, are licensed under the following
 conditions...
@@ -19393,7 +19393,7 @@ Public Domain "license" you can re-license your copy using whatever
 license you like.
 
 Qt 6.9.3 — Qt WebEngine — libaddressinput
-
+============================================================
                               Apache License
                         Version 2.0, January 2004
                      http://www.apache.org/licenses/
@@ -19597,7 +19597,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Qt 6.9.3 — Qt WebEngine — libavif - Library for encoding and decoding .avif files
-
+============================================================
 Copyright 2019 Joe Drago. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -19646,7 +19646,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 Qt 6.9.3 — Qt WebEngine — libavif - Library for extracting metadata from .avif files
-
+============================================================
 Copyright (c) 2021, Alliance for Open Media. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -19675,7 +19675,7 @@ ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — libevent
-
+============================================================
 Libevent is available for use under the following license, commonly known
 as the 3-clause (or "modified") BSD license:
 
@@ -19731,7 +19731,7 @@ tree.h:
    Copyright 2002 Niels Provos <provos@citi.umich.edu>
 
 Qt 6.9.3 — Qt WebEngine — libgav1
-
+============================================================
                               Apache License
                         Version 2.0, January 2004
                      http://www.apache.org/licenses/
@@ -19935,7 +19935,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Qt 6.9.3 — Qt WebEngine — libpng
-
+============================================================
 COPYRIGHT NOTICE, DISCLAIMER, and LICENSE
 =========================================
 
@@ -20072,7 +20072,7 @@ this source code in a product, acknowledgment is not required but would
 be appreciated.
 
 Qt 6.9.3 — Qt WebEngine — libsrtp
-
+============================================================
 /*
  *
  * Copyright (c) 2001-2017 Cisco Systems, Inc.
@@ -20110,7 +20110,7 @@ Qt 6.9.3 — Qt WebEngine — libsrtp
  * /
 
 Qt 6.9.3 — Qt WebEngine — libvpx
-
+============================================================
 Copyright (c) 2010, The WebM Project authors. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -20143,7 +20143,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — libxml
-
+============================================================
 Except where otherwise noted in the source code (e.g. the files dict.c and
 list.c, which are covered by a similar licence but with different Copyright
 notices) all the files are:
@@ -20169,7 +20169,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 Qt 6.9.3 — Qt WebEngine — libxslt
-
+============================================================
 Licence for libxslt except libexslt
 ----------------------------------------------------------------------
  Copyright (C) 2001-2002 Daniel Veillard.  All Rights Reserved.
@@ -20225,7 +20225,7 @@ ings in this Software without prior written authorization from him.
 ----------------------------------------------------------------------
 
 Qt 6.9.3 — Qt WebEngine — libyuv
-
+============================================================
 Copyright 2011 The LibYuv Project Authors. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -20257,7 +20257,7 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — mesa_headers
-
+============================================================
 The Mesa header files use the following licenses.
 
 ================================================================================
@@ -20301,7 +20301,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 Except as contained in this notice, the name of Silicon Graphics, Inc. shall not be used in advertising or otherwise to promote the sale, use or other dealings in this Software without prior written authorization from Silicon Graphics, Inc.
 
 Qt 6.9.3 — Qt WebEngine — minigbm
-
+============================================================
 // Copyright 2014 The Chromium OS Authors. All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -20331,7 +20331,7 @@ Qt 6.9.3 — Qt WebEngine — minigbm
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — mitt
-
+============================================================
 MIT License
 
 Copyright (c) 2021 Jason Miller
@@ -20355,7 +20355,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 Qt 6.9.3 — Qt WebEngine — modp base64 decoder
-
+============================================================
 * MODP_B64 - High performance base64 encoder/decoder
 * Version 1.3 -- 17-Mar-2006
 * http://modp.com/release/base64
@@ -20391,7 +20391,7 @@ Qt 6.9.3 — Qt WebEngine — modp base64 decoder
 * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — opus
-
+============================================================
 Copyright 2001-2011 Xiph.Org, Skype Limited, Octasic,
                     Jean-Marc Valin, Timothy B. Terriberry,
                     CSIRO, Gregory Maxwell, Mark Borgerding,
@@ -20438,7 +20438,7 @@ Broadcom Corporation:
 https://datatracker.ietf.org/ipr/1526/
 
 Qt 6.9.3 — Qt WebEngine — rapidhash
-
+============================================================
 /*
  * rapidhash - Very fast, high quality, platform independant hashing algorithm.
  * Copyright (C) 2024 Nicolas De Carli
@@ -20475,7 +20475,7 @@ Qt 6.9.3 — Qt WebEngine — rapidhash
  * /
 
 Qt 6.9.3 — Qt WebEngine — re2 - an efficient, principled regular expression library
-
+============================================================
 // Copyright (c) 2009 The RE2 Authors. All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -20505,7 +20505,7 @@ Qt 6.9.3 — Qt WebEngine — re2 - an efficient, principled regular expression 
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt WebEngine — sql sqrt floor
-
+============================================================
 /*
  * Written by Wilco Dijkstra, 1996. The following email exchange establishes the
  * license.
@@ -20535,7 +20535,7 @@ Qt 6.9.3 — Qt WebEngine — sql sqrt floor
  * /
 
 Qt 6.9.3 — Qt WebEngine — sqlite
-
+============================================================
 The author disclaims copyright to this source code.  In place of
 a legal notice, here is a blessing:
 
@@ -20544,7 +20544,7 @@ a legal notice, here is a blessing:
    May you share freely, never taking more than you give.
 
 Qt 6.9.3 — Qt WebEngine — third-party-web
-
+============================================================
 The MIT License (MIT)
 Copyright (c) 2019 Patrick Hulce
 
@@ -20567,7 +20567,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 Qt 6.9.3 — Qt WebEngine — woff2
-
+============================================================
 Copyright (c) 2013-2017 by the WOFF2 Authors.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -20589,7 +20589,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 Qt 6.9.3 — Qt WebEngine — xdg-user-dirs
-
+============================================================
 Copyright (c) 2007 Red Hat, inc
 
 Permission is hereby granted, free of charge, to any person
@@ -20613,7 +20613,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 Qt 6.9.3 — Qt WebEngine — zlib
-
+============================================================
 version 1.2.12, March 27th, 2022
 
 Copyright (C) 1995-2022 Jean-loup Gailly and Mark Adler
@@ -20635,7 +20635,7 @@ freely, subject to the following restrictions:
 3. This notice may not be removed or altered from any source distribution.
 
 Qt 6.9.3 — Qt WebEngine — zod
-
+============================================================
 MIT License
 
 Copyright (c) 2020 Colin McDonnell
@@ -20658,7 +20658,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 
 Qt 6.9.3 — Qt PDF — Abseil
-
+============================================================
                               Apache License
                         Version 2.0, January 2004
                      https://www.apache.org/licenses/
@@ -20862,7 +20862,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 Qt 6.9.3 — Qt PDF — FreeType
-
+============================================================
                     The FreeType Project LICENSE
                     ----------------------------
 
@@ -21034,7 +21034,7 @@ Legal Terms
 --- end of FTL.TXT ---
 
 Qt 6.9.3 — Qt PDF — PDFium
-
+============================================================
 // Copyright 2014 The PDFium Authors
 //
 // Redistribution and use in source and binary forms, with or without
@@ -21267,7 +21267,7 @@ Qt 6.9.3 — Qt PDF — PDFium
    limitations under the License.
 
 Qt 6.9.3 — Qt PDF — The Chromium Project
-
+============================================================
 // Copyright 2015 The Chromium Authors
 //
 // Redistribution and use in source and binary forms, with or without
@@ -21297,7 +21297,7 @@ Qt 6.9.3 — Qt PDF — The Chromium Project
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Qt 6.9.3 — Qt PDF — harfbuzz-ng
-
+============================================================
 HarfBuzz is licensed under the so-called "Old MIT" license.  Details follow.
 For parts of HarfBuzz that are licensed under different licenses see individual
 files names COPYING in subdirectories where applicable.
@@ -21342,7 +21342,7 @@ ON AN "AS IS" BASIS, AND THE COPYRIGHT HOLDER HAS NO OBLIGATION TO
 PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
 
 Qt 6.9.3 — Qt PDF — icu
-
+============================================================
 UNICODE LICENSE V3
 
 COPYRIGHT AND PERMISSION NOTICE
@@ -21857,7 +21857,7 @@ suitability of this software for any purpose.  It is provided "as is"
 without express or implied warranty.
 
 Qt 6.9.3 — Qt PDF — libjpeg-turbo
-
+============================================================
 libjpeg-turbo Licenses
 ======================
 
@@ -21992,7 +21992,7 @@ desirable to choose a license that granted us the same protections for new code
 that were granted to the IJG for code derived from their software.
 
 Qt 6.9.3 — Qt PDF — libpng
-
+============================================================
 COPYRIGHT NOTICE, DISCLAIMER, and LICENSE
 =========================================
 
@@ -22129,7 +22129,7 @@ this source code in a product, acknowledgment is not required but would
 be appreciated.
 
 Qt 6.9.3 — Qt PDF — zlib
-
+============================================================
 version 1.2.12, March 27th, 2022
 
 Copyright (C) 1995-2022 Jean-loup Gailly and Mark Adler
@@ -22151,7 +22151,7 @@ freely, subject to the following restrictions:
 3. This notice may not be removed or altered from any source distribution.
 
 Qt 6.9.3 — qtimageformats — TIFF Software Distribution (libtiff)
-
+============================================================
 Copyright (c) 1988-1997 Sam Leffler
 Copyright (c) 1991-1997 Silicon Graphics, Inc.
 
@@ -22175,7 +22175,7 @@ LIABILITY, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE
 OF THIS SOFTWARE.
 
 Qt 6.9.3 — qtimageformats — WebP (libwebp)
-
+============================================================
 Copyright (c) 2010, Google Inc. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -22229,3 +22229,30 @@ constitute direct or contributory patent infringement, or inducement of
 patent infringement, then any patent rights granted to you under this License
 for these implementations of WebM shall terminate as of the date such
 litigation is filed.
+
+comtypes 1.4.17
+============================================================
+This software is OSI Certified Open Source Software.
+OSI Certified is a certification mark of the Open Source Initiative.
+
+Copyright (c) 2006-2013, Thomas Heller.
+Copyright (c) 2014, Comtypes Developers.
+All rights reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.

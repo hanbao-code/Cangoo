@@ -1,0 +1,35 @@
+/* 帮助沿用主界面的主题、字号与键盘焦点机制。 */
+#page-help.active{display:flex;flex-direction:column;gap:18px;height:100%;min-height:0}
+.help-tabs{display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0}
+.help-tab,.help-contents button{font:inherit;color:var(--text-secondary);background:transparent;border:1px solid transparent;border-radius:var(--r-btn);cursor:pointer;text-align:left}
+.help-tab{padding:10px 18px;font-weight:600}
+.help-tab:hover,.help-contents button:hover{background:var(--hover);color:var(--text-primary)}
+.help-tab.active,.help-contents button.active{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-border)}
+.help-layout{display:grid;grid-template-columns:205px minmax(0,1fr);gap:22px;min-height:0;flex:1}
+.help-contents{display:flex;flex-direction:column;gap:4px;overflow:auto;padding:2px 6px 8px 2px}
+.help-contents button{padding:10px 12px;line-height:1.5;flex-shrink:0}
+.help-article{min-width:0;min-height:0;overflow:auto;padding:24px 30px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-card);line-height:1.85;color:var(--text-primary);overflow-wrap:anywhere;flex:1}
+.help-article h2{font-size:calc(22px * var(--pdm-ui-font-scale));line-height:1.4;margin:0 0 18px}
+.help-article h3{font-size:calc(16px * var(--pdm-ui-font-scale));margin:24px 0 8px;line-height:1.5}
+.help-article p,.help-article ol,.help-article ul{margin:0 0 14px}
+.help-article ol,.help-article ul{padding-left:24px}
+.help-article li{margin:7px 0}
+.help-article code{font-family:var(--font-mono);background:var(--bg-deepest);padding:2px 5px;border-radius:4px}
+.help-article pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:calc(12px * var(--pdm-ui-font-scale));background:var(--bg-deepest);padding:16px;border-radius:var(--r-card)}
+.help-article figure{margin:24px 0 8px}
+.help-article img{display:block;width:100%;height:auto;border:1px solid var(--border);border-radius:var(--r-card)}
+.help-article figcaption{color:var(--text-secondary);font-size:calc(12px * var(--pdm-ui-font-scale));margin-top:8px}
+.help-pagination{display:flex;justify-content:space-between;gap:12px;margin-top:24px}
+.help-licenses summary{cursor:pointer;width:fit-content;padding:8px 14px;border:1px solid var(--accent-border);border-radius:var(--r-btn);background:var(--accent-soft);color:var(--accent-text);font-weight:600}
+.help-licenses summary:hover{background:var(--hover)}
+.help-licenses[open] summary{margin-bottom:18px}
+.help-license-view{display:flex;flex-direction:column;gap:12px;flex:1;min-height:0}
+.help-license-toolbar{display:flex;align-items:center;gap:14px;flex-shrink:0}
+.help-license-toolbar h2{font-size:calc(18px * var(--pdm-ui-font-scale));line-height:1.4;margin:0;overflow-wrap:anywhere}
+.help-license-links{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}
+.help-license-list{display:flex;flex-direction:column;align-items:stretch;gap:8px}
+.help-license-list button{text-align:left;white-space:normal}
+.help-updates{margin:20px 0;border:1px solid var(--border);border-radius:var(--r-card);overflow:hidden}
+.help-updates .setting-row{padding:16px}
+.help-updates .update-release summary{padding:0;border:0;background:none;font-weight:400}
+@media(max-width:850px){.help-layout{grid-template-columns:160px minmax(0,1fr);gap:12px}.help-article{padding:18px}.help-tab{padding:9px 12px}}

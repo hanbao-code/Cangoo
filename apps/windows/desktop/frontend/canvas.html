@@ -1,0 +1,551 @@
+<!-- ============================================================
+     启动页
+     ============================================================ -->
+<div id="startup-page">
+  <!-- 启动页内嵌于主窗口主显示区，标题栏由 #main-app 的 .window-titlebar 统一提供，此处不再重复 -->
+  <div class="startup-card">
+    <div class="startup-header">
+      <div class="startup-logo"><span class="brand-mark" aria-hidden="true"></span>
+      </div>
+      <div class="startup-heading">
+        <h1 class="startup-title" data-i18n="startup.title">小仓</h1>
+        <p class="startup-subtitle" data-i18n="startup.subtitle">打开已有数据库，或选择新路径创建</p>
+      </div>
+    </div>
+    <div class="startup-content">
+      <div class="field-group">
+        <label class="field-label" for="db-path" data-i18n="startup.label.path">数据库路径</label>
+        <div class="input-row">
+          <input type="text" class="input" id="db-path" value="C:\Users\demo\Documents\pdm.db" placeholder="输入或选择数据库路径" data-i18n-placeholder="startup.input.path.placeholder">
+          <button type="button" class="browse-btn" data-pdm-onclick="browseDatabase()" aria-label="浏览数据库" data-i18n-aria-label="startup.button.browse">...</button>
+        </div>
+      </div>
+
+      <div class="field-group">
+        <label class="field-label" for="db-password" data-i18n="startup.label.password">主密码</label>
+        <div class="password-wrap">
+          <input type="password" class="input" id="db-password" value="Demo@Pass2026" placeholder="输入主密码" data-i18n-placeholder="startup.input.password.placeholder">
+          <button type="button" class="eye-btn" data-pdm-onclick="toggleStartupPassword()" aria-label="显示密码" aria-pressed="false">
+            <span id="startup-eye" class="pdm-inline-d7db16a373"><svg class="svg-fill" width="16" height="16" viewBox="0 0 256 256" aria-hidden="true"><path d="M247.31,124.76c-.35-.79-8.82-19.58-27.65-38.41C194.57,61.26,162.88,48,128,48S61.43,61.26,36.34,86.35C17.51,105.18,9,124,8.69,124.76a8,8,0,0,0,0,6.5c.35.79,8.82,19.57,27.65,38.4C61.43,194.74,93.12,208,128,208s66.57-13.26,91.66-38.34c18.83-18.83,27.3-37.61,27.65-38.4A8,8,0,0,0,247.31,124.76ZM128,168a40,40,0,1,1,40-40A40,40,0,0,1,128,168Z"/></svg></span>
+          </button>
+        </div>
+      </div>
+
+      <button class="connect-btn" data-pdm-onclick="connectDatabase()" data-i18n="startup.button.connect">连接 / 创建</button>
+      <div class="connection-feedback" id="connection-feedback" role="status"
+           aria-live="polite" aria-atomic="true" aria-hidden="true"></div>
+
+      <div class="startup-divider" data-i18n="startup.divider.recent">最近使用</div>
+      <ul class="recent-list" id="recent-list"></ul>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     主界面
+     ============================================================ -->
+<div id="main-app" role="group" aria-label="小仓工作区"
+     data-i18n-aria-label="app.workspace">
+
+  <!-- 窗口标题栏 -->
+  <div class="window-titlebar">
+    <div class="titlebar-left">
+      <span class="titlebar-icon"><span class="brand-mark" aria-hidden="true"></span>
+      </span>
+      <span data-i18n="titlebar.app.title">小仓</span>
+    </div>
+    <div class="titlebar-controls">
+      <button class="titlebar-ctrl" title="最小化" data-i18n-title="titlebar.button.minimize" data-pdm-onclick="windowMinimize()">—</button>
+      <button class="titlebar-ctrl" title="最大化" aria-label="最大化" data-i18n-title="titlebar.button.maximize" data-pdm-window-control="maximize" data-pdm-window-state="normal" data-pdm-onclick="windowMaximize()">
+        <svg class="titlebar-window-icon titlebar-window-icon-maximize" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+          <rect x="1.25" y="1.25" width="9.5" height="9.5" rx=".25"/>
+        </svg>
+        <svg class="titlebar-window-icon titlebar-window-icon-restore" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M3.25 1.25h7.5v7.5h-2M1.25 3.25h7.5v7.5h-7.5z"/>
+        </svg>
+      </button>
+      <button class="titlebar-ctrl close" title="关闭" data-i18n-title="titlebar.button.close" data-pdm-onclick="windowClose()">✕</button>
+    </div>
+  </div>
+
+  <!-- 侧边栏 -->
+  <nav class="sidebar">
+    <div class="sidebar-logo"><span class="brand-mark" aria-hidden="true"></span>
+    </div>
+    <button type="button" class="nav-item active" data-nav="vault" data-pdm-onclick="navigateTo('vault')">
+      <span class="nav-icon"><svg class="svg-fill" width="22" height="22" viewBox="0 0 256 256" aria-hidden="true"><path d="M216.57,39.43A80,80,0,0,0,83.91,120.78L28.69,176A15.86,15.86,0,0,0,24,187.31V216a16,16,0,0,0,16,16H72a8,8,0,0,0,8-8V208H96a8,8,0,0,0,8-8V184h16a8,8,0,0,0,5.66-2.34l9.56-9.57A79.73,79.73,0,0,0,160,176h.1A80,80,0,0,0,216.57,39.43ZM180,92a16,16,0,1,1,16-16A16,16,0,0,1,180,92Z"/></svg></span><span class="nav-label" data-i18n="nav.vault">密码库</span>
+    </button>
+    <button type="button" class="nav-item" data-nav="notes" data-pdm-onclick="navigateTo('notes')">
+      <span class="nav-icon"><svg class="svg-fill" width="22" height="22" viewBox="0 0 256 256" aria-hidden="true"><path d="M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32ZM80,208H48V48H80Zm96-56H112a8,8,0,0,1,0-16h64a8,8,0,0,1,0,16Zm0-32H112a8,8,0,0,1,0-16h64a8,8,0,0,1,0,16Z"/></svg></span><span class="nav-label" data-i18n="nav.notes">记事本</span>
+    </button>
+    <button type="button" class="nav-item" data-nav="security" data-pdm-onclick="navigateTo('security')">
+      <span class="nav-icon"><svg class="svg-fill" width="22" height="22" viewBox="0 0 256 256" aria-hidden="true"><path d="M224,56v56c0,52.72-25.52,84.67-46.93,102.19-23.06,18.86-46,25.27-47,25.53a8,8,0,0,1-4.2,0c-1-.26-23.91-6.67-47-25.53C57.52,196.67,32,164.72,32,112V56A16,16,0,0,1,48,40H208A16,16,0,0,1,224,56Z"/></svg></span><span class="nav-label" data-i18n="nav.security">体检</span>
+    </button>
+    <button type="button" class="nav-item" data-nav="tools" data-pdm-onclick="navigateTo('tools')">
+      <span class="nav-icon"><svg class="svg-fill" width="22" height="22" viewBox="0 0 256 256" aria-hidden="true"><path d="M232,96a72,72,0,0,1-100.94,66L79,222.22c-.12.14-.26.29-.39.42a32,32,0,0,1-45.26-45.26c.14-.13.28-.27.43-.39L94,124.94a72.07,72.07,0,0,1,83.54-98.78,8,8,0,0,1,3.93,13.19L144,80l5.66,26.35L176,112l40.65-37.52a8,8,0,0,1,13.19,3.93A72.6,72.6,0,0,1,232,96Z"/></svg></span><span class="nav-label" data-i18n="nav.tools">工具</span>
+    </button>
+    <button type="button" class="nav-item" data-nav="settings" data-pdm-onclick="navigateTo('settings')">
+      <span class="nav-icon"><svg class="svg-fill" width="22" height="22" viewBox="0 0 256 256" aria-hidden="true"><path d="M237.94,107.21a8,8,0,0,0-3.89-5.4l-29.83-17-.12-33.62a8,8,0,0,0-2.83-6.08,111.91,111.91,0,0,0-36.72-20.67,8,8,0,0,0-6.46.59L128,41.85,97.88,25a8,8,0,0,0-6.47-.6A111.92,111.92,0,0,0,54.73,45.15a8,8,0,0,0-2.83,6.07l-.15,33.65-29.83,17a8,8,0,0,0-3.89,5.4,106.47,106.47,0,0,0,0,41.56,8,8,0,0,0,3.89,5.4l29.83,17,.12,33.63a8,8,0,0,0,2.83,6.08,111.91,111.91,0,0,0,36.72,20.67,8,8,0,0,0,6.46-.59L128,214.15,158.12,231a7.91,7.91,0,0,0,3.9,1,8.09,8.09,0,0,0,2.57-.42,112.1,112.1,0,0,0,36.68-20.73,8,8,0,0,0,2.83-6.07l.15-33.65,29.83-17a8,8,0,0,0,3.89-5.4A106.47,106.47,0,0,0,237.94,107.21ZM128,168a40,40,0,1,1,40-40A40,40,0,0,1,128,168Z"/></svg></span><span class="nav-label" data-i18n="nav.settings">设置</span>
+    </button>
+    <button type="button" class="nav-item" data-nav="help" data-pdm-onclick="navigateTo('help')">
+      <span class="nav-icon"><svg class="svg-icon" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 2-2.5 2-2.5 4M12 16v1"/></svg></span><span class="nav-label" data-i18n="nav.help">帮助</span>
+    </button>
+    <div class="sidebar-spacer"></div>
+    <button type="button" class="nav-item" data-pdm-onclick="lockApp()" title="锁定" data-i18n-title="nav.lock">
+      <span class="nav-icon"><svg class="svg-fill" width="22" height="22" viewBox="0 0 256 256" aria-hidden="true"><path d="M208,76H176V52a48,48,0,0,0-96,0V76H48A20.02292,20.02292,0,0,0,28,96V208a20.02292,20.02292,0,0,0,20,20H208a20.02292,20.02292,0,0,0,20-20V96A20.02292,20.02292,0,0,0,208,76ZM104,52a24,24,0,0,1,48,0V76H104ZM204,204H52V100H204Zm-60.01758-52a16,16,0,1,1-16-16A16.01833,16.01833,0,0,1,143.98242,152Z"/></svg></span><span class="nav-label" data-i18n="nav.lock">锁定</span>
+    </button>
+  </nav>
+
+  <!-- 顶部栏 -->
+  <header class="topbar">
+    <div class="topbar-title" id="topbar-title" data-i18n="topbar.title.connect">连接数据库</div>
+    <div class="search-box">
+      <span class="search-icon"><svg class="svg-fill" width="14" height="14" viewBox="0 0 256 256" aria-hidden="true"><path d="M168,112a56,56,0,1,1-56-56A56,56,0,0,1,168,112Zm61.66,117.66a8,8,0,0,1-11.32,0l-50.06-50.07a88,88,0,1,1,11.32-11.31l50.06,50.06A8,8,0,0,1,229.66,229.66ZM112,184a72,72,0,1,0-72-72A72.08,72.08,0,0,0,112,184Z"/></svg></span>
+      <input type="text" class="input" id="global-search" placeholder="搜索条目名称 / 账号..." data-i18n-placeholder="topbar.search.placeholder" data-i18n-aria-label="topbar.search.placeholder" aria-label="搜索条目名称 / 账号..." aria-describedby="global-search-error" data-pdm-oninput="handleSearch(this.value)">
+      <button class="global-search-clear" id="global-search-clear" type="button" data-pdm-onclick="clearGlobalSearch()" data-i18n-title="quickbar.clear" aria-label="清空搜索" hidden>×</button>
+      <span class="check-native" id="global-search-status" role="status" aria-live="polite" aria-atomic="true"></span>
+      <span class="global-search-error" id="global-search-error" role="status" aria-live="polite" data-i18n="topbar.search.limit" hidden></span>
+      <span class="check-native" id="operation-status" role="status" aria-live="polite" aria-atomic="true"></span>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn-icon" data-pdm-onclick="toggleTheme()" title="切换主题" data-i18n-title="topbar.button.theme" id="theme-btn"><svg class="svg-fill" width="16" height="16" viewBox="0 0 256 256" aria-hidden="true"><path d="M235.54,150.21a104.84,104.84,0,0,1-37,52.91A104,104,0,0,1,32,120,103.09,103.09,0,0,1,52.88,57.48a104.84,104.84,0,0,1,52.91-37,8,8,0,0,1,10,10,88.08,88.08,0,0,0,109.8,109.8,8,8,0,0,1,10,10Z"/></svg></button>
+      <button class="btn-icon" id="topbar-quickbar-btn" data-pdm-onclick="openQuickBar()" title="Quick Bar (Alt + P)" data-i18n-title="topbar.button.quickbar"><svg class="svg-fill" width="16" height="16" viewBox="0 0 256 256" aria-hidden="true"><path d="M213.85,125.46l-112,120a8,8,0,0,1-13.69-7l14.66-73.33L45.19,143.49a8,8,0,0,1-3-13l112-120a8,8,0,0,1,13.69,7L153.18,90.9l57.63,21.61a8,8,0,0,1,3,12.95Z"/></svg></button>
+    </div>
+  </header>
+
+  <!-- 内容区 -->
+  <main class="content">
+    <section class="page" id="page-help"></section>
+
+    <!-- 密码库 -->
+    <section class="page active" id="page-vault">
+      <div class="fix-banner pdm-inline-6aa34d7432" id="fix-banner"></div>
+      <div class="vault-header">
+        <div class="filter-chips" id="filter-chips">
+          <div class="chip active" data-filter="all" data-pdm-onclick="setFilter('all')"><span data-i18n="vault.filter.all">全部</span> <span class="count" id="count-all">10</span></div>
+          <div class="chip" data-filter="favorite" data-pdm-onclick="setFilter('favorite')"><svg class="svg-fill" width="12" height="12" viewBox="0 0 256 256" aria-hidden="true"><path d="M234.29,114.85l-45,38.83L203,211.75a16.4,16.4,0,0,1-24.5,17.82L128,198.49,77.47,229.57A16.4,16.4,0,0,1,53,211.75l13.76-58.07-45-38.83A16.46,16.46,0,0,1,31.08,86l59-4.76,22.76-55.08a16.36,16.36,0,0,1,30.27,0l22.75,55.08,59,4.76a16.46,16.46,0,0,1,9.37,28.86Z"/></svg> <span data-i18n="vault.filter.favorite">收藏</span> <span class="count" id="count-fav">5</span></div>
+          <div class="chip" data-filter="weak" data-pdm-onclick="setFilter('weak')"><svg class="svg-fill" width="12" height="12" viewBox="0 0 256 256" aria-hidden="true"><path d="M236.8,188.09,149.35,36.22h0a24.76,24.76,0,0,0-42.7,0L19.2,188.09a23.51,23.51,0,0,0,0,23.72A24.35,24.35,0,0,0,40.55,224h174.9a24.35,24.35,0,0,0,21.33-12.19A23.51,23.51,0,0,0,236.8,188.09ZM120,104a8,8,0,0,1,16,0v40a8,8,0,0,1-16,0Zm8,88a12,12,0,1,1,12-12A12,12,0,0,1,128,192Z"/></svg> <span data-i18n="vault.filter.weak">弱密码</span> <span class="count" id="count-weak">3</span></div>
+          <div class="chip" data-filter="duplicate" data-pdm-onclick="setFilter('duplicate')"><svg class="svg-fill" width="12" height="12" viewBox="0 0 256 256" aria-hidden="true"><path d="M236.8,188.09,149.35,36.22h0a24.76,24.76,0,0,0-42.7,0L19.2,188.09a23.51,23.51,0,0,0,0,23.72A24.35,24.35,0,0,0,40.55,224h174.9a24.35,24.35,0,0,0,21.33-12.19A23.51,23.51,0,0,0,236.8,188.09ZM120,104a8,8,0,0,1,16,0v40a8,8,0,0,1-16,0Zm8,88a12,12,0,1,1,12-12A12,12,0,0,1,128,192Z"/></svg> <span data-i18n="vault.filter.duplicate">重复</span> <span class="count" id="count-dup">0</span></div>
+          <div class="chip" data-filter="similar" data-pdm-onclick="setFilter('similar')"><span data-i18n="vault.filter.similar">相似名称</span> <span class="count" id="count-similar">0</span></div>
+        </div>
+        <div class="vault-controls">
+          <div class="view-switcher">
+            <button class="btn-icon active" data-view="list" data-pdm-onclick="switchView('list')" title="列表模式" data-i18n-title="vault.view.list"><svg class="svg-fill" width="16" height="16" viewBox="0 0 256 256" aria-hidden="true"><path d="M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32ZM192,184H64a8,8,0,0,1,0-16H192a8,8,0,0,1,0,16Zm0-48H64a8,8,0,0,1,0-16H192a8,8,0,0,1,0,16Zm0-48H64a8,8,0,0,1,0-16H192a8,8,0,0,1,0,16Z"/></svg></button>
+            <button class="btn-icon" data-view="split" data-pdm-onclick="switchView('split')" title="分屏模式" data-i18n-title="vault.view.split"><svg class="svg-fill" width="16" height="16" viewBox="0 0 256 256" aria-hidden="true"><path d="M120,56v48a16,16,0,0,1-16,16H56a16,16,0,0,1-16-16V56A16,16,0,0,1,56,40h48A16,16,0,0,1,120,56Zm80-16H152a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V56A16,16,0,0,0,200,40Zm-96,96H56a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V152A16,16,0,0,0,104,136Zm96,0H152a16,16,0,0,0-16,16v48a16,16,0,0,0,16,16h48a16,16,0,0,0,16-16V152A16,16,0,0,0,200,136Z"/></svg></button>
+          </div>
+          <div class="sort-dropdown" id="sort-dropdown">
+            <button type="button" class="sort-trigger" id="sort-trigger" data-pdm-onclick="toggleSortDropdown(event)" aria-haspopup="listbox" aria-controls="sort-menu" aria-expanded="false" aria-label="密码库排序，当前：最近更新">
+              <span id="sort-trigger-label" data-i18n="vault.sort.updated">最近更新</span>
+              <svg class="sort-trigger-arrow svg-fill" width="12" height="12" viewBox="0 0 256 256" aria-hidden="true"><path d="M215.4,92.94A8,8,0,0,0,208,88H48a8,8,0,0,0-7.4,4.94,8.35,8.35,0,0,0,1.73,9.42l80,80a8,8,0,0,0,11.34,0l80-80A8.35,8.35,0,0,0,215.4,92.94Z"></path></svg>
+            </button>
+            <div class="sort-menu" id="sort-menu" role="listbox">
+              <div class="sort-option active" data-value="updated" data-pdm-onclick="selectSort('updated',event)" role="option" tabindex="-1" aria-selected="true">
+                <span data-i18n="vault.sort.updated">最近更新</span>
+              </div>
+              <div class="sort-option" data-value="name" data-pdm-onclick="selectSort('name',event)" role="option" tabindex="-1" aria-selected="false">
+                <span data-i18n="vault.sort.name">名称 A-Z</span>
+              </div>
+              <div class="sort-option" data-value="strength" data-pdm-onclick="selectSort('strength',event)" role="option" tabindex="-1" aria-selected="false">
+                <span data-i18n="vault.sort.strength">按强度</span>
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-primary btn-sm" data-pdm-onclick="openAddPasswordDialog()" data-i18n="vault.button.add">+ 新建</button>
+        </div>
+      </div>
+
+      <!-- 列表视图 -->
+      <div id="view-list" class="vault-list"></div>
+
+      <!-- 分屏视图 -->
+      <div id="view-split" class="split-view">
+        <div class="split-list" id="split-list"></div>
+        <div class="split-detail" id="split-detail"></div>
+      </div>
+    </section>
+
+    <!-- 记事本 -->
+    <section class="page" id="page-notes">
+      <div class="vault-header">
+        <div class="filter-chips">
+          <button type="button" class="chip active" data-nfilter="all" data-pdm-onclick="setNoteFilter('all')"><span data-i18n="notes.filter.all">全部</span> <span class="count" id="ncount-all">5</span></button>
+          <button type="button" class="chip" data-nfilter="favorite" data-pdm-onclick="setNoteFilter('favorite')"><svg class="svg-fill" width="12" height="12" viewBox="0 0 256 256" aria-hidden="true"><path d="M234.29,114.85l-45,38.83L203,211.75a16.4,16.4,0,0,1-24.5,17.82L128,198.49,77.47,229.57A16.4,16.4,0,0,1,53,211.75l13.76-58.07-45-38.83A16.46,16.46,0,0,1,31.08,86l59-4.76,22.76-55.08a16.36,16.36,0,0,1,30.27,0l22.75,55.08,59,4.76a16.46,16.46,0,0,1,9.37,28.86Z"/></svg> <span data-i18n="notes.filter.favorite">收藏</span> <span class="count" id="ncount-fav">2</span></button>
+        </div>
+        <div class="vault-controls">
+          <div class="sort-dropdown" id="note-sort-dropdown">
+            <button type="button" class="sort-trigger" id="note-sort-trigger" aria-haspopup="listbox" aria-controls="note-sort-menu" aria-expanded="false" aria-label="记事排序，当前：最近更新">
+              <span id="note-sort-trigger-label" data-i18n="vault.sort.updated">最近更新</span>
+              <svg class="sort-trigger-arrow svg-fill" width="12" height="12" viewBox="0 0 256 256" aria-hidden="true"><path d="M215.4,92.94A8,8,0,0,0,208,88H48a8,8,0,0,0-7.4,4.94,8.35,8.35,0,0,0,1.73,9.42l80,80a8,8,0,0,0,11.34,0l80-80A8.35,8.35,0,0,0,215.4,92.94Z"></path></svg>
+            </button>
+            <div class="sort-menu" id="note-sort-menu" role="listbox">
+              <div class="sort-option active" data-pdm-note-sort="UPDATED" role="option" tabindex="-1" aria-selected="true"><span data-i18n="vault.sort.updated">最近更新</span></div>
+              <div class="sort-option" data-pdm-note-sort="NAME" role="option" tabindex="-1" aria-selected="false"><span data-i18n="notes.sort.name">标题 A-Z</span></div>
+            </div>
+          </div>
+          <button class="btn btn-primary btn-sm" data-pdm-onclick="openAddNoteDialog()" data-i18n="notes.button.add">+ 新建记事</button>
+        </div>
+      </div>
+      <div class="vault-list" id="notes-list"></div>
+    </section>
+
+    <!-- 安全体检 -->
+    <section class="page" id="page-security">
+      <div class="security-hero">
+        <div class="score-ring">
+          <svg width="140" height="140">
+            <defs>
+              <linearGradient id="scoreGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#f59e0b"/>
+                <stop offset="100%" class="pdm-inline-07e868c58c"/>
+              </linearGradient>
+            </defs>
+            <circle class="track" cx="70" cy="70" r="60"></circle>
+            <circle class="progress" cx="70" cy="70" r="60" stroke-dasharray="377" stroke-dashoffset="106"></circle>
+          </svg>
+          <div class="score-text">
+            <div class="score-num">72</div>
+            <div class="score-label" data-i18n="security.score.label">健康分</div>
+          </div>
+        </div>
+        <div class="hero-info">
+          <span class="hero-grade" data-i18n="security.grade.good">良好</span>
+          <h2 data-i18n="security.hero.title">您的密码库整体安全</h2>
+          <p data-i18n="security.hero.desc">发现 3 个弱密码、1 组重复密码、1 条长期未更换记录。建议尽快修复以提升安全等级。</p>
+          <div class="health-rescan">
+            <div class="health-rescan-controls">
+              <button type="button" class="btn btn-sm" id="health-rescan-start">重新全量体检</button>
+              <button type="button" class="btn btn-ghost btn-sm" id="health-rescan-cancel" hidden>取消体检</button>
+            </div>
+            <progress id="health-rescan-progress" max="1" value="0" aria-label="全量体检进度" hidden></progress>
+            <div id="health-rescan-status" role="status" aria-live="polite">按需重新检测所有密码并更新评级。</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="issue-card">
+        <div class="issue-head">
+          <span class="issue-icon"><svg class="svg-fill" width="18" height="18" viewBox="0 0 256 256" aria-hidden="true"><path d="M236.8,188.09,149.35,36.22h0a24.76,24.76,0,0,0-42.7,0L19.2,188.09a23.51,23.51,0,0,0,0,23.72A24.35,24.35,0,0,0,40.55,224h174.9a24.35,24.35,0,0,0,21.33-12.19A23.51,23.51,0,0,0,236.8,188.09ZM120,104a8,8,0,0,1,16,0v40a8,8,0,0,1-16,0Zm8,88a12,12,0,1,1,12-12A12,12,0,0,1,128,192Z"/></svg></span>
+          <span class="issue-title" data-i18n="security.issue.weak">弱密码</span>
+          <span class="issue-count" id="weak-issue-count" data-i18n="security.count.weak">3 条</span>
+        </div>
+        <div id="weak-issues"></div>
+      </div>
+
+      <div class="issue-card">
+        <div class="issue-head">
+          <span class="issue-icon"><svg class="svg-fill" width="18" height="18" viewBox="0 0 256 256" aria-hidden="true"><path d="M224,48V96a8,8,0,0,1-8,8H168a8,8,0,0,1-5.66-13.66L180.65,72a79.48,79.48,0,0,0-54.72-22.09h-.45A79.52,79.52,0,0,0,69.59,72.71,8,8,0,0,1,58.41,61.27,96,96,0,0,1,192,60.7l18.36-18.36A8,8,0,0,1,224,48ZM186.41,183.29A80,80,0,0,1,75.35,184l18.31-18.31A8,8,0,0,0,88,152H40a8,8,0,0,0-8,8v48a8,8,0,0,0,13.66,5.66L64,195.3a95.42,95.42,0,0,0,66,26.76h.53a95.36,95.36,0,0,0,67.07-27.33,8,8,0,0,0-11.18-11.44Z"/></svg></span>
+          <span class="issue-title" data-i18n="security.issue.duplicate">重复密码</span>
+          <span class="issue-count" id="dup-issue-count">1 组</span>
+        </div>
+        <div id="dup-issues"></div>
+      </div>
+
+      <div class="issue-card">
+        <div class="issue-head">
+          <span class="issue-icon"><svg class="svg-fill" width="18" height="18" viewBox="0 0 256 256" aria-hidden="true"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm56,112H128a8,8,0,0,1-8-8V72a8,8,0,0,1,16,0v48h48a8,8,0,0,1,0,16Z"/></svg></span>
+          <span class="issue-title" data-i18n="security.issue.stale">长期未更换</span>
+          <span class="issue-count" id="stale-issue-count">1 条</span>
+        </div>
+        <div id="stale-issues"></div>
+      </div>
+
+      <div class="fix-all-bar">
+        <button class="fix-all-btn" data-pdm-onclick="fixAll()"><svg class="svg-fill" width="16" height="16" viewBox="0 0 256 256" aria-hidden="true"><path d="M232,96a72,72,0,0,1-100.94,66L79,222.22c-.12.14-.26.29-.39.42a32,32,0,0,1-45.26-45.26c.14-.13.28-.27.43-.39L94,124.94a72.07,72.07,0,0,1,83.54-98.78,8,8,0,0,1,3.93,13.19L144,80l5.66,26.35L176,112l40.65-37.52a8,8,0,0,1,13.19,3.93A72.6,72.6,0,0,1,232,96Z"/></svg> <span data-i18n="security.button.fixall">逐个引导修复</span></button>
+      </div>
+    </section>
+
+    <!-- 工具 -->
+    <section class="page" id="page-tools">
+      <div class="tool-tabs">
+        <div class="tool-tab active" data-tool="gen" data-pdm-onclick="switchTool('gen')" data-i18n="tool.tab.gen">密码生成器</div>
+        <div class="tool-tab" data-tool="check" data-pdm-onclick="switchTool('check')" data-i18n="tool.tab.check">密码强度检测</div>
+      </div>
+
+      <!-- 生成器 -->
+      <div class="tool-panel active" id="tool-gen">
+        <div class="tool-card">
+          <div class="tool-row">
+            <div class="tool-label">
+              <span data-i18n="tool.gen.label.length">密码长度</span>
+              <span class="value" id="gen-length-val">20</span>
+            </div>
+            <div class="slider-input-row">
+              <input type="range" id="gen-length" min="1" max="128" value="20" data-pdm-oninput="syncGenLength(this.value)">
+              <input type="number" class="num-input" id="gen-length-num" min="1" max="1024" value="20" data-pdm-oninput="syncGenLength(this.value,true)" data-pdm-onblur="clampGenLength()">
+            </div>
+          </div>
+          <div class="tool-row">
+            <div class="tool-label"><span data-i18n="tool.gen.label.charset">字符类型</span></div>
+            <div class="check-grid">
+              <div class="check-item checked" data-charset="lower" data-pdm-onclick="toggleCharset(this)">
+                <div class="check-box">✓</div><span class="check-label" data-i18n="tool.gen.charset.lower">小写字母 a-z</span>
+              </div>
+              <div class="check-item checked" data-charset="upper" data-pdm-onclick="toggleCharset(this)">
+                <div class="check-box">✓</div><span class="check-label" data-i18n="tool.gen.charset.upper">大写字母 A-Z</span>
+              </div>
+              <div class="check-item checked" data-charset="digit" data-pdm-onclick="toggleCharset(this)">
+                <div class="check-box">✓</div><span class="check-label" data-i18n="tool.gen.charset.digit">数字 0-9</span>
+              </div>
+              <div class="check-item checked" data-charset="symbol" data-pdm-onclick="toggleCharset(this)">
+                <div class="check-box">✓</div><span class="check-label" data-i18n="tool.gen.charset.symbol">特殊字符 !@#$%^&amp;*()[]</span>
+              </div>
+              <label class="check-item gen-avoid-item" id="gen-avoid-item">
+                <input class="check-native" type="checkbox" id="gen-avoid" data-pdm-onchange="toggleGeneratorAvoid(this.checked)">
+                <span class="check-box" aria-hidden="true"></span><span class="check-label" data-i18n="tool.gen.avoidAmbiguous">排除易混淆字符 0O1lI</span>
+              </label>
+            </div>
+            <div class="tool-config-error" id="gen-config-error" role="status" aria-live="polite" hidden></div>
+          </div>
+          <div class="tool-row">
+            <div class="gen-output" id="gen-output" data-i18n="tool.gen.output.placeholder">点击下方按钮生成密码</div>
+          </div>
+          <div class="tool-row pdm-inline-0d76d82849">
+            <button class="btn btn-primary pdm-inline-83725d2c6e" data-pdm-onclick="generatePassword()"><svg class="svg-fill" width="16" height="16" viewBox="0 0 256 256" aria-hidden="true"><path d="M192,32H64A32,32,0,0,0,32,64V192a32,32,0,0,0,32,32H192a32,32,0,0,0,32-32V64A32,32,0,0,0,192,32ZM92,176a12,12,0,1,1,12-12A12,12,0,0,1,92,176Zm0-72a12,12,0,1,1,12-12A12,12,0,0,1,92,104Zm36,36a12,12,0,1,1,12-12A12,12,0,0,1,128,140Zm36,36a12,12,0,1,1,12-12A12,12,0,0,1,164,176Zm0-72a12,12,0,1,1,12-12A12,12,0,0,1,164,104Z"/></svg> <span data-i18n="tool.gen.button.generate">生成密码</span></button>
+            <button class="btn" data-pdm-onclick="copyGenerated()"><svg class="svg-fill" width="16" height="16" viewBox="0 0 256 256" aria-hidden="true"><path d="M216,32H88a8,8,0,0,0-8,8V80H40a8,8,0,0,0-8,8V216a8,8,0,0,0,8,8H168a8,8,0,0,0,8-8V176h40a8,8,0,0,0,8-8V40A8,8,0,0,0,216,32Zm-8,128H176V88a8,8,0,0,0-8-8H96V48H208Z"/></svg> <span data-i18n="tool.gen.button.copy">复制</span></button>
+            <button class="btn" data-pdm-onclick="saveGenerated()" data-requires-db="true"><svg class="svg-fill" width="16" height="16" viewBox="0 0 256 256" aria-hidden="true"><path d="M219.31,72,184,36.69A15.86,15.86,0,0,0,172.69,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V83.31A15.86,15.86,0,0,0,219.31,72ZM208,208H184V152a16,16,0,0,0-16-16H88a16,16,0,0,0-16,16v56H48V48H172.69L208,83.31ZM160,72a8,8,0,0,1-8,8H96a8,8,0,0,1,0-16h56A8,8,0,0,1,160,72Z"/></svg> <span data-i18n="tool.gen.button.save">保存为记录</span></button>
+          </div>
+          <div class="tool-row pdm-inline-406e13d184">
+            <button class="btn-link" data-pdm-onclick="resetGenConfig()" data-i18n="tool.gen.button.reset">恢复默认配置</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 强度检测 -->
+      <div class="tool-panel" id="tool-check">
+        <div class="tool-card">
+          <div class="tool-row">
+            <div class="tool-label"><span data-i18n="tool.check.input.label">输入要检测的密码</span></div>
+            <div class="password-wrap">
+              <input type="password" class="input" id="check-input" placeholder="输入密码实时检测..." data-i18n-placeholder="tool.check.input.placeholder" data-pdm-oninput="checkStrength()">
+              <button type="button" class="eye-btn" data-pdm-onclick="toggleCheckPassword()" aria-label="显示密码" aria-pressed="false">
+                <span id="check-eye"><svg class="svg-fill" width="16" height="16" viewBox="0 0 256 256" aria-hidden="true"><path d="M247.31,124.76c-.35-.79-8.82-19.58-27.65-38.41C194.57,61.26,162.88,48,128,48S61.43,61.26,36.34,86.35C17.51,105.18,9,124,8.69,124.76a8,8,0,0,0,0,6.5c.35.79,8.82,19.57,27.65,38.4C61.43,194.74,93.12,208,128,208s66.57-13.26,91.66-38.34c18.83-18.83,27.3-37.61,27.65-38.4A8,8,0,0,0,247.31,124.76ZM128,168a40,40,0,1,1,40-40A40,40,0,0,1,128,168Z"/></svg></span>
+              </button>
+            </div>
+          </div>
+          <!-- 平台/账号上下文输入（可选，用于 zxcvbn user_inputs 上下文匹配） -->
+          <div class="tool-row pdm-inline-491198ddb7">
+            <input type="text" class="input pdm-inline-83725d2c6e" id="check-platform" placeholder="平台名（可选，如 GitHub、淘宝）" data-i18n-placeholder="tool.check.platform.placeholder" data-pdm-oninput="checkStrength()">
+            <input type="text" class="input pdm-inline-83725d2c6e" id="check-account" placeholder="账号名（可选，如 user@example.com）" data-i18n-placeholder="tool.check.account.placeholder" data-pdm-oninput="checkStrength()">
+          </div>
+          <div class="tool-row">
+            <div class="strength-bar"><div class="strength-fill" id="strength-fill"></div></div>
+            <div class="strength-result">
+              <span class="pdm-inline-3ae4223b79" data-i18n="tool.check.rating.label">强度评级</span>
+              <span class="strength-rating" id="strength-rating">—</span>
+            </div>
+            <div class="suggestions" id="suggestions"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 设置 -->
+    <section class="page" id="page-settings">
+      <div class="empty-state" id="settings-search-empty" hidden data-i18n="settings.search.empty">没有匹配的设置，请更换关键词或清空搜索</div>
+      <div class="settings-group" id="settings-group-appearance">
+        <div class="settings-group-title" data-i18n="settings.group.appearance">外观</div>
+        <div class="setting-row" id="setting-theme" data-no-auth="true">
+          <div class="setting-info"><div class="setting-name" data-i18n="settings.theme.name">主题模式</div><div class="setting-desc" data-i18n="settings.theme.desc">切换浅色 / 深色 / 跟随系统</div></div>
+          <div class="setting-control">
+            <div class="segment" id="theme-segment" role="group" aria-label="主题模式">
+              <button data-pdm-theme="light" data-pdm-onclick="setTheme('light',true)" data-i18n="settings.theme.light" aria-pressed="false">浅色</button>
+              <button class="active" data-pdm-theme="dark" data-pdm-onclick="setTheme('dark',true)" data-i18n="settings.theme.dark" aria-pressed="true">深色</button>
+              <button data-pdm-theme="auto" data-pdm-onclick="setTheme('auto',true)" data-i18n="settings.theme.auto" aria-pressed="false">自动</button>
+            </div>
+          </div>
+        </div>
+        <div class="setting-row" id="setting-lang" data-no-auth="true">
+          <div class="setting-info"><div class="setting-name" data-i18n="settings.lang.name">语言</div><div class="setting-desc" data-i18n="settings.lang.desc">界面显示语言</div></div>
+          <div class="setting-control">
+            <div class="segment pdm-inline-9463ff4798" id="lang-segment" data-pdm-onclick="toggleLang()" data-pdm-onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleLang()}" role="button" tabindex="0" title="点击切换语言（当前：中文）" data-i18n-title="settings.lang.title" aria-label="切换界面语言，当前中文" data-i18n-aria-label="settings.lang.aria">
+              <button class="active" data-lang="zh" type="button" tabindex="-1" aria-hidden="true">中文</button>
+              <button data-lang="en" type="button" tabindex="-1" aria-hidden="true">English</button>
+            </div>
+          </div>
+        </div>
+        <div class="setting-row" id="setting-ui-font-scale" data-no-auth="true">
+          <div class="setting-info"><div class="setting-name" data-i18n="settings.fontScale.name">界面字号</div><div class="setting-desc" data-i18n="settings.fontScale.desc">统一调整应用内文字大小</div></div>
+          <div class="setting-control">
+            <div class="segment" id="ui-font-scale-segment" role="group" aria-label="界面字号，当前：100%">
+              <button data-pdm-ui-font-scale="90" data-pdm-onclick="setUiFontScale('90')" aria-pressed="false">90%</button>
+              <button class="active" data-pdm-ui-font-scale="100" data-pdm-onclick="setUiFontScale('100')" aria-pressed="true">100%</button>
+              <button data-pdm-ui-font-scale="110" data-pdm-onclick="setUiFontScale('110')" aria-pressed="false">110%</button>
+              <button data-pdm-ui-font-scale="125" data-pdm-onclick="setUiFontScale('125')" aria-pressed="false">125%</button>
+            </div>
+          </div>
+        </div>
+        <div class="setting-row" id="setting-sidebar-text" data-no-auth="true">
+          <div class="setting-info"><div class="setting-name" data-i18n="settings.sidebar.text.name">侧边栏显示文字</div><div class="setting-desc" data-i18n="settings.sidebar.text.desc">在图标下方显示导航文字</div></div>
+          <div class="setting-control"><div class="toggle on" id="sidebar-text-toggle" role="switch" tabindex="0" aria-checked="true" data-i18n-aria-label="settings.sidebar.text.aria" aria-label="切换侧边栏文字" data-pdm-onclick="this.classList.toggle('on')"></div></div>
+        </div>
+      </div>
+
+      <div class="settings-group" id="settings-group-startup-window">
+        <div class="settings-group-title" data-i18n="settings.group.startupWindow">启动与窗口</div>
+        <div class="setting-row" id="setting-autofill">
+          <div class="setting-info"><div class="setting-name" data-i18n="settings.autofill.name">启动时自动填充</div><div class="setting-desc" data-i18n="settings.autofill.desc">打开应用时自动填入上次数据库路径</div></div>
+          <div class="setting-control"><div class="toggle" id="autofill-toggle" role="switch" tabindex="0" aria-checked="false" data-i18n-aria-label="settings.autofill.aria" aria-label="切换启动时自动填充" data-pdm-onclick="this.classList.toggle('on')"></div></div>
+        </div>
+        <div class="setting-row" id="setting-default-view">
+          <div class="setting-info"><div class="setting-name" data-i18n="settings.view.default.name">默认视图模式</div><div class="setting-desc" data-i18n="settings.view.default.desc">启动时密码库默认显示方式</div></div>
+          <div class="setting-control">
+            <div class="segment pdm-inline-9463ff4798" id="view-default-segment" data-pdm-onclick="toggleBinarySegment(this)" data-pdm-onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleBinarySegment(this)}" role="button" tabindex="0" title="点击切换（当前：列表）" aria-label="切换选项，当前：列表">
+              <button class="active" data-i18n="settings.view.list" type="button" tabindex="-1" aria-hidden="true">列表</button>
+              <button data-i18n="settings.view.split" type="button" tabindex="-1" aria-hidden="true">分屏</button>
+            </div>
+          </div>
+        </div>
+        <div class="setting-row" id="setting-tray-close">
+          <div class="setting-info"><div class="setting-name" data-i18n="settings.tray.close.name">关闭按钮行为</div><div class="setting-desc" data-i18n="settings.tray.close.desc">点击关闭时最小化到托盘或退出</div></div>
+          <div class="setting-control">
+            <div class="segment pdm-inline-9463ff4798" id="tray-close-segment" data-pdm-onclick="toggleBinarySegment(this)" data-pdm-onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleBinarySegment(this)}" role="button" tabindex="0" title="点击切换（当前：最小化）" aria-label="切换选项，当前：最小化">
+              <button class="active" data-i18n="settings.tray.close.minimize" type="button" tabindex="-1" aria-hidden="true">最小化</button>
+              <button data-i18n="settings.tray.close.exit" type="button" tabindex="-1" aria-hidden="true">退出</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-group" id="settings-group-security">
+        <div class="settings-group-title" data-i18n="settings.group.security">安全</div>
+        <div class="setting-row" id="setting-autolock">
+          <div class="setting-info"><div class="setting-name" data-i18n="settings.security.autolock.name">超时自动锁定</div><div class="setting-desc" data-i18n="settings.security.autolock.desc">无操作达到阈值时锁定；电脑睡眠始终锁定</div></div>
+          <div class="setting-control"><div class="toggle on" id="autolock-toggle" role="switch" tabindex="0" aria-checked="true" data-i18n-aria-label="settings.security.autolock.aria" aria-label="切换超时自动锁定" data-pdm-onclick="toggleAutoLock(this)"></div></div>
+        </div>
+        <div class="setting-row" id="setting-autolock-timeout">
+          <div class="setting-info"><div class="setting-name" data-i18n="settings.security.autolock.timeout.name">自动锁定阈值</div><div class="setting-desc" data-i18n="settings.security.autolock.timeout.desc">无操作多少分钟后自动锁定</div></div>
+          <div class="setting-control">
+            <div class="slider-input-row">
+              <input type="range" id="autolock-slider" min="1" max="60" value="5" data-pdm-oninput="syncAutoLockTimeout(this.value)">
+              <input type="number" class="num-input" id="autolock-num" min="1" max="60" value="5" data-pdm-oninput="syncAutoLockTimeout(this.value,true)" data-pdm-onblur="clampNumInput('autolock-num',1,60)">
+              <span class="unit" data-i18n="settings.unit.minutes">分</span>
+            </div>
+          </div>
+        </div>
+        <div class="setting-row" id="setting-stale">
+          <div class="setting-info"><div class="setting-name" data-i18n="settings.security.stale.name">长期未更换阈值</div><div class="setting-desc" data-i18n="settings.security.stale.desc">超过该天数未更换的密码将告警</div></div>
+          <div class="setting-control pdm-inline-aebc026e77">
+            <div class="slider-input-row">
+              <input type="range" id="stale-slider" min="30" max="365" value="180" data-pdm-oninput="syncStaleThreshold(this.value)">
+              <input type="number" class="num-input" id="stale-num" min="30" max="365" value="180" data-pdm-oninput="syncStaleThreshold(this.value,true)" data-pdm-onblur="clampNumInput('stale-num',30,365)">
+              <span class="unit" data-i18n="settings.unit.days">天</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-group" id="settings-group-clipboard">
+        <div class="settings-group-title" data-i18n="settings.group.clipboard">剪贴板</div>
+        <div class="setting-row" id="setting-clip-mode">
+          <div class="setting-info"><div class="setting-name" data-i18n="settings.clipboard.clear.name">清空模式</div><div class="setting-desc" data-i18n="settings.clipboard.clear.desc">复制后自动倒计时清空</div></div>
+          <div class="setting-control">
+            <div class="segment pdm-inline-9463ff4798" id="clip-clear-segment" data-pdm-onclick="toggleBinarySegment(this)" data-pdm-onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleBinarySegment(this)}" role="button" tabindex="0" title="点击切换（当前：倒计时）" aria-label="切换选项，当前：倒计时">
+              <button class="active" data-i18n="settings.clipboard.clear.countdown" type="button" tabindex="-1" aria-hidden="true">倒计时</button>
+              <button data-i18n="settings.clipboard.clear.manual" type="button" tabindex="-1" aria-hidden="true">手动</button>
+            </div>
+          </div>
+        </div>
+        <div class="setting-row" id="setting-clip-duration">
+          <div class="setting-info"><div class="setting-name" data-i18n="settings.clipboard.duration.name">倒计时时长</div><div class="setting-desc" data-i18n="settings.clipboard.duration.desc">复制后多少秒自动清空剪贴板</div></div>
+          <div class="setting-control pdm-inline-aebc026e77">
+            <div class="slider-input-row">
+              <input type="range" id="clip-slider" min="5" max="60" value="30" data-pdm-oninput="syncClipCountdown(this.value)">
+              <input type="number" class="num-input" id="clip-num" min="5" max="60" value="30" data-pdm-oninput="syncClipCountdown(this.value,true)" data-pdm-onblur="clampNumInput('clip-num',5,60)">
+              <span class="unit">s</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-group" id="settings-group-quickbar">
+        <div class="settings-group-title" data-i18n="settings.group.quickbar">快捷搜索</div>
+        <div class="setting-row" id="setting-quickbar">
+          <div class="setting-info"><div class="setting-name" data-i18n="settings.tray.quickbar.name">启用 Quick Bar</div><div class="setting-desc" data-i18n="settings.tray.quickbar.desc">全局快捷键唤出快速搜索条</div></div>
+          <div class="setting-control"><div class="toggle on" id="quickbar-toggle" role="switch" tabindex="0" aria-checked="true" data-i18n-aria-label="settings.tray.quickbar.aria" aria-label="切换 Quick Bar" data-pdm-onclick="this.classList.toggle('on')"></div></div>
+        </div>
+        <div class="setting-row" id="quickbar-hotkey-row">
+          <div class="setting-info"><div class="setting-name" data-i18n="settings.hotkey.name">Quick Bar 热键</div><div class="setting-desc" data-i18n="settings.hotkey.desc">唤出 Quick Bar 的全局快捷键，点击右侧修改</div></div>
+          <div class="setting-control">
+            <span class="hotkey-display" id="quickbar-hotkey-display">Alt + P</span>
+            <button class="btn btn-sm" id="quickbar-hotkey-btn" data-pdm-onclick="startHotkeyRecording()" data-i18n="settings.hotkey.modify">修改</button>
+          </div>
+        </div>
+        <div class="setting-row" id="setting-quickbar-timeout">
+          <div class="setting-info"><div class="setting-name" data-i18n="settings.quickbar.timeout.name">Quick Bar 空闲隐藏</div><div class="setting-desc" data-i18n="settings.quickbar.timeout.desc">Quick Bar 无操作多少秒后自动隐藏</div></div>
+          <div class="setting-control pdm-inline-aebc026e77">
+            <div class="slider-input-row">
+              <input type="range" id="quickbar-timeout-slider" min="10" max="600" value="30">
+              <input type="number" class="num-input" id="quickbar-timeout-num" min="10" max="600" value="30">
+              <span class="unit" data-i18n="settings.unit.seconds">秒</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-group" id="settings-group-updates">
+        <div class="settings-group-title" data-update-label="title">软件更新</div>
+        <div data-update-panel="settings"></div>
+      </div>
+
+      <div class="settings-group" id="settings-group-database">
+        <div class="settings-group-title" data-i18n="settings.group.database">数据库管理</div>
+        <div class="setting-row" id="setting-db-current" data-no-auth="true">
+          <div class="setting-info"><div class="setting-name" data-i18n="settings.db.current.name">当前数据库</div><div class="setting-desc" data-i18n="settings.db.current.desc">已连接的加密数据库文件</div></div>
+          <div class="setting-control"><span class="db-info" data-i18n="settings.db.current.disconnected">未连接</span></div>
+        </div>
+        <div class="setting-row" id="setting-db-changepwd" data-no-auth="true">
+          <div class="setting-info"><div class="setting-name" data-i18n="settings.db.changepwd.name">修改数据库密码</div><div class="setting-desc" data-i18n="settings.db.changepwd.desc">全量重新加密所有数据</div></div>
+          <div class="setting-control"><button class="btn btn-sm" data-pdm-onclick="openChangeDbPasswordDialog()" data-requires-db="true" data-i18n="settings.db.changepwd.button">修改密码</button></div>
+        </div>
+        <div class="setting-row" id="setting-db-ie" data-no-auth="true">
+          <div class="setting-info"><div class="setting-name" data-i18n="settings.db.ie.name">导入导出数据</div><div class="setting-desc" data-i18n="settings.db.ie.desc">加密备份或从备份恢复</div></div>
+          <div class="setting-control"><button class="btn btn-sm" data-pdm-onclick="openImportExportDialog('export')" data-requires-db="true" data-i18n="settings.db.ie.button">打开</button></div>
+        </div>
+        <div class="setting-row" id="setting-db-transfer" data-no-auth="true">
+          <div class="setting-info"><div class="setting-name" data-i18n="settings.db.transfer.name">设备传输</div><div class="setting-desc" data-i18n="settings.db.transfer.desc">与附近设备核对连接，发送或接收密码库资料</div></div>
+          <div class="setting-control"><button class="btn btn-sm" data-pdm-onclick="openDirectTransferDialog()" data-requires-db="true" data-i18n="settings.db.ie.button">打开</button></div>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- 状态栏 -->
+  <footer class="statusbar">
+    <div class="status-left">
+      <span class="status-dot" id="status-dot"></span>
+      <span id="status-text" data-i18n="status.disconnected">未连接</span>
+      <button type="button" class="startup-minimized-bar" id="startup-minimized-bar"
+              data-pdm-onclick="expandStartupModal()" data-i18n="startup.bar.action">点击连接</button>
+    </div>
+    <div class="status-right">
+      <button type="button" class="update-entry" data-update-action="details" hidden></button>
+      <div class="clipboard-status" id="clipboard-status" role="group"
+           aria-label="剪贴板状态" data-i18n-aria-label="status.clipboard.group">
+        <span data-i18n="status.clipboard.ready">剪贴板: 就绪</span>
+      </div>
+    </div>
+  </footer>
+
+</div>
+
+<!-- Quick Bar -->
+<div id="quickbar-overlay">
+  <div class="quickbar">
+    <div class="quickbar-drag-area" aria-hidden="true"><span class="quickbar-drag-grip"></span></div>
+    <div class="quickbar-input-wrap">
+      <span class="search-icon"><svg class="svg-fill" width="16" height="16" viewBox="0 0 256 256" aria-hidden="true"><path d="M168,112a56,56,0,1,1-56-56A56,56,0,0,1,168,112Zm61.66,117.66a8,8,0,0,1-11.32,0l-50.06-50.07a88,88,0,1,1,11.32-11.31l50.06,50.06A8,8,0,0,1,229.66,229.66ZM112,184a72,72,0,1,0-72-72A72.08,72.08,0,0,0,112,184Z"/></svg></span>
+      <input type="text" class="quickbar-input" id="quickbar-input" placeholder="搜索条目名称或输入命令 (gen 20)..." data-i18n-placeholder="quickbar.input.placeholder" data-pdm-oninput="handleQuickBarInput(this.value)" data-pdm-onkeydown="handleQuickBarKey(event)">
+      <button class="quickbar-clear" type="button" data-pdm-onclick="clearQuickBarSearch()" data-i18n-title="quickbar.clear" aria-label="清空搜索" hidden>×</button>
+    </div>
+    <div id="quickbar-results"></div>
+    <div class="quickbar-footer">
+      <span><span class="kbd">Enter</span> <span data-i18n="quickbar.copy.pwd">复制密码</span> · <span class="kbd">Ctrl+Enter</span> <span data-i18n="quickbar.copy.acc">复制账号</span></span>
+      <span id="quickbar-autohide-label" data-i18n="quickbar.autohide">30 秒无操作自动隐藏</span>
+    </div>
+  </div>
+</div>
+
+<!-- Toast 容器 -->
+<div id="toast-container"></div>

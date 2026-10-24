@@ -1,23 +1,41 @@
-# 小仓 / Cangoo
+# 小仓 / Cangoo — AGPL-3.0-only
 
-<h2>软件许可协议</h2><p>本协议适用于小仓（Cangoo），作者 hanbao-code。第三方组件的许可另见第 4 条。请阅读本协议后选择是否同意。</p>
-<h3>1. 授权使用</h3><p>在遵守本协议的前提下，你可以免费安装和使用小仓，用于个人、非商业用途。为上述用途进行的自用备份和迁移属于本条允许的使用。个人管理自己的密码，包括其中与工作相关的账号，不因涉及工作内容而成为商业用途。</p>
-<h3>2. 另行授权</h3><p>下列行为须事先取得作者授权：</p><ul><li>将本软件用于商业用途，包括企业或组织内部工作，以及作为完成客户委托的工作工具；</li><li>转售本软件，或将其集成到收费产品；</li><li>将本软件的功能作为对外收费服务提供；</li><li>针对本软件提供收费安装或配置服务；</li><li>对外重新上传、转载或分发安装包、便携包，包括免费且未经修改的副本。</li></ul><p>上述限制不影响你分享作者提供的官方下载地址。</p>
-<p>授权申请与联系：通过<a href="https://t.me/+kQEszbuHNEgxOGRh">Telegram交流群</a>联系管理员。</p>
-<h3>3. 担保与责任</h3><p><strong>本软件按“现状”提供，作者及贡献者不作任何明示或默示的担保</strong>，包括但不限于适销性、特定用途适用性、不侵权、准确性、持续可用性或无错误的担保。</p><p><strong>对于因本软件或其使用、无法使用而产生的任何索赔、损害或其他责任，作者及贡献者均不承担责任</strong>，包括任何直接、间接、附带、特殊、惩罚性或后果性损害，以及数据丢失、数据损坏、利润损失、业务中断或替代产品及服务的费用。无论有关责任基于合同、侵权或其他法律理论，也无论作者或贡献者是否已被告知发生此类损害的可能性，上述免责均适用。</p>
-<h3>4. 第三方组件</h3><p>本软件使用的第三方组件及资源适用各自的许可证。相关许可证原文见“帮助 → 关于”；本协议不限制这些许可证授予你的权利。</p>
-<h3>5. 数据与安全</h3><p>小仓在本地处理和保存你的密码、记事等数据，不会通过网络发送你的密码库或主密码。</p><p>数据库、主密码和备份密码由你自行保管。请定期制作并核对备份；遗忘密码或缺少可用备份可能导致数据无法恢复，作者无法代为找回。</p><p>复制内容会进入系统剪贴板。其他程序、系统历史或同步功能可能保留副本，清理当前剪贴板不能撤回这些副本。设备遭受恶意软件或其他未授权访问时，软件的加密和锁定不能保证数据安全。</p><p>密码强度和破解时间为估算结果。反馈问题时，请勿附带真实密码、数据库、备份或其他敏感信息。具体操作和恢复步骤见“帮助”中的使用手册。</p>
-<h3>6. 协议适用</h3><p>不同意本协议时，请退出软件。涉及使用权限或责任条款的实质变更，软件将提示你重新确认。中英文文本存在翻译歧义时，以中文为准。</p>
-<p>协议版本：2</p>
+Copyright (C) 2026 hanbao-code
 
----
+## 中文说明
 
-<h2>Software License Agreement</h2><p>This agreement applies to Cangoo by hanbao-code. Section 4 covers third-party components. Please read this agreement before deciding whether to accept it.</p>
-<h3>1. Permitted use</h3><p>Subject to this agreement, you may install and use Cangoo free of charge for personal, non-commercial purposes. Copies you make for your own backup and migration are included in this permission. Managing your own passwords, including accounts related to your work, does not become commercial use merely because of that work-related content.</p>
-<h3>2. Separate authorization</h3><p>You must obtain the author's permission in advance for the following activities:</p><ul><li>Using the software for commercial purposes, including internal work within a business or organization, and as a working tool for client assignments;</li><li>Reselling the software or incorporating it into a paid product;</li><li>Offering the software's functionality as a paid service to others;</li><li>Charging for installation or configuration of this software;</li><li>Re-uploading, republishing or distributing installers or portable packages to third parties, even if unmodified and free of charge.</li></ul><p>These restrictions do not prevent you from sharing the official download address provided by the author.</p>
-<p>For permission requests and contact, reach an administrator through the <a href="https://t.me/+kQEszbuHNEgxOGRh">Telegram group</a>.</p>
-<h3>3. Warranties and liability</h3><p><strong>The software is supplied as is. Neither the author nor the contributors give any express or implied warranty,</strong> including merchantability, fitness for a particular purpose, non-infringement, accuracy, continuous availability or freedom from errors.</p><p><strong>The author and contributors accept no liability for claims, damage or other obligations arising from this software, its use or an inability to use it.</strong> This exclusion covers direct, indirect, incidental, special, punitive and consequential damage, including lost or corrupted data, lost profits, interrupted business, and replacement goods or services. It applies irrespective of whether a claim rests on contract, tort or another legal theory, and regardless of any prior notice to the author or contributors that such damage might occur.</p>
-<h3>4. Third-party components</h3><p>Third-party components and resources in the software remain subject to their respective licenses. Their license texts are available under Help → About. This agreement does not restrict the rights those licenses grant you.</p>
-<h3>5. Data and security</h3><p>Cangoo processes and stores your passwords, notes and other data locally. The software does not send your database or master password over a network.</p><p>You are responsible for keeping your databases, master passwords and backup passwords safe. Make and verify backups regularly. Forgotten passwords or the absence of a usable backup may make recovery impossible; the author cannot recover them for you.</p><p>Copied content enters the system clipboard. Other programs, system history or synchronization features may retain copies. Clearing the current clipboard does not retract those copies. Encryption and locking cannot guarantee data security when the device is affected by malware or other unauthorized access.</p><p>Password strength and cracking times are estimates. Do not include real passwords, databases, backups or other sensitive information in feedback. See Help → User Guide for operating and recovery instructions.</p>
-<h3>6. Application of this agreement</h3><p>If you do not agree, exit the software. Material changes to usage rights or liability terms will prompt renewed acceptance. In the event of a translation ambiguity between the Chinese and English texts, the Chinese text prevails.</p>
-<p>Terms version: 2</p>
+小仓的原创源码与随附原创资源采用 GNU Affero General Public License 第 3 版（AGPL-3.0-only），不包含“或任何后续版本”选项。你可以依照该许可证使用、修改和再分发小仓，包括商业用途。
+
+完整、未经改写的英文许可证见 [COPYING](COPYING)。针对小仓 Windows 运行时随附的 OpenSSL 库，另有一份限定范围的 [OpenSSL 附加许可](OPENSSL_EXCEPTION.md)。
+
+仅接收或运行软件不要求接受许可证。修改、再分发及适用的远程网络交互须遵守许可证中的相应条件。
+
+第三方组件、字体、图标和其他标有独立许可的材料，仍适用各自的许可。本声明不替代这些许可，也不限制这些许可授予的权利。
+
+软件许可不要求公开用户的密码库、记事或备份。
+
+本软件按“现状”提供。在适用法律允许的范围内，除非另有书面约定，版权方及其他提供方不作任何担保。担保与责任限制的具体条款见许可证第 15 至 17 节。
+
+中文说明不替代英文许可证原文。
+
+## English
+
+Cangoo's original source code and accompanying original assets are licensed under the GNU Affero General Public License, version 3 only (AGPL-3.0-only), without the “or any later version” option. You may use, modify and redistribute Cangoo, including commercially, under that license.
+
+The unmodified license text is in [COPYING](COPYING). A limited additional permission for the OpenSSL libraries bundled with the Windows runtime is in [OPENSSL_EXCEPTION.md](OPENSSL_EXCEPTION.md).
+
+Accepting the license is not required merely to receive or run a copy. Modification, redistribution and applicable remote network interaction remain subject to its conditions.
+
+Third-party components, fonts, icons and other materials carrying separate notices remain under their respective licenses. This notice does not replace or restrict those licenses.
+
+Licensing the software does not require disclosure of users' vaults, notes or backups.
+
+The software is provided without warranty as stated in sections 15–17.
+
+The Chinese explanation does not replace the English license text.
+
+## 独立安装辅助模块 / Standalone installer helpers
+
+`apps/windows/packaging/windows/native/` 中明确标记为 MIT 的自有安装器适配与卸载清理源码，单独采用该目录的 [MIT 许可证](apps/windows/packaging/windows/native/LICENSE)。此范围不包括小仓主程序、业务库、应用界面或其他资源；这些部分仍按上文许可。WiX 上游及其派生材料保留各自的 MS-RL 许可，不适用此项 MIT 授权。
+
+Original installer-adaptation and uninstall-cleanup source files in `apps/windows/packaging/windows/native/` that are explicitly marked as MIT are separately licensed under that directory's [MIT license](apps/windows/packaging/windows/native/LICENSE). This scope does not include Cangoo's main application, business libraries, application UI, or other assets, which remain under the terms stated above. Upstream WiX material and its derivatives retain their MS-RL license and are not covered by this MIT grant.

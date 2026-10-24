@@ -9,6 +9,7 @@ cffi==2.0.0
 pycparser==3.0
 pypinyin==0.55.0
 zxcvbn==4.5.0
+comtypes==1.4.17
 pyinstaller==6.21.0
 pyinstaller-hooks-contrib==2026.6
 altgraph==0.17.5

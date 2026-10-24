@@ -1,0 +1,47 @@
+[
+  {
+    "file": "python_3_11_17_license.txt",
+    "origin": "https://raw.githubusercontent.com/python/cpython/v3.11.17/LICENSE",
+    "sha256": "3b2f81fe21d181c499c59a256c8e1968455d6689d269aa85373bfb6af41da3bf"
+  },
+  {
+    "file": "chaquopy_17_1_0_license.txt",
+    "origin": "https://raw.githubusercontent.com/chaquo/chaquopy/17.1.0/LICENSE.txt",
+    "sha256": "345a9fdfeed355d37b18569ef277ba56eb0ab7c0b17a08a90163ce8d33d2b862"
+  },
+  {
+    "file": "pypinyin_0_55_0_license.txt",
+    "origin": "assets/chaquopy/requirements-common.imy!/pypinyin-0.55.0.dist-info/licenses/LICENSE.txt",
+    "sha256": "1e6c90014b4912815c296ee64bb6f6280af47e6d4c5d80e86232dfc5defe764c"
+  },
+  {
+    "file": "zxcvbn_4_5_0_license.txt",
+    "origin": "assets/chaquopy/requirements-common.imy!/zxcvbn-4.5.0.dist-info/LICENSE.txt",
+    "sha256": "5ac25259c90840319086f710e6b71740f32020c5322b508b858479fbd9869792"
+  },
+  {
+    "file": "pinyin_data_0_15_license.txt",
+    "origin": "https://raw.githubusercontent.com/mozillazg/pinyin-data/v0.15.0/LICENSE",
+    "sha256": "9c048697be2502a16e8bcb282d5d465a07295b2def0ffb05a269c5d39dbe1586"
+  },
+  {
+    "file": "phrase_pinyin_data_0_19_license.txt",
+    "origin": "https://raw.githubusercontent.com/mozillazg/phrase-pinyin-data/v0.19.0/LICENSE",
+    "sha256": "89ac55df747e4776088c3e77531ef61b973a1a59dd8e6a4548a58996da9a4f70"
+  },
+  {
+    "file": "construct_bundled_pyelftools_0_26_license.txt",
+    "origin": "https://raw.githubusercontent.com/eliben/pyelftools/v0.26/elftools/construct/LICENSE",
+    "sha256": "f8d0c347a0dcc6ebe1671640dfae8d2411b6ded892e06a6764f8208b218b2af4"
+  },
+  {
+    "file": "pyelftools_license.txt",
+    "origin": "assets/chaquopy/bootstrap.imy!/java/_vendor/pyelftools-0.26.dist-info/LICENSE.txt",
+    "sha256": "ae18bf4cb82f92af7547259177bc28bc48e4fc732518bcedfe690226288d3445"
+  },
+  {
+    "file": "setuptools_license.txt",
+    "origin": "assets/chaquopy/bootstrap.imy!/setuptools-68.2.2.dist-info/LICENSE",
+    "sha256": "86da0f01aeae46348a3c3d465195dc1ceccde79f79e87769a64b8da04b2a4741"
+  }
+]

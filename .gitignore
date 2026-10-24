@@ -1,0 +1,40 @@
+# 安装包通过发行附件提供，不提交构建结果。
+**/build/
+**/dist/
+*.exe
+*.msi
+*.wixpdb
+*.zip
+*.apk
+*.aab
+*.pyd
+
+# 本机工具、缓存和设置。
+.venv/
+.gradle/
+.kotlin/
+.idea/
+.vscode/
+node_modules/
+__pycache__/
+*.py[cod]
+*.log
+*.tmp
+local.properties
+
+# 用户资料、秘密和签名身份。
+.env
+.env.*
+*.jks
+*.keystore
+*.p12
+*.pfx
+signing.properties
+*.pdm
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.bak
+*.pdmbackup.json
+security.st

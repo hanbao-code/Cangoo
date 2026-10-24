@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN" data-pdm-m4-slice="1" data-pdm-editor-theme="DARK" data-pdm-editor-font="100">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; script-src-attr 'none'; style-src 'self'; style-src-attr 'none'; img-src 'self'; font-src 'self'; connect-src 'none'; worker-src 'none'; child-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; manifest-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>编辑记事</title>
+  <script src="scripts/editor_appearance.js"></script>
+  <link rel="stylesheet" href="styles/tokens.css">
+  <link rel="stylesheet" href="styles/platform_colors.css">
+  <link rel="stylesheet" href="styles/canvas.css">
+  <link rel="stylesheet" href="styles/focus_visibility.css">
+  <link rel="stylesheet" href="styles/editor.css">
+  <link rel="stylesheet" href="styles/note_editor.css">
+</head>
+<body>
+  <main id="note-editor-app" class="editor-app" aria-labelledby="note-editor-title">
+    <h1 id="note-editor-title" class="editor-visually-hidden">编辑记事</h1>
+    <form id="note-editor-form" class="editor-form" novalidate>
+      <div class="editor-content editor-form-content note-editor-content">
+        <label class="modal-field" for="note-editor-title-input"><span id="note-label-title" class="modal-field-label"><span id="note-label-title-text">标题</span> <b class="required">*</b></span>
+          <input id="note-editor-title-input" class="modal-field-input" type="text" autocomplete="off" placeholder="输入记事标题" required data-pdm-sensitive="true">
+        </label>
+        <label class="modal-field note-content-field" for="note-editor-content"><span id="note-label-content" class="modal-field-label">正文</span>
+          <textarea id="note-editor-content" class="modal-field-input" placeholder="输入记事内容" data-pdm-sensitive="true"></textarea>
+        </label>
+      </div>
+    </form>
+    <footer class="modal-footer editor-footer">
+      <div class="editor-content editor-footer-content">
+        <button id="note-editor-favorite" type="button" class="modal-fav-toggle" aria-pressed="false"><svg aria-hidden="true" class="svg-fill" viewBox="0 0 24 24"><path d="m12 3 2.8 5.8 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.7l6.2-.9L12 3Z"/></svg><span id="note-label-favorite">收藏</span></button>
+        <button id="note-editor-delete" type="button" class="btn btn-danger btn-sm" hidden>删除</button>
+        <div id="note-editor-feedback" class="editor-feedback">
+          <span id="note-editor-state" class="editor-state" role="status" aria-live="polite"></span>
+          <p id="note-editor-error" class="editor-error" role="alert" aria-live="assertive"></p>
+        </div>
+        <div class="modal-footer-right">
+          <button id="note-editor-cancel" type="button" class="btn btn-sm">取消</button>
+          <button id="note-editor-save" type="submit" form="note-editor-form" class="btn btn-primary btn-sm">保存</button>
+        </div>
+      </div>
+    </footer>
+  </main>
+  <script src="vendor/qwebchannel.js"></script>
+  <script src="scripts/security_lifecycle.js"></script>
+  <script src="scripts/focus_visibility.js"></script>
+  <script src="scripts/note_editor_runtime.js"></script>
+</body>
+</html>

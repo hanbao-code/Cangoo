@@ -1,13 +1,17 @@
 # 安全问题报告 / Reporting security vulnerabilities
 
-请使用本仓库“Security（安全）→ Report a vulnerability（报告漏洞）”入口私密提交安全问题，不要在公开议题中披露漏洞细节。如果该入口暂不可用，请通过[Telegram交流群](https://t.me/+kQEszbuHNEgxOGRh)联系管理员私聊。
+请加入[小仓 Telegram（电报）交流群](https://t.me/+kQEszbuHNEgxOGRh)，联系管理员私聊报告安全问题。
+群邀请链接不是私聊入口，请勿在群内或其他公开位置发送漏洞细节。
 
-请提供受影响的软件版本、Windows版本、前提条件、复现步骤、预期与实际结果。使用虚构测试数据，不发送真实密码、数据库或备份。
+私聊时请注明电脑版或安卓版，并提供应用及系统版本、前提条件、复现步骤、预期与实际结果；安卓问题可补充设备型号。
+使用虚构测试数据，不发送真实密码、数据库、备份或签名私钥。
 
-普通功能问题使用项目议题；授权申请通过[Telegram交流群](https://t.me/+kQEszbuHNEgxOGRh)联系管理员。
+普通问题也可通过交流群联系管理员。
 
-Use this repository's Security → Report a vulnerability option to report vulnerabilities privately. Do not disclose vulnerability details in public issues. If the option is unavailable, contact an administrator privately through the [Telegram group](https://t.me/+kQEszbuHNEgxOGRh).
+Join the [Cangoo Telegram group](https://t.me/+kQEszbuHNEgxOGRh) and message an administrator privately to report a security issue.
+The invitation opens a group, not a private conversation. Do not post vulnerability details in the group or elsewhere in public.
 
-Include the affected app and Windows versions, prerequisites, reproduction steps, and expected and actual results. Use synthetic test data; do not send real passwords, databases or backups.
+In the private conversation, identify Windows or Android and provide the app and operating-system versions, prerequisites, reproduction steps, and expected and actual results. For Android, include the device model where relevant.
+Use synthetic test data; do not send real passwords, databases, backups or signing private keys.
 
-Use project issues for ordinary feature problems and contact an administrator through the [Telegram group](https://t.me/+kQEszbuHNEgxOGRh) for permission requests.
+For ordinary questions, contact the group administrators as well.

@@ -1,0 +1,12 @@
+# 文本统一 LF；Windows源码按子目录规则保留既有字节约定。
+* text=auto eol=lf
+*.png binary !eol
+*.jpg binary !eol
+*.ico binary !eol
+*.ttf binary !eol
+*.jar binary !eol
+# 原始第三方许可保留原字节。
+third_party/android/licenses/** -text !eol whitespace=-blank-at-eol,-blank-at-eof
+apps/android/app/src/main/assets/third_party/androidx_license.txt whitespace=-blank-at-eof
+apps/android/app/src/main/assets/third_party/bouncycastle_1_86_license.html whitespace=-blank-at-eol,-blank-at-eof
+apps/android/app/src/main/assets/third_party/libtomcrypt_license.txt whitespace=-blank-at-eol,-blank-at-eof

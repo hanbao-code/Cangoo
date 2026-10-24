@@ -1,7 +1,9 @@
 # 第三方来源与库替换 / Third-party sources and library replacement
 
+[安卓第三方来源与许可](../third_party/android/README.md) · [电脑版许可原文](../third_party/notices.txt) · [源码构建](building.md)
+
 软件内“帮助 → 关于 → 第三方许可”提供随附版权及许可原文；相同文本也保存在
-[第三方许可原文 / Third-party notices](../third_party/notices.txt)。本页供需要取得源码、构建或替换库的开发者使用。
+`apps/windows/desktop/frontend/assets/help/content.json`。本页供需要取得源码、构建或替换库的开发者使用。
 
 ## Qt / PySide6 / Shiboken 6.9.3
 
@@ -15,6 +17,7 @@ PySide/Shiboken来源为pyside-setup。构建第三方库时遵循源码内的�
 | 源码 | SHA-256 |
 |---|---|
 | [qtbase](https://download.qt.io/archive/qt/6.9/6.9.3/submodules/qtbase-everywhere-src-6.9.3.tar.xz) | `c5a1a2f660356ec081febfa782998ae5ddbc5925117e64f50e4be9cd45b8dc6e` |
+| [qtconnectivity（Qt Bluetooth）](https://download.qt.io/archive/qt/6.9/6.9.3/submodules/qtconnectivity-everywhere-src-6.9.3.tar.xz) | `e21bba5efb174c4456c5e5a7b4d52bba1ee62dfb4509bcff73fdfad9cb1dd7f5` |
 | [qtdeclarative](https://download.qt.io/archive/qt/6.9/6.9.3/submodules/qtdeclarative-everywhere-src-6.9.3.tar.xz) | `5a071b227229afbf5c976b7b59a0d850818d06ae861fcdf6d690351ca3f8a260` |
 | [qtpositioning](https://download.qt.io/archive/qt/6.9/6.9.3/submodules/qtpositioning-everywhere-src-6.9.3.tar.xz) | `0c87c980f704c17aadaf0bf8a03845dd0a60cc0313be24bd7b5b90685d5835b4` |
 | [qtserialport](https://download.qt.io/archive/qt/6.9/6.9.3/submodules/qtserialport-everywhere-src-6.9.3.tar.xz) | `4b18ec030ff2644698c3f5c776894d8ffe5d3174c964d9bd8668429c943e8298` |
@@ -29,13 +32,16 @@ PySide/Shiboken来源为pyside-setup。构建第三方库时遵循源码内的�
 
 pysqleet31.1.3的原始源码：[官方源码包](https://files.pythonhosted.org/packages/c8/e4/b2271580532bb88e2c42d9f2b386f43e29675fc93269009c26240ebff9dc/pysqleet-31.1.3.tar.gz)，
 SHA-256为 `941e14b7533eeffcfee666c12e8ecf6e4b72317daafe3d0e788dc8540c8a277a`。
-本项目改动完整保存在 [驱动补丁 / Driver patch](../third_party/pysqleet_31_1_3.patch)，构建命令见[驱动构建说明](../third_party/driver_build.md)。
+本项目改动完整保存在 `apps/windows/packaging/windows/pysqleet_31_1_3.patch`，构建命令见根目录README。
 包装层还保留pysqlite各作者的来源许可；sqleet合并源码和SQLite实现保持原样。
 
 Python3.10.11来源：[Python官方版本页](https://www.python.org/downloads/release/python-31011/)。
-Python自身及其OpenSSL等随附许可在软件中保留。其他Python依赖的确切版本见 [版本清单 / Version list](../third_party/requirements.txt)，
+Python自身及其OpenSSL等随附许可在软件中保留；此Windows运行时随附OpenSSL1.1.1t，
+对应[OpenSSL1.1.1t源码](https://github.com/openssl/openssl/tree/OpenSSL_1_1_1t)及其OpenSSL/SSLeay原始许可随来源保留。其他Python依赖的确切版本见 `apps/windows/packaging/windows/requirements.txt`，
 原始源码可从各版本的PyPI发布页取得；CFFI内含libffi、Argon2绑定内含Argon2/Blake2的独立许可也已补充。
 网页侧的pinyin-pro、zxcvbn、Phosphor Icons、Manrope和JetBrains Mono保留随附原文及来源链接。
+
+Windows局域网授权使用[comtypes 1.4.17](https://pypi.org/project/comtypes/1.4.17/)调用系统COM接口，未修改上游库。采用MIT许可，原文保留在软件第三方许可中；不增加必选的传递依赖。官方轮子`comtypes-1.4.17-py3-none-any.whl`的SHA-256为`4e0a221dde2c589b82977bed802efd71cd5eb67a380347b732e02735e597f586`；源码包SHA-256为`3d9c1e92ad8daf7600d371e76ee16161a627a5fb70c3144f6e52e78af6034363`。
 
 ## 替换第三方库
 
@@ -56,13 +62,13 @@ Python自身及其OpenSSL等随附许可在软件中保留。其他Python依赖�
 ## English
 
 The app includes copyright notices and license texts under Help → About → Third-party licenses.
-The same texts and their sources are present in [第三方许可原文 / Third-party notices](../third_party/notices.txt).
+The same texts and their sources are present in `apps/windows/desktop/frontend/assets/help/content.json`.
 The table links the official, versioned Qt and PySide/Shiboken source archives and their published SHA-256 hashes.
 Qt WebEngine includes Chromium sources. No project patches are applied to Qt or PySide/Shiboken.
 
-The pysqleet31.1.3 source URL, archive hash and complete project patch are provided above and in [Driver build instructions](../third_party/driver_build.md).
+The pysqleet31.1.3 source URL, archive hash and complete project patch are provided above and in the root README.
 The patch is limited to Python3.10/MSVC build compatibility; the sqleet/SQLite implementation is unchanged.
-Other Python component versions are pinned in [版本清单 / Version list](../third_party/requirements.txt); their versioned source releases are available
+Other Python component versions are pinned in `apps/windows/packaging/windows/requirements.txt`; their versioned source releases are available
 through PyPI. Notices also include bundled native implementations such as libffi and Argon2/Blake2.
 
 To replace a library, exit Cangoo, back up the program and your data, and build an interface-compatible Windows x64
@@ -73,5 +79,9 @@ Test with a separate database and restore the backed-up program if interfaces ar
 Third-party library bytes are not pinned by the application; frontend resource integrity is a separate boundary.
 Rights granted by the component licenses, including modification and debugging those modifications, remain intact.
 
-版本清单包含构建工具，不表示所有列出的包均随软件分发。
-The version list includes build tools; not every listed package is distributed with the app.
+
+## Windows安装器许可与源码 / Windows installer licenses and source
+
+WiX运行组件与派生主题的MS-RL许可、固定来源及随发行提供的完整源码归档见[安装器第三方说明](../apps/windows/packaging/windows/msi/third_party/wix_sources.md)。独立自有安装辅助源码的MIT范围见[项目许可声明](../LICENSE.md)及[原文](../apps/windows/packaging/windows/native/LICENSE)。
+
+See the [installer third-party notes](../apps/windows/packaging/windows/msi/third_party/wix_sources.md) for WiX MS-RL terms, pinned sources and the complete source archive supplied with the release. The separate MIT scope for original installer helpers is defined by the [project license notice](../LICENSE.md) and [MIT text](../apps/windows/packaging/windows/native/LICENSE).

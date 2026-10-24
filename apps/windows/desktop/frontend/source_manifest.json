@@ -1,0 +1,201 @@
+{
+  "schema_version": 1,
+  "generator": "tools/build_web_frontend.py --product-only",
+  "offline_build": true,
+  "sources": {
+    "assets/brand/cangoo.png": {
+      "sha256": "edb2654891c92962730e5693846e50a43ace746f452e01e19e4345954665d3ba",
+      "bytes": 15744
+    },
+    "assets/fonts/JetBrainsMono-Regular.ttf": {
+      "sha256": "e6fd0d7e91550b3ed2b735d4312474362c4716edc4fc0577a0f61ed782d5aed1",
+      "bytes": 270224
+    },
+    "assets/fonts/Manrope-Variable.ttf": {
+      "sha256": "d0639be45d0af36e798172419d7bd173c4bd4f29e2b76cbb69db1d11bf8b0a40",
+      "bytes": 165420
+    },
+    "assets/help/backup_en.png": {
+      "sha256": "31a6c9d434ba096565b91210e575ef1a3cfc9b497c890d1b7ea9e9e0a54572f8",
+      "bytes": 78802
+    },
+    "assets/help/backup_zh.png": {
+      "sha256": "8c844f23f5c2791df094bd63c28e141364c4964e31d441dfd1e94922cd51c6fa",
+      "bytes": 64403
+    },
+    "assets/help/connect_en.png": {
+      "sha256": "1b50c16acd451837915869eda7bb1072c736a0716096627ddd8b8573725d2580",
+      "bytes": 95489
+    },
+    "assets/help/connect_zh.png": {
+      "sha256": "b07357272b435be93a7163d9c887ba40b00ce105fe79707f8144495e19bc1a48",
+      "bytes": 80881
+    },
+    "assets/help/content.json": {
+      "sha256": "021b09565c673a1e2771d8fb87d212aff53d0a42bb4bb50de6f6ea8156f741b9",
+      "bytes": 1294952
+    },
+    "assets/help/health_en.png": {
+      "sha256": "6d92032c7099bc0404cfb66349f57ed9f88eba3215f911583254678b0c582358",
+      "bytes": 297512
+    },
+    "assets/help/health_zh.png": {
+      "sha256": "c67808b9d3e2a97b13b8c1e0f20755f344b51de52c1bd507e484ae30475a3a97",
+      "bytes": 279979
+    },
+    "assets/help/notes_en.png": {
+      "sha256": "d20a4c5189c7d32cb9a578524ca0feaf1220bc4a62680b51159ceba33e679f2f",
+      "bytes": 102298
+    },
+    "assets/help/notes_zh.png": {
+      "sha256": "2130f4b352af874f6bd18f123f68226e072bc04c5bc45efbc4586e828f0f2b29",
+      "bytes": 100598
+    },
+    "assets/help/settings_en.png": {
+      "sha256": "b516d0d94e5e725fd1633f29a990f5cf8e5ab73ac7c55f3fb22f7323efeb8943",
+      "bytes": 132803
+    },
+    "assets/help/settings_zh.png": {
+      "sha256": "85513b5297f961d9d973049f04e6c06ca12694727b923efed6ce931f13de82a8",
+      "bytes": 110473
+    },
+    "assets/help/tools_en.png": {
+      "sha256": "bd7c15503847c5c97f616134592f8bf0957112724e64d4cae72c038ebe615872",
+      "bytes": 113644
+    },
+    "assets/help/tools_zh.png": {
+      "sha256": "2c8b6fb7c39604936871dcd1f26e3099d65c96c218df3b958e2bef3a4332d76e",
+      "bytes": 94592
+    },
+    "assets/help/vault_en.png": {
+      "sha256": "f112105a3e0eb1a167ac33632eaeda8f5c4a44d899631bf2c637ed54f425be45",
+      "bytes": 123794
+    },
+    "assets/help/vault_zh.png": {
+      "sha256": "7f774bba316008adadcaf3b1040b85e9b8dd5dcc4d8051e694cfda4dbc0c43b5",
+      "bytes": 111935
+    },
+    "canvas.html": {
+      "sha256": "ef32c2a7ea50eb72aae7f5119236877bb34748e175970e1b9b000140cd95094a",
+      "bytes": 49105
+    },
+    "editor_shell.html": {
+      "sha256": "9faf0249d6d2db7331baa7c864683dd6fa62e8690c6c3c5d667449fe1c725566",
+      "bytes": 6174
+    },
+    "m4_product_shell.html": {
+      "sha256": "801233fbcb94121b30f4c1815d73d644e2f49dc640c1fb5f7d97cf3f481fcec9",
+      "bytes": 1499
+    },
+    "note_editor_shell.html": {
+      "sha256": "5b3337f8b3e9721fc8995a96b03192ef03d313c1ae8fc73d0fdb9c7d31369a05",
+      "bytes": 3373
+    },
+    "scripts/demo_runtime.js": {
+      "sha256": "d5a05d98d72c390ef99845414766460bef0f3db63ed8f7ce882a82a9af70ff98",
+      "bytes": 411296
+    },
+    "scripts/direct_transfer.js": {
+      "sha256": "99e247172ed7c2a766ca0d323eae113e69001b0daee57aeb680ba8a4fce703cc",
+      "bytes": 47056
+    },
+    "scripts/editor_appearance.js": {
+      "sha256": "bc040cbf68ec8c8ab0b6c904881975340122e0e737a8357efbce19620263cd82",
+      "bytes": 354
+    },
+    "scripts/editor_runtime.js": {
+      "sha256": "cf7f5abbdc120007c0c9440f68979cf295115aa737082647fa625114f3a2b656",
+      "bytes": 40477
+    },
+    "scripts/event_dispatcher.js": {
+      "sha256": "45d101faed05896ceaa21c8f815a0d8978be694304007daa8c8fd1a9ee9656a5",
+      "bytes": 8147
+    },
+    "scripts/focus_visibility.js": {
+      "sha256": "a3dcae6dcf83cc10dea2ff39134fea95f01dbc675bdd7881c878cb673a1127ee",
+      "bytes": 14585
+    },
+    "scripts/help.js": {
+      "sha256": "d4e2e455424e004ada2cf7f7b6ffd37ab6470c738f52384ada1149dae83f8c9c",
+      "bytes": 10072
+    },
+    "scripts/help_content.js": {
+      "sha256": "3b66dfd6b60edc4370f1015d7fb3b86fcfef94fbd3f726f87aec36bf5722b8e8",
+      "bytes": 1295060
+    },
+    "scripts/m4_runtime.js": {
+      "sha256": "aee2037bb59456c6931109f78c1699b2880a9ac11fea31d2b1c997a2c6c9be48",
+      "bytes": 685404
+    },
+    "scripts/note_editor_runtime.js": {
+      "sha256": "6bd3e24bd608eec00b4559f2717b31e3280f046d003f6e5326648d7299f1f64e",
+      "bytes": 17870
+    },
+    "scripts/product_entry.js": {
+      "sha256": "11aa66a3db9f677b90afbaacb53eef108fc85ac2ac2b23796df9bacf5750db61",
+      "bytes": 247
+    },
+    "scripts/security_lifecycle.js": {
+      "sha256": "eea4b30bc339f539a08b1a503c01623bcf628a5eb6ffb114d5eed46ae79b9a38",
+      "bytes": 8039
+    },
+    "styles/canvas.css": {
+      "sha256": "dfbc03fc59235aab4b01dbc80ea268bc23e6e09a875538deab730a9e2aa36083",
+      "bytes": 99476
+    },
+    "styles/direct_transfer.css": {
+      "sha256": "ab89902c1dadc2fea824ee7067a62b65013442a68f161f62ea453eee82a51340",
+      "bytes": 9887
+    },
+    "styles/editor.css": {
+      "sha256": "c5423b30b473c4a525667b42528158f66d7d6df3037a57439036376dbf9303fb",
+      "bytes": 2897
+    },
+    "styles/focus_visibility.css": {
+      "sha256": "e12db52d6744b2bef8d4075e49637aa684be2904de2859f04dac98bdc2a9a234",
+      "bytes": 6717
+    },
+    "styles/help.css": {
+      "sha256": "baaf3a28eba21075e7313673f1a63fd12c56f06d466a842acb117adb1a1b9922",
+      "bytes": 3384
+    },
+    "styles/note_editor.css": {
+      "sha256": "d2b440c249c1715c25b252115fd70e5dd142cd11c826d3c6c1f891040eb69064",
+      "bytes": 617
+    },
+    "styles/platform_colors.css": {
+      "sha256": "b9c6676cf8ed7af31437c494472f416aaee57a668d0481afdcaaa7c94c151be8",
+      "bytes": 31719
+    },
+    "styles/tokens.css": {
+      "sha256": "5693dd63961125cc62ac0c159f205f41bc46bfec45832e4a02946432f630701d",
+      "bytes": 5519
+    },
+    "transfer_shell.html": {
+      "sha256": "1ede69c599d8122a8f376b7eb17309ce3bd5fb8bc57063ad4e22467cdef6db91",
+      "bytes": 1133
+    },
+    "vendor/dictionaries.js": {
+      "sha256": "37eb94d04609062adfa167cf3200272f1eebfb9e257a6545e35c2b3eead99a46",
+      "bytes": 43175
+    },
+    "vendor/pinyin-pro.js": {
+      "sha256": "cb5cb45146030cf81d03154d25954dada0e803db6cce5d643513607371d92b2f",
+      "bytes": 323351
+    },
+    "vendor/qwebchannel.js": {
+      "sha256": "0b03bff1a45322862a5fd1567a4b3a73f832b41213cdecdb123c618cca76b0e1",
+      "bytes": 16510
+    },
+    "vendor/zxcvbn.js": {
+      "sha256": "f42c651f40506acb6b662490f338dd47a5951d3312039c4ab8fe5090484f351a",
+      "bytes": 821792
+    }
+  },
+  "outputs": {
+    "m4_product.html": {
+      "sha256": "9b5c1db8faf3b1750da5b7a462d5b58b6ec5587835fa61e78e9db72ef81f224f",
+      "role": "product canvas shell"
+    }
+  }
+}
