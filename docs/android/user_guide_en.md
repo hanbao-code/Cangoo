@@ -11,7 +11,7 @@
 3. On later visits, select this vault and enter its own master password. Separate vaults can keep personal and work information apart.
 
 Master passwords are case-sensitive, including leading and trailing spaces. With an empty master password, anyone able to use Cangoo can open this vault, and quick unlock is unavailable. Set a master password that only you know.
-A lost master password cannot be recovered. Export encrypted backups regularly and keep their passwords separate from the files. Uninstalling Cangoo, clearing app data or resetting the phone deletes vaults stored inside the app.
+Vaults are stored on this phone. Cangoo has no recovery function for master or backup passwords, so keep each password safe. Export encrypted backups regularly and store their passwords separately from the files. Uninstalling Cangoo, clearing app data or resetting the phone deletes vaults stored inside the app.
 
 ## Add, edit and delete items
 
@@ -48,7 +48,7 @@ Strength analysis happens on this device. Ratings and estimated cracking times a
 ## Check passwords in the vault
 
 Open Tools → Password checks to see weak, repeated and pending passwords in the current vault. Open a flagged record to inspect it. If needed, change the password with the service, then edit the Cangoo record.
-Saving finishes first and strength ratings update afterwards. Unchecked or failed items are not evidence of safety; continue or retry as prompted. After cancelling checks, choose Continue checks to resume. Saving another record does not resume them for you.
+Saving finishes first and strength ratings update afterwards. Items that have not been checked or whose checks failed do not yet have usable results; continue or retry as prompted. After cancelling checks, choose Continue checks to resume. Saving another record does not resume them for you.
 Records with no password are excluded. Results help you spot issues; they do not guarantee account security.
 
 ## Create an encrypted backup
@@ -57,7 +57,7 @@ Records with no password are excluded. Results help you spot issues; they do not
 2. Check the current vault. Choose all records, passwords only or notes only, then set a separate password for this backup and enter it again to confirm. The backup password cannot be empty.
 3. Choose Create backup and select a local destination in the system file picker. After the saved confirmation, check the file. Create another vault with no data and try restoring the backup there to check that both the file and password work.
 
-Backups contain the selected records, but not the master password or app settings. Fingerprint or face quick unlock is not transferred either. A lost backup password cannot be recovered. Keep it separate from the file. Use encrypted backups or Device transfer to move data to another device or between Windows and Android; do not exchange native vault files.
+Backups contain the selected records, but not the master password or app settings. Fingerprint or face quick unlock is not transferred either. Opening this backup requires the password set when it was exported. Keep that password separately from the file. Use encrypted backups or Device transfer to move data to another device or between Windows and Android; do not exchange native vault files.
 A failed or cancelled export may leave an empty or incomplete file. Check it in the file manager as instructed. The local recent-backup entry only records an operation; it does not guarantee the file still exists or can be restored.
 
 ## Restore a backup and compare changes
@@ -125,7 +125,7 @@ If a status cannot be read, check it in system settings. Battery and background 
 ## Check for updates and get help
 
 While connected to the internet, choose Check for updates in Settings or Help → About Cangoo. Automatic checks are enabled by default with a one-day interval (24 hours). After the chosen number of days has passed since the last check, Cangoo checks on the next startup. A failed check also starts this interval. You can change the interval, or turn automatic checks off and still check manually.
-When a new version is found, read its notes and release page. You can ignore reminders for seven days or for that version; this affects only its automatic reminders on this device. Retry a failed check. Failure does not mean the app is up to date. Checks do not send vault contents. You decide whether to download and install.
+When a new version is found, read its notes and release page. You can ignore reminders for seven days or for that version; this affects only its automatic reminders on this device. Retry a failed check. Failure does not mean the app is up to date. Update checks connect to GitHub to read public release information. The requests contain no vault contents or master password. You decide whether to download and install.
 Help also lets you read the open-source license and third-party notices again. The contact entry in About Cangoo opens through the system browser or a suitable app.
 Before updating, replacing the phone, uninstalling or clearing app data, make and verify an independent encrypted backup. When asking for help, provide the app version, steps and an error message without secrets. Do not send real passwords, vaults, backup files or sensitive screenshots.
 

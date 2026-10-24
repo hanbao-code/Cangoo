@@ -32,8 +32,8 @@
       "bytes": 80881
     },
     "assets/help/content.json": {
-      "sha256": "021b09565c673a1e2771d8fb87d212aff53d0a42bb4bb50de6f6ea8156f741b9",
-      "bytes": 1294952
+      "sha256": "332711645afe321047995583733a52daebaf2e0c8104b39c1fba9284e764c0ba",
+      "bytes": 1294962
     },
     "assets/help/health_en.png": {
       "sha256": "6d92032c7099bc0404cfb66349f57ed9f88eba3215f911583254678b0c582358",
@@ -120,8 +120,8 @@
       "bytes": 10072
     },
     "scripts/help_content.js": {
-      "sha256": "3b66dfd6b60edc4370f1015d7fb3b86fcfef94fbd3f726f87aec36bf5722b8e8",
-      "bytes": 1295060
+      "sha256": "84648053e3f67c7b24fce7787bc9561c163ae0f3fc450e663f30f70299673454",
+      "bytes": 1295070
     },
     "scripts/m4_runtime.js": {
       "sha256": "aee2037bb59456c6931109f78c1699b2880a9ac11fea31d2b1c997a2c6c9be48",

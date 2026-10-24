@@ -8,7 +8,7 @@
 
 - **恢复码随账号保存：**逐条查看、复制、手动标记已用，也可撤销误标；备份会保留整组恢复码及其已用标记。
 - **查找更方便：**密码名称、账号和记事标题支持中文拼音全拼或首字母搜索；设置也可按名称或说明查找。
-- **密码检查持续更新：**保存记录后在后台检查强度，未完成和失败状态明确显示；需要时可重新检查全部密码，不必逐条打开记录。
+- **密码检查持续更新：**保存记录后在本机继续检查密码强度，未完成和失败状态明确显示；需要时可重新检查全部密码，不必逐条打开记录。
 - **导入前看清差异：**逐项对照备份或接收资料与当前库的记录；密码等敏感内容默认隐藏，点击一次即可同时查看两侧。支持筛选和批量处理，翻页后仍保留勾选，相同内容自动跳过。
 - **设备间传输：**局域网或蓝牙发送全部、仅密码或仅记事；两端核对显示的数字，确认一致后传输。接收端收齐资料后可继续比较和导入，发送端无需保持连接。局域网支持查找附近设备和手动地址连接。
 - **按需检查更新：**设置启动检查间隔，也可手动检查；可暂停某版本提醒7天或不再提醒该版本，下载与安装由你决定。
@@ -62,7 +62,7 @@ For x64 computers running Windows 10 version 1809 or later, or Windows 11. Packa
 
 - **Keep recovery codes with each account:** view, copy and manually mark individual codes used, or undo an accidental mark. Backups preserve the full set of recovery codes and their used marks.
 - **Find records more easily:** search Chinese password names, accounts and note titles using full pinyin or initials. Find settings by name or description too.
-- **Keep password checks current:** strength checks run in the background after saving. Pending and failed checks are shown clearly; run a full check when needed without opening each record.
+- **Keep password checks current:** password-strength checks continue locally after saving. Pending and failed checks are shown clearly; run a full check when needed without opening each record.
 - **See differences before importing:** compare records from a backup or received data with your current vault. Passwords and other sensitive values start hidden; reveal both sides with one click. Filter results and apply bulk actions, with selections kept when you change pages. Identical content is skipped automatically.
 - **Transfer between devices:** send everything, passwords only or notes only over a local network or Bluetooth after checking that both screens show the same numbers. Once all the data has arrived, the receiver can continue comparing and importing without keeping the sender connected. Local network transfers support discovery and manual address entry.
 - **Check for updates when you choose:** set a startup-check interval or check manually. Pause reminders for seven days or ignore a particular version. You decide whether to download and install.
