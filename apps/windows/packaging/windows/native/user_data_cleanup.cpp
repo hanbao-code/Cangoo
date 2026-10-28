@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 // 许可见本目录 LICENSE。
 #include "user_data_cleanup.h"
+#include "user_identity.h"
+#include <exception>
 
 #include <shlobj.h>
 #include <wtsapi32.h>
@@ -31,6 +33,7 @@ public:
     Handle& operator=(const Handle&) = delete;
     Handle(Handle&& other) noexcept : value_(std::exchange(other.value_, INVALID_HANDLE_VALUE)) {}
     HANDLE get() const noexcept { return value_; }
+    HANDLE release() noexcept { return std::exchange(value_, INVALID_HANDLE_VALUE); }
     explicit operator bool() const noexcept { return value_ && value_ != INVALID_HANDLE_VALUE; }
     void reset(HANDLE value = INVALID_HANDLE_VALUE) noexcept {
         if (*this) CloseHandle(value_);
@@ -38,10 +41,6 @@ public:
     }
 private:
     HANDLE value_;
-};
-
-struct SessionFree {
-    void operator()(wchar_t* value) const noexcept { WTSFreeMemory(value); }
 };
 
 struct FolderFree {
@@ -53,48 +52,124 @@ bool IdentityMatches(DWORD process_session, DWORD token_session,
     return process_session != 0 && process_session == token_session && active && same_sid;
 }
 
-std::wstring SessionText(DWORD session, WTS_INFO_CLASS kind) {
-    wchar_t* raw = nullptr;
-    DWORD bytes = 0;
-    const BOOL ok = WTSQuerySessionInformationW(WTS_CURRENT_SERVER_HANDLE, session, kind, &raw, &bytes);
-    std::unique_ptr<wchar_t, SessionFree> text(raw);
-    if (!ok || !raw || bytes < sizeof(wchar_t) || bytes > 2048 || bytes % sizeof(wchar_t)) return {};
-    const auto length = wcsnlen(raw, bytes / sizeof(wchar_t));
-    return length < bytes / sizeof(wchar_t) ? std::wstring(raw, length) : std::wstring{};
+bool SameUserLogon(HANDLE first, HANDLE second) {
+    alignas(TOKEN_USER) BYTE left[sizeof(TOKEN_USER) + SECURITY_MAX_SID_SIZE]{};
+    alignas(TOKEN_USER) BYTE right[sizeof(TOKEN_USER) + SECURITY_MAX_SID_SIZE]{};
+    DWORD needed = 0, first_session = 0, second_session = 0;
+    TOKEN_STATISTICS first_stats{}, second_stats{};
+    if (!GetTokenInformation(first, TokenUser, left, sizeof(left), &needed) ||
+        !GetTokenInformation(second, TokenUser, right, sizeof(right), &needed) ||
+        !GetTokenInformation(first, TokenSessionId, &first_session, sizeof(first_session), &needed) ||
+        !GetTokenInformation(second, TokenSessionId, &second_session, sizeof(second_session), &needed) ||
+        !GetTokenInformation(first, TokenStatistics, &first_stats, sizeof(first_stats), &needed) ||
+        !GetTokenInformation(second, TokenStatistics, &second_stats, sizeof(second_stats), &needed)) return false;
+    const auto first_sid = reinterpret_cast<TOKEN_USER*>(left)->User.Sid;
+    const auto second_sid = reinterpret_cast<TOKEN_USER*>(right)->User.Sid;
+    return IsValidSid(first_sid) && IsValidSid(second_sid) && EqualSid(first_sid, second_sid) &&
+        first_session == second_session &&
+        first_stats.AuthenticationId.LowPart == second_stats.AuthenticationId.LowPart &&
+        first_stats.AuthenticationId.HighPart == second_stats.AuthenticationId.HighPart;
+}
+
+bool OrdinaryToken(HANDLE token, bool limited) {
+    bool elevated = false;
+    DWORD needed = 0;
+    TOKEN_ELEVATION_TYPE elevation_type{};
+    if (!cangoo::identity::TokenMatchesSession(token) ||
+        !cangoo::identity::IsElevated(token, elevated) || elevated ||
+        !GetTokenInformation(token, TokenElevationType, &elevation_type, sizeof(elevation_type), &needed) ||
+        (limited && elevation_type != TokenElevationTypeLimited)) return false;
+    alignas(TOKEN_MANDATORY_LABEL) BYTE integrity[sizeof(TOKEN_MANDATORY_LABEL) + SECURITY_MAX_SID_SIZE]{};
+    if (!GetTokenInformation(token, TokenIntegrityLevel, integrity, sizeof(integrity), &needed)) return false;
+    const auto sid = reinterpret_cast<TOKEN_MANDATORY_LABEL*>(integrity)->Label.Sid;
+    return IsValidSid(sid) && *GetSidSubAuthorityCount(sid) &&
+        *GetSidSubAuthority(sid, *GetSidSubAuthorityCount(sid) - 1) == SECURITY_MANDATORY_MEDIUM_RID;
+}
+
+bool CanImpersonate(HANDLE token) {
+    TOKEN_TYPE type{};
+    SECURITY_IMPERSONATION_LEVEL level = SecurityAnonymous;
+    DWORD needed = 0;
+    return GetTokenInformation(token, TokenType, &type, sizeof(type), &needed) &&
+        (type == TokenPrimary || (type == TokenImpersonation &&
+         GetTokenInformation(token, TokenImpersonationLevel, &level, sizeof(level), &needed) &&
+         level >= SecurityImpersonation));
 }
 
 bool OpenVerifiedToken(Handle& token) {
     DWORD session = 0, token_session = 0, needed = 0;
     HANDLE raw_token = nullptr;
     if (!ProcessIdToSessionId(GetCurrentProcessId(), &session) || !session ||
-        !OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY | TOKEN_IMPERSONATE, &raw_token)) return false;
+        !OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY | TOKEN_DUPLICATE | TOKEN_IMPERSONATE, &raw_token)) return false;
     token.reset(raw_token);
-    if (!GetTokenInformation(token.get(), TokenSessionId, &token_session, sizeof(token_session), &needed) ||
-        needed != sizeof(token_session) || token_session != session) return false;
-
-    wchar_t* raw_state = nullptr;
-    DWORD bytes = 0;
-    const BOOL queried = WTSQuerySessionInformationW(
-        WTS_CURRENT_SERVER_HANDLE, session, WTSConnectState, &raw_state, &bytes);
-    std::unique_ptr<wchar_t, SessionFree> state(raw_state);
-    if (!queried || !raw_state || bytes != sizeof(WTS_CONNECTSTATE_CLASS) ||
-        *reinterpret_cast<WTS_CONNECTSTATE_CLASS*>(raw_state) != WTSActive) return false;
-    const auto user = SessionText(session, WTSUserName);
-    const auto domain = SessionText(session, WTSDomainName);
-    if (user.empty() || domain.empty()) return false;
-
-    alignas(SID) BYTE account_sid[SECURITY_MAX_SID_SIZE]{};
-    DWORD sid_bytes = sizeof(account_sid), domain_chars = 1024;
-    wchar_t resolved_domain[1024]{};
-    SID_NAME_USE sid_type{};
-    if (!LookupAccountNameW(nullptr, (domain + L"\\" + user).c_str(), account_sid,
-                            &sid_bytes, resolved_domain, &domain_chars, &sid_type) || sid_type != SidTypeUser) return false;
-    alignas(TOKEN_USER) BYTE user_info[sizeof(TOKEN_USER) + SECURITY_MAX_SID_SIZE]{};
-    if (!GetTokenInformation(token.get(), TokenUser, user_info, sizeof(user_info), &needed)) return false;
-    const auto sid = reinterpret_cast<TOKEN_USER*>(user_info)->User.Sid;
-    return IsValidSid(sid) && IsValidSid(account_sid) &&
-           IdentityMatches(session, token_session, true, EqualSid(sid, account_sid) != FALSE);
+    if (!cangoo::identity::TokenMatchesSession(token.get())) return false;
+    bool elevated = false;
+    if (!cangoo::identity::IsElevated(token.get(), elevated)) return false;
+    const bool linked_user = elevated;
+    if (elevated) {
+        TOKEN_LINKED_TOKEN linked{};
+        if (!GetTokenInformation(token.get(), TokenLinkedToken, &linked, sizeof(linked), &needed)) return false;
+        token.reset(linked.LinkedToken);
+    }
+    if (!token || !OrdinaryToken(token.get(), linked_user) ||
+        !GetTokenInformation(token.get(), TokenSessionId, &token_session, sizeof(token_session), &needed) ||
+        !IdentityMatches(session, token_session, true, true)) return false;
+    Handle shell_token;
+    HANDLE source = token.get();
+    TOKEN_TYPE source_type{};
+    SECURITY_IMPERSONATION_LEVEL source_level = SecurityAnonymous;
+    if (!GetTokenInformation(source, TokenType, &source_type, sizeof(source_type), &needed) ||
+        (source_type != TokenPrimary && source_type != TokenImpersonation)) return false;
+    if (source_type == TokenImpersonation &&
+        !GetTokenInformation(source, TokenImpersonationLevel, &source_level, sizeof(source_level), &needed)) return false;
+    if (source_type == TokenImpersonation && source_level < SecurityImpersonation) {
+        if (!linked_user || source_level != SecurityIdentification) return false;
+        // 关联令牌可能仅能识别；只接受当前桌面 shell 中同一普通登录的主令牌。
+        DWORD process_id = 0;
+        const HWND shell = GetShellWindow();
+        if (!shell || !GetWindowThreadProcessId(shell, &process_id) || !process_id) return false;
+        Handle process(OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, process_id));
+        HANDLE raw_shell = nullptr;
+        if (!process || !OpenProcessToken(process.get(), TOKEN_QUERY | TOKEN_DUPLICATE, &raw_shell)) return false;
+        shell_token.reset(raw_shell);
+        TOKEN_TYPE type{};
+        if (!GetTokenInformation(shell_token.get(), TokenType, &type, sizeof(type), &needed) || type != TokenPrimary ||
+            !SameUserLogon(token.get(), shell_token.get()) || !OrdinaryToken(shell_token.get(), true)) return false;
+        source = shell_token.get();
+    }
+    HANDLE raw_ordinary = nullptr;
+    if (!DuplicateTokenEx(source, TOKEN_QUERY | TOKEN_IMPERSONATE | TOKEN_DUPLICATE, nullptr,
+                          SecurityImpersonation, TokenImpersonation, &raw_ordinary)) return false;
+    Handle ordinary(raw_ordinary);
+    TOKEN_TYPE type{};
+    if (!GetTokenInformation(ordinary.get(), TokenType, &type, sizeof(type), &needed) || type != TokenImpersonation ||
+        !CanImpersonate(ordinary.get()) || !SameUserLogon(token.get(), ordinary.get()) ||
+        !OrdinaryToken(ordinary.get(), linked_user)) return false;
+    token.reset(ordinary.release());
+    return true;
 }
+
+class OrdinaryUserScope {
+public:
+    explicit OrdinaryUserScope(HANDLE token) {
+        HANDLE previous = nullptr;
+        if (OpenThreadToken(GetCurrentThread(), TOKEN_QUERY | TOKEN_IMPERSONATE, TRUE, &previous))
+            previous_.reset(previous);
+        else if (GetLastError() != ERROR_NO_TOKEN) return;
+        active_ = ImpersonateLoggedOnUser(token) != FALSE;
+    }
+    ~OrdinaryUserScope() {
+        if (active_ && !(previous_ ? SetThreadToken(nullptr, previous_.get()) : RevertToSelf())) {
+            // 身份恢复失败后不能让安装器继续处理任何操作。
+            TerminateProcess(GetCurrentProcess(), ERROR_ACCESS_DENIED);
+            std::terminate();
+        }
+    }
+    explicit operator bool() const noexcept { return active_; }
+private:
+    Handle previous_;
+    bool active_ = false;
+};
 
 #ifdef CANGOO_CLEANUP_ACCEPTANCE
 constexpr std::wstring_view acceptance_root = CANGOO_CLEANUP_TEST_ROOT;
@@ -242,6 +317,12 @@ Result DeleteCurrentUserData() noexcept {
         if (!OpenVerifiedToken(token)) {
             result.status = Status::identity_unknown;
             result.error = ERROR_NO_SUCH_LOGON_SESSION;
+            return result;
+        }
+        OrdinaryUserScope ordinary(token.get());
+        if (!ordinary) {
+            result.status = Status::identity_unknown;
+            result.error = GetLastError();
             return result;
         }
         std::wstring roaming, local;

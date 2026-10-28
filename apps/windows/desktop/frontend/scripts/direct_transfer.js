@@ -1,11 +1,12 @@
-/* 正式窗口与公开原型共用视图；设备、核对及完成状态始终由调用方投影。 */
+/* 正式窗口与公开原型共用视图；设备、配对及完成状态始终由调用方投影。 */
 (() => {
   'use strict';
 
   const TEXT = {
     ZH: {
-      title:'设备传输', subtitle:'把当前密码库的资料发送到另一台设备，由对方比较后导入。',
-      steps:['选择设备','核对连接','确认资料','传输结果'],
+      title:'设备传输', subtitle:'在两台设备间传送资料，接收后比较并导入。',
+      sendSubtitle:'发送当前密码库的副本，由对方比较后导入。', receiveSubtitle:'接收另一台设备的资料，比较后再导入当前密码库。',
+      steps:['选择设备','配对连接','发送资料','传输结果'],
       role:'这台设备要做什么？', send:'发送资料', sendHint:'发送当前已解锁密码库的副本',
       receive:'接收资料', receiveHint:'接收后比较，确认后再导入',
       transport:'连接方式', lan:'同一局域网', lanHint:'两台设备连接同一 Wi-Fi 或局域网',
@@ -34,36 +35,41 @@
       networkBlocked:'Windows 规则或策略仍阻止连接，请检查小仓规则或改用蓝牙。',
       networkFailed:'未能确认授权，请重试或改用蓝牙。',
       networkRequiredError:'请先允许本地设备连接，再开始局域网传输。',
-      waiting:'等待发送方连接', waitingHint:'在另一台设备选择“发送资料”，然后选择这台设备。',
-      connecting:'正在建立连接', connectingHint:'连接完成后，两台设备会显示一组核对码。',
-      peer:'对方设备', verify:'核对两台设备上的数字', verifyHint:'请逐组比较。只有两台设备完全相同，才继续。',
-      verifyNote:'设备名称仅用于辨认。请以两台设备上显示的核对码为准。',
-      match:'完全相同', mismatch:'不一致，取消', matched:'已确认，等待对方核对。',
+      waiting:'等待发送方连接', waitingHint:'请在发送端选择这台设备，并输入下面的配对码。',
+      copyCode:'复制配对码', copied:'已复制', copyFailed:'复制失败，请重试。',
+      pairingLabel:'临时配对码', pairingExpiry:'配对码10分钟内有效，成功配对后失效。等待时仍按正常规则锁库。',
+      inputCode:'输入接收端的配对码', inputCodeHint:'请输入接收端显示的8位数字。接收端没有配对码时，请先升级两端小仓。',
+      invalidCode:'请输入8位数字配对码。', pairingFailed:'配对未完成。请核对接收端仍在等待及配对码后重试。', pair:'配对连接',
+      connecting:'正在配对连接', connectingHint:'正在验证配对码，请稍候。',
+      peer:'对方设备', verify:'是否允许这台设备发送资料？', verifyHint:'设备名称仅供辨认。确认后等待对方发送，收齐资料再比较导入。',
+      approve:'允许发送', waitingApproval:'配对成功，等待接收端确认。',
+      receiveReview:'等待对方发送', receiveReviewHint:'请在对方设备选择资料并发送。', receiveNote:'收齐并校验后，将打开差异比较，由你决定导入哪些资料。',
+      localFrom:'本机密码库（发送）', peerFrom:'对方密码库（发送）', localTo:'本机密码库（接收）', peerTo:'对方密码库（接收）', receiveScope:'本次接收范围',
       review:'确认这次传输', reviewHint:'资料只会沿下面的方向发送。', from:'发送密码库', to:'接收密码库',
       scope:'传输哪些资料？', all:'全部', passwords:'仅密码', notes:'仅记事',
       reviewNote:'发送端资料保持不变。接收端完整接收后，可逐项比较并决定如何导入。',
-      prepare:'确认范围', preparing:'正在准备所选资料…', accept:'同意接收', start:'开始传输', awaitingOffer:'等待发送方确认范围。',
-      awaitingAccept:'已确认范围，等待对方同意接收。', accepted:'已同意接收，等待对方开始传输。',
-      ready:'对方已同意接收，可以开始传输。',
+      preparing:'正在准备所选资料…', start:'发送资料', awaitingOffer:'等待发送方选择范围并发送资料。',
+      awaitingAccept:'正在等待接收端准备完成…', accepted:'等待发送方传输资料。', ready:'接收端已确认，可以发送资料。',
       transferring:'正在传输资料', transferringHint:'请让两台设备保持在前台，直到接收完成。',
       transferNote:'传输期间暂停软件自动锁库。主动锁库、切库、退出，或系统锁屏、睡眠会终止本次传输。',
       checking:'正在校验接收的资料…', checkingTitle:'正在校验资料', receiptTitle:'等待对方校验完成', receipt:'资料已发送，正在等待对方确认完整接收。',
       sent:'对方已完整接收', sentHint:'你现在可以离开。对方将继续比较和导入。',
       received:'资料已完整接收', receivedHint:'即将打开差异比较。发送端现在可以离开。',
-      failed:'未确认传输完成', cancelled:'本次传输已取消', cancelledHint:'需要时可重新连接，两台设备重新核对。',
+      failed:'未确认传输完成', cancelled:'本次传输已取消', cancelledHint:'需要时可重新开始，并使用新的配对码。',
       cancel:'取消', close:'关闭', continue:'继续',
-      protected:'已核对连接', selected:'已选择', unavailable:'此连接方式暂不可用。请检查系统网络、蓝牙及相关权限后重试。',
+      protected:'已配对连接', selected:'已选择', unavailable:'此连接方式暂不可用。请检查系统网络、蓝牙及相关权限后重试。',
       lockMonitor:'无法监测 Windows 锁屏状态，暂不能开始设备传输。请重新打开小仓后重试。',
       connectFailed:'未能连接到设备。请确认对方仍在附近，并已在小仓中开始等待接收，再重试。',
-      disconnected:'连接已断开。请重新连接并核对。', authFailed:'连接核对未通过。请重新连接，并仔细比较两侧核对码。',
+      disconnected:'连接已断开，请重新开始。', authFailed:'配对码不正确或认证未通过。请核对接收端配对码后重试。', upgrade:'两台设备都需要升级到支持配对码的版本。',
       timeout:'等待超时。请确认对方已准备好，再重新连接。',
       limit:'本次范围超出传输上限，请选择更小的范围后重试。', invalid:'接收的资料未通过校验，未进入导入。请重新传输。',
       internal:'本次操作未完成，请关闭后重新开始。', session:'当前密码库已锁定或切换，请解锁后重新开始。',
       stale:'本次连接已结束，请重新开始。', busy:'上一项操作仍在处理，请稍后再试。',
     },
     EN: {
-      title:'Device transfer', subtitle:'Send a copy of your current vault for the other device to compare and import.',
-      steps:['Choose device','Verify connection','Confirm contents','Transfer result'],
+      title:'Device transfer', subtitle:'Transfer contents between devices, then compare and import.',
+      sendSubtitle:'Send a copy of your vault for the other device to compare and import.', receiveSubtitle:'Receive contents from another device, then compare and import into your vault.',
+      steps:['Choose device','Pair devices','Send contents','Transfer result'],
       role:'What should this device do?', send:'Send contents', sendHint:'Send a copy of the currently unlocked vault',
       receive:'Receive contents', receiveHint:'Compare first, then confirm what to import',
       transport:'Connection', lan:'Local network', lanHint:'Connect both devices to the same Wi-Fi or LAN',
@@ -92,41 +98,45 @@
       networkBlocked:'Windows blocks access. Check Cangoo’s rules or use Bluetooth.',
       networkFailed:'Could not confirm access. Try again, or use Bluetooth.',
       networkRequiredError:'Allow local device connections before starting a local network transfer.',
-      waiting:'Waiting for the sender', waitingHint:'Choose Send contents on the other device, then select this device.',
-      connecting:'Connecting', connectingHint:'A verification code will appear on both devices when connected.',
-      peer:'Other device', verify:'Compare the numbers on both devices', verifyHint:'Check each group. Continue only if every number matches.',
-      verifyNote:'Device names are labels only. Verify the code displayed on both devices.',
-      match:'They match exactly', mismatch:'Different — cancel', matched:'Confirmed. Waiting for the other device.',
+      waiting:'Waiting for the sender', waitingHint:'Select this device on the sender and enter the code below.',
+      copyCode:'Copy pairing code', copied:'Copied', copyFailed:'Could not copy. Please try again.',
+      pairingLabel:'Temporary pairing code', pairingExpiry:'Valid for 10 minutes, until pairing succeeds. Normal vault locking still applies while waiting.',
+      inputCode:'Enter the receiver’s pairing code', inputCodeHint:'Enter the 8 digits shown on the receiver. If it has no code, update Cangoo on both devices first.',
+      invalidCode:'Enter an 8-digit pairing code.', pairingFailed:'Pairing did not finish. Check that the receiver is waiting and verify its code, then retry.', pair:'Pair devices',
+      connecting:'Pairing devices', connectingHint:'Checking the pairing code. Please wait.',
+      peer:'Other device', verify:'Allow this device to send contents?', verifyHint:'Device names are labels only. After approval, wait for the sender, then compare the complete copy before importing.',
+      approve:'Allow sending', waitingApproval:'Paired. Waiting for the receiver’s approval.',
+      receiveReview:'Waiting for the sender', receiveReviewHint:'Choose contents and start sending on the other device.', receiveNote:'After receiving and checking the complete copy, compare it and choose what to import.',
+      localFrom:'Your vault · sending', peerFrom:'Other vault · sending', localTo:'Your vault · receiving', peerTo:'Other vault · receiving', receiveScope:'Receiving',
       review:'Confirm this transfer', reviewHint:'Contents will be sent in the direction shown below.', from:'Sending vault', to:'Receiving vault',
       scope:'What would you like to send?', all:'Everything', passwords:'Passwords only', notes:'Notes only',
       reviewNote:'The sending vault stays unchanged. After receiving the complete copy, the other device can compare and choose what to import.',
-      prepare:'Confirm contents', preparing:'Preparing the selected contents…', accept:'Accept contents', start:'Start transfer', awaitingOffer:'Waiting for the sender to confirm the contents.',
-      awaitingAccept:'Contents confirmed. Waiting for the other device to accept.', accepted:'Accepted. Waiting for the sender to start.',
-      ready:'The other device has accepted. You can start the transfer.',
+      preparing:'Preparing the selected contents…', start:'Send contents', awaitingOffer:'Waiting for the sender to select and send contents.',
+      awaitingAccept:'Waiting for the receiver to be ready…', accepted:'Waiting for the sender to transfer contents.', ready:'The receiver approved. You can send contents.',
       transferring:'Transferring contents', transferringHint:'Keep both apps in the foreground until receiving is complete.',
       transferNote:'Automatic app locking is paused during transfer. Locking or switching vaults, quitting, screen lock or sleep ends the transfer.',
       checking:'Checking the received contents…', checkingTitle:'Checking received contents', receiptTitle:'Waiting for the other device to finish checking', receipt:'Contents sent. Waiting for confirmation of a complete, checked copy.',
       sent:'The other device has the complete copy', sentHint:'You can leave now. The other device can continue comparing and importing.',
       received:'Complete copy received', receivedHint:'Opening the comparison. The sending device can leave now.',
-      failed:'Transfer completion not confirmed', cancelled:'Transfer cancelled', cancelledHint:'You can reconnect and verify both devices again when ready.',
+      failed:'Transfer completion not confirmed', cancelled:'Transfer cancelled', cancelledHint:'Start again with a new pairing code when ready.',
       cancel:'Cancel', close:'Close', continue:'Continue',
-      protected:'Connection verified', selected:'Selected', unavailable:'This connection is unavailable. Check the network, Bluetooth and permissions, then retry.',
+      protected:'Devices paired', selected:'Selected', unavailable:'This connection is unavailable. Check the network, Bluetooth and permissions, then retry.',
       lockMonitor:'Windows screen lock monitoring is unavailable, so device transfer cannot start. Reopen Cangoo and retry.',
       connectFailed:'Could not connect. Check that the other device is nearby and has started waiting to receive in Cangoo, then retry.',
-      disconnected:'The connection was lost. Reconnect and verify both devices again.', authFailed:'Connection verification failed. Reconnect and carefully compare both codes.',
+      disconnected:'The connection was lost. Start again.', authFailed:'The code is incorrect or authentication failed. Check the receiver’s code and retry.', upgrade:'Update Cangoo on both devices to a version that supports pairing codes.',
       timeout:'The wait timed out. Check that the other device is ready, then reconnect.',
       limit:'This selection exceeds the transfer limit. Choose a smaller scope and try again.', invalid:'The received contents did not pass validation and were not opened for import. Send them again.',
       internal:'The operation did not finish. Close this window and start again.', session:'The vault was locked or switched. Unlock it and start again.',
       stale:'This connection has ended. Please start again.', busy:'The previous action is still processing. Please try again shortly.',
     },
   };
-  const PHASES = ['IDLE','DISCOVERING','WAITING','CONNECTING','VERIFYING','REVIEW','TRANSFERRING','VERIFYING_PAYLOAD','WAIT_RECEIPT','RECEIVED','SENT','FAILED','CANCELLED'];
-  const ERROR_KEYS = {UNAVAILABLE:'unavailable',LOCK_MONITOR_UNAVAILABLE:'lockMonitor',LAN_ACCESS_REQUIRED:'networkRequiredError',INVALID_ADDRESS:'invalidAddress',ADDRESS_NOT_FOUND:'addressNotFound',CONNECT_FAILED:'connectFailed',DISCONNECTED:'disconnected',AUTH_FAILED:'authFailed',TIMEOUT:'timeout',LIMIT_EXCEEDED:'limit',INVALID_DATA:'invalid',INTERNAL_FAILURE:'internal',SESSION_REQUIRED:'session',STALE_FLOW:'stale',REQUEST_BUSY:'busy',INVALID_ARGUMENT:'internal',CANCELLED:'cancelledHint'};
+  const PHASES = ['IDLE','DISCOVERING','WAITING','PAIRING_CODE','CONNECTING','WAIT_APPROVAL','REVIEW','TRANSFERRING','VERIFYING_PAYLOAD','WAIT_RECEIPT','RECEIVED','SENT','FAILED','CANCELLED'];
+  const ERROR_KEYS = {COPY_FAILED:'copyFailed',UNAVAILABLE:'unavailable',LOCK_MONITOR_UNAVAILABLE:'lockMonitor',LAN_ACCESS_REQUIRED:'networkRequiredError',INVALID_ADDRESS:'invalidAddress',ADDRESS_NOT_FOUND:'addressNotFound',CONNECT_FAILED:'connectFailed',DISCONNECTED:'disconnected',AUTH_FAILED:'authFailed',INVALID_PAIRING_CODE:'invalidCode',UPGRADE_REQUIRED:'upgrade',TIMEOUT:'timeout',LIMIT_EXCEEDED:'limit',INVALID_DATA:'invalid',INTERNAL_FAILURE:'internal',SESSION_REQUIRED:'session',STALE_FLOW:'stale',REQUEST_BUSY:'busy',INVALID_ARGUMENT:'internal',CANCELLED:'cancelledHint'};
   const NETWORK_ACCESS = {DEVELOPMENT:'',CHECKING:'networkChecking',REQUIRED:'networkRequired',AUTHORIZING:'networkAuthorizing',REVOKING:'networkRevoking',READY:'networkReady',BLOCKED:'networkBlocked',FAILED:'networkFailed'};
   const SCOPES = ['ALL','PASSWORDS','NOTES'];
   const SCOPE_KEYS = ['all','passwords','notes'];
-  const STATE_KEYS = ['flowId','revision','pageEpoch','sessionEpoch','phase','role','transport','scope','peers','sas',
-    'localConfirmed','peerConfirmed','receiverAccepted','offerReady','preparing','peerDeviceName','localVaultName',
+  const STATE_KEYS = ['flowId','revision','pageEpoch','sessionEpoch','phase','role','transport','scope','peers','pairingCode',
+    'receiverAccepted','offerReady','preparing','peerDeviceName','localVaultName',
     'peerVaultName','transferredBytes','totalBytes','errorCode','networkAccess','effectiveTheme','language','uiFontScale',
     'localAddresses','manualAddress','manualSearching'];
   function normalizeState(value) {
@@ -141,11 +151,12 @@
       if (!Number.isSafeInteger(value[key]) || value[key] < (key.endsWith('Epoch') ? 1 : 0)) return null;
     }
     if (value.totalBytes > 67108864 || value.transferredBytes > value.totalBytes ||
-        !['localConfirmed','peerConfirmed','receiverAccepted','offerReady','preparing','manualSearching'].every(key => typeof value[key] === 'boolean')) return null;
+        !['receiverAccepted','offerReady','preparing','manualSearching'].every(key => typeof value[key] === 'boolean')) return null;
     const bounded = (text,limit) => typeof text === 'string' && !text.includes('\0') && Array.from(text).length <= limit;
     const address = text => typeof text === 'string' && /^(?:0|[1-9]\d{0,2})(?:\.(?:0|[1-9]\d{0,2})){3}$/.test(text) && text.split('.').every(part => Number(part) <= 255);
     if (!bounded(value.peerDeviceName,64) || !bounded(value.localVaultName,256) || !bounded(value.peerVaultName,256) ||
-        typeof value.sas !== 'string' || (value.sas !== '' && !/^\d{4} \d{4} \d{4}$/.test(value.sas)) ||
+        typeof value.pairingCode !== 'string' || (value.pairingCode !== '' && !/^[0-9]{8}$/.test(value.pairingCode)) ||
+        (value.pairingCode !== '' && (value.role !== 'RECEIVE' || value.phase !== 'WAITING')) ||
         !Array.isArray(value.localAddresses) || value.localAddresses.length > 64 ||
         (value.manualAddress !== '' && !address(value.manualAddress)) ||
         !Array.isArray(value.peers) || value.peers.length > 64) return null;
@@ -162,16 +173,16 @@
     }
     const peerIds = new Set();
     for (const peer of value.peers) {
-      if (!peer || Object.keys(peer).length !== 2 || typeof peer.peerId !== 'string' || !/^[a-f0-9]{32}$/.test(peer.peerId) ||
-          !bounded(peer.name,64) || peerIds.has(peer.peerId)) return null;
+      if (!peer || Object.keys(peer).length !== 3 || typeof peer.peerId !== 'string' || !/^[a-f0-9]{32}$/.test(peer.peerId) ||
+          !bounded(peer.name,64) || typeof peer.legacy !== 'boolean' || peerIds.has(peer.peerId)) return null;
       peerIds.add(peer.peerId);
     }
     return Object.freeze({...value,localAddresses:Object.freeze(value.localAddresses.map(item => Object.freeze({...item}))),peers:value.peers.map(peer => Object.freeze({...peer}))});
   }
   const markup = `
     <header class="transfer-header">
-      <h1 class="transfer-title" id="transfer-title" data-transfer-text="title"></h1>
-      <p class="transfer-subtitle" data-transfer-text="subtitle"></p>
+      <h1 class="transfer-title" id="transfer-title" data-transfer-slot="title"></h1>
+      <p class="transfer-subtitle" data-transfer-slot="subtitle"></p>
       <ol class="transfer-steps" aria-label=""><li class="transfer-step"><span class="transfer-step-number">1</span><span></span></li><li class="transfer-step"><span class="transfer-step-number">2</span><span></span></li><li class="transfer-step"><span class="transfer-step-number">3</span><span></span></li><li class="transfer-step"><span class="transfer-step-number">4</span><span></span></li></ol>
     </header>
     <div class="transfer-body">
@@ -200,17 +211,22 @@
           <p class="transfer-address-status" id="transfer-address-status" role="status" aria-live="polite"></p>
         </form>
       </details>
-      <section class="transfer-panel" data-transfer-panel="WAITING CONNECTING" hidden><h2 class="transfer-heading" data-transfer-slot="waitingTitle"></h2><p class="transfer-description" data-transfer-slot="waitingHint"></p><section class="transfer-local-address" hidden><h3 class="transfer-label" data-transfer-text="localAddress"></h3><p class="transfer-description" data-transfer-slot="localAddressHint"></p><ul class="transfer-address-list" data-transfer-slot="preferredAddresses"></ul><details class="transfer-other-addresses" hidden><summary data-transfer-slot="otherAddressTitle"></summary><ul class="transfer-address-list" data-transfer-slot="otherAddresses"></ul></details></section><p class="transfer-note" data-transfer-text="setupHint"></p></section>
-      <section class="transfer-panel" data-transfer-panel="VERIFYING" hidden>
+      <section class="transfer-panel" data-transfer-panel="WAITING CONNECTING" hidden><h2 class="transfer-heading" data-transfer-slot="waitingTitle"></h2><p class="transfer-description" data-transfer-slot="waitingHint"></p><div class="transfer-pairing-row"><div class="transfer-pairing-code" data-transfer-slot="pairingCode" role="status"></div><button type="button" class="btn btn-ghost" data-transfer-action="copyPairingCode"></button></div><p class="transfer-description" data-transfer-slot="pairingExpiry"></p><section class="transfer-local-address" hidden><h3 class="transfer-label" data-transfer-text="localAddress"></h3><p class="transfer-description" data-transfer-slot="localAddressHint"></p><ul class="transfer-address-list" data-transfer-slot="preferredAddresses"></ul><details class="transfer-other-addresses" hidden><summary data-transfer-slot="otherAddressTitle"></summary><ul class="transfer-address-list" data-transfer-slot="otherAddresses"></ul></details></section><p class="transfer-note" data-transfer-text="setupHint"></p></section>
+      <section class="transfer-panel" data-transfer-panel="PAIRING_CODE" hidden>
+        <h2 class="transfer-heading" data-transfer-text="inputCode"></h2>
+        <p class="transfer-description" id="transfer-code-hint" data-transfer-text="inputCodeHint"></p>
+        <form class="transfer-code-form" novalidate><label class="transfer-label" for="transfer-code" data-transfer-text="pairingLabel"></label><input class="input transfer-code-input" id="transfer-code" type="text" inputmode="numeric" maxlength="9" autocomplete="off" spellcheck="false" aria-describedby="transfer-code-hint"></form>
+      </section>
+      <section class="transfer-panel" data-transfer-panel="WAIT_APPROVAL" hidden>
         <div class="transfer-context"><span class="transfer-context-dot" aria-hidden="true"></span><span data-transfer-text="peer"></span><span class="transfer-context-name" data-transfer-slot="peer"></span></div>
-        <div class="transfer-sas"><h2 class="transfer-heading" data-transfer-text="verify"></h2><p class="transfer-description" data-transfer-text="verifyHint"></p><div class="transfer-sas-code" role="group"><span></span><span></span><span></span></div><p class="transfer-description" data-transfer-text="verifyNote"></p></div>
+        <h2 class="transfer-heading" data-transfer-slot="approvalTitle"></h2><p class="transfer-description" data-transfer-slot="approvalHint"></p>
       </section>
       <section class="transfer-panel" data-transfer-panel="REVIEW" hidden>
         <div class="transfer-context"><span class="transfer-context-dot" aria-hidden="true"></span><span data-transfer-text="protected"></span><span class="transfer-context-name" data-transfer-slot="reviewPeer"></span></div>
-        <h2 class="transfer-heading" data-transfer-text="review"></h2><p class="transfer-description" data-transfer-text="reviewHint"></p>
-        <div class="transfer-route"><div class="transfer-vault"><p class="transfer-vault-label" data-transfer-text="from"></p><p class="transfer-vault-name" data-transfer-slot="from"></p></div><span class="transfer-route-arrow" aria-hidden="true">→</span><div class="transfer-vault"><p class="transfer-vault-label" data-transfer-text="to"></p><p class="transfer-vault-name" data-transfer-slot="to"></p></div></div>
-        <fieldset class="transfer-field"><legend class="transfer-label" data-transfer-text="scope"></legend><div class="transfer-scope"><button type="button" class="btn" data-transfer-scope="ALL" data-transfer-text="all"></button><button type="button" class="btn" data-transfer-scope="PASSWORDS" data-transfer-text="passwords"></button><button type="button" class="btn" data-transfer-scope="NOTES" data-transfer-text="notes"></button></div><p data-transfer-slot="scopeValue" hidden></p></fieldset>
-        <p class="transfer-note" data-transfer-text="reviewNote"></p>
+        <h2 class="transfer-heading" data-transfer-slot="reviewTitle"></h2><p class="transfer-description" data-transfer-slot="reviewHint"></p>
+        <div class="transfer-route"><div class="transfer-vault"><p class="transfer-vault-label" data-transfer-slot="fromLabel"></p><p class="transfer-vault-name" data-transfer-slot="from"></p></div><span class="transfer-route-arrow" aria-hidden="true">→</span><div class="transfer-vault"><p class="transfer-vault-label" data-transfer-slot="toLabel"></p><p class="transfer-vault-name" data-transfer-slot="to"></p></div></div>
+        <fieldset class="transfer-field transfer-scope-field"><legend class="transfer-label" data-transfer-slot="scopeLabel"></legend><div class="transfer-scope"><button type="button" class="btn" data-transfer-scope="ALL" data-transfer-text="all"></button><button type="button" class="btn" data-transfer-scope="PASSWORDS" data-transfer-text="passwords"></button><button type="button" class="btn" data-transfer-scope="NOTES" data-transfer-text="notes"></button></div><p data-transfer-slot="scopeValue" hidden></p></fieldset>
+        <p class="transfer-note" data-transfer-slot="reviewNote"></p>
       </section>
       <section class="transfer-panel" data-transfer-panel="TRANSFERRING VERIFYING_PAYLOAD WAIT_RECEIPT" hidden><h2 class="transfer-heading" data-transfer-slot="transferTitle"></h2><p class="transfer-description" data-transfer-text="transferringHint"></p><div class="transfer-progress"><div class="transfer-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100"><div class="transfer-progress-fill"></div></div><div class="transfer-progress-label"><span data-transfer-slot="bytes"></span><span data-transfer-slot="percent"></span></div></div><p class="transfer-note" data-transfer-text="transferNote"></p></section>
       <section class="transfer-panel transfer-result" data-transfer-panel="RECEIVED SENT FAILED CANCELLED" hidden><div class="transfer-result-mark" aria-hidden="true">✓</div><h2 class="transfer-heading" data-transfer-slot="resultTitle"></h2><p class="transfer-description" data-transfer-slot="resultHint"></p></section>
@@ -232,6 +248,9 @@
     const addressInput = container.querySelector('#transfer-address');
     const addressStatus = container.querySelector('.transfer-address-status');
     const addressButton = container.querySelector('[data-transfer-action="manualConnect"]');
+    const codeForm = container.querySelector('.transfer-code-form');
+    const codeInput = container.querySelector('#transfer-code');
+    const copyCode = container.querySelector('[data-transfer-action="copyPairingCode"]');
     const otherAddresses = container.querySelector('.transfer-other-addresses');
     const peerNodes = new Map();
     const addressNodes = new Map();
@@ -241,6 +260,7 @@
     let pending = false;
     let error = '';
     let addressError = '';
+    let copied = false;
     let alive = true;
     let actionVersion = 0;
 
@@ -299,13 +319,16 @@
       if (!current || !alive) return;
       const w = words(), s = current, phase = s.phase;
       const finished = ['RECEIVED','SENT','FAILED','CANCELLED'].includes(phase);
+      const receiving = s.role === 'RECEIVE';
+      text(nodes.title,phase === 'IDLE' ? w.title : receiving ? w.receive : w.send);
+      text(nodes.subtitle,phase === 'IDLE' ? w.subtitle : receiving ? w.receiveSubtitle : w.sendSubtitle);
       for (const node of container.querySelectorAll('[data-transfer-text]')) text(node,w[node.dataset.transferText]);
       for (const panel of container.querySelectorAll('[data-transfer-panel]')) panel.hidden = !panel.dataset.transferPanel.split(' ').includes(phase);
-      const step = ['IDLE','DISCOVERING','WAITING','CONNECTING'].includes(phase) ? 0 : phase === 'VERIFYING' ? 1 : phase === 'REVIEW' ? 2 : 3;
+      const step = ['IDLE','DISCOVERING','WAITING','CONNECTING'].includes(phase) ? 0 : ['PAIRING_CODE','WAIT_APPROVAL'].includes(phase) ? 1 : phase === 'REVIEW' ? 2 : 3;
       container.querySelectorAll('.transfer-step').forEach((node,index) => {
         node.classList.toggle('active',index === step); node.classList.toggle('complete',index < step);
         if (index === step) node.setAttribute('aria-current','step'); else node.removeAttribute('aria-current');
-        text(node.lastElementChild,w.steps[index]);
+        text(node.lastElementChild,index === 2 && receiving ? w.receive : w.steps[index]);
       });
       container.querySelector('.transfer-steps').setAttribute('aria-label',w.title);
       container.querySelector('[data-transfer-group="role"]').setAttribute('aria-label',w.role);
@@ -342,18 +365,36 @@
       text(nodes.empty,s.transport === 'BLUETOOTH' ? w.emptyBluetooth : w.empty);
       text(nodes.waitingTitle,phase === 'CONNECTING' ? w.connecting : w.waiting);
       text(nodes.waitingHint,phase === 'CONNECTING' ? w.connectingHint : w.waitingHint);
-      text(nodes.peer,phase === 'VERIFYING' ? s.peerDeviceName : '');
-      const codes = phase === 'VERIFYING' ? s.sas.split(' ') : [];
-      container.querySelectorAll('.transfer-sas-code span').forEach((node,index) => text(node,codes[index] || ''));
-      container.querySelector('.transfer-sas-code').setAttribute('aria-label',phase === 'VERIFYING' ? s.sas : '');
+      const enteringCode = phase === 'PAIRING_CODE';
+      if (!enteringCode) codeInput.value = '';
+      codeInput.readOnly = pending;
+      codeInput.setAttribute('aria-invalid',String(error === 'INVALID_PAIRING_CODE'));
+      const showingCode = phase === 'WAITING' && receiving && s.pairingCode.length === 8;
+      text(nodes.pairingCode,showingCode ? s.pairingCode.slice(0,4) + ' ' + s.pairingCode.slice(4) : '');
+      container.querySelector('.transfer-pairing-row').hidden = !showingCode;
+      text(copyCode,copied ? w.copied : w.copyCode);
+      copyCode.setAttribute('aria-disabled',String(pending || !showingCode));
+      nodes.pairingCode.setAttribute('aria-label',w.pairingLabel);
+      text(nodes.pairingExpiry,phase === 'WAITING' ? w.pairingExpiry : '');
+      text(nodes.peer,phase === 'WAIT_APPROVAL' ? s.peerDeviceName : '');
+      text(nodes.approvalTitle,s.role === 'RECEIVE' ? w.verify : w.waitingApproval);
+      text(nodes.approvalHint,s.role === 'RECEIVE' ? w.verifyHint : '');
       const review = phase === 'REVIEW';
+      text(nodes.reviewTitle,receiving ? w.receiveReview : w.review);
+      text(nodes.reviewHint,receiving ? w.receiveReviewHint : w.reviewHint);
+      text(nodes.fromLabel,receiving ? w.peerFrom : w.localFrom);
+      text(nodes.toLabel,receiving ? w.localTo : w.peerTo);
+      text(nodes.scopeLabel,receiving ? w.receiveScope : w.scope);
+      text(nodes.reviewNote,receiving ? w.receiveNote : w.reviewNote);
       text(nodes.reviewPeer,review ? s.peerDeviceName : '');
       text(nodes.from,review ? (s.role === 'SEND' ? s.localVaultName : s.peerVaultName) : '');
       text(nodes.to,review ? (s.role === 'SEND' ? s.peerVaultName : s.localVaultName) : '');
       const canChooseScope = review && s.role === 'SEND' && !s.offerReady;
       container.querySelector('.transfer-scope').hidden = !canChooseScope;
-      nodes.scopeValue.hidden = canChooseScope;
-      text(nodes.scopeValue,review ? w[SCOPE_KEYS[SCOPES.indexOf(s.scope)]] : '');
+      const scopeKnown = review && (!receiving || s.offerReady);
+      container.querySelector('.transfer-scope-field').hidden = !scopeKnown;
+      nodes.scopeValue.hidden = canChooseScope || !scopeKnown;
+      text(nodes.scopeValue,scopeKnown ? w[SCOPE_KEYS[SCOPES.indexOf(s.scope)]] : '');
       const percent = s.totalBytes > 0 ? Math.min(100,Math.floor(s.transferredBytes * 100 / s.totalBytes)) : 0;
       const transferring = ['TRANSFERRING','VERIFYING_PAYLOAD','WAIT_RECEIPT'].includes(phase);
       text(nodes.transferTitle,phase === 'WAIT_RECEIPT' ? w.receiptTitle : phase === 'VERIFYING_PAYLOAD' ? w.checkingTitle : w.transferring);
@@ -373,11 +414,12 @@
         blocked = draft.transport === 'LAN' && networkBusy;
       }
       else if (phase === 'DISCOVERING') primaryText = w.retry;
-      else if (phase === 'VERIFYING') { primaryText = w.match; blocked = s.localConfirmed || !/^\d{4} \d{4} \d{4}$/.test(s.sas); if(s.localConfirmed) message = w.matched; }
+      else if (enteringCode) { primaryText = w.pair; blocked = !/^[0-9]{8}$/.test(codeInput.value.replace(/ /g,'')); }
+      else if (phase === 'WAIT_APPROVAL') { primaryText = s.role === 'RECEIVE' ? w.approve : w.wait; blocked = s.role === 'SEND'; }
       else if (review) {
-        primaryText = s.role === 'RECEIVE' ? w.accept : s.offerReady ? w.start : w.prepare;
-        blocked = s.role === 'RECEIVE' ? !s.offerReady || s.receiverAccepted : s.offerReady && !s.receiverAccepted;
-        message = s.role === 'RECEIVE' ? (s.receiverAccepted ? w.accepted : !s.offerReady ? w.awaitingOffer : '') : (s.receiverAccepted ? w.ready : s.offerReady ? w.awaitingAccept : '');
+        primaryText = s.role === 'SEND' ? w.start : w.wait;
+        blocked = s.role === 'RECEIVE' || s.offerReady || !s.peerVaultName;
+        message = s.role === 'RECEIVE' ? w.awaitingOffer : s.offerReady ? w.awaitingAccept : w.ready;
       } else if (phase === 'FAILED' || phase === 'CANCELLED') primaryText = w.restart;
       else if (finished) primaryText = w.close;
       else { blocked = true; primaryText = transferring ? w.continue : w.wait; }
@@ -385,9 +427,9 @@
       if (phase === 'WAIT_RECEIPT') message = w.receipt;
       if (s.preparing) message = w.preparing;
       text(primary,primaryText); primary.disabled = blocked; primary.setAttribute('aria-disabled',String(blocked || pending || s.preparing || s.manualSearching));
-      text(cancel,phase === 'VERIFYING' ? w.mismatch : finished ? w.close : w.cancel); cancel.hidden = ['SENT','RECEIVED'].includes(phase);
-      text(status,error ? w[ERROR_KEYS[error] || 'internal'] : message);
-      status.classList.toggle('error',Boolean(error));
+      text(cancel,finished ? w.close : w.cancel); cancel.hidden = ['SENT','RECEIVED'].includes(phase);
+      text(status,error ? w[ERROR_KEYS[error] || 'internal'] : enteringCode && ['CONNECT_FAILED','DISCONNECTED','TIMEOUT'].includes(s.errorCode) ? w.pairingFailed : s.errorCode !== 'NONE' ? w[ERROR_KEYS[s.errorCode] || 'internal'] : message);
+      status.classList.toggle('error',Boolean(error || s.errorCode !== 'NONE'));
       container.setAttribute('aria-busy',String(pending));
     }
 
@@ -395,15 +437,21 @@
       if (!alive || !current || (pending && action !== 'cancel' && action !== 'close')) return;
       const version = ++actionVersion;
       const observed = current;
-      pending = true; error = ''; addressError = ''; render();
+      pending = true; error = ''; addressError = '';
+      if (action === 'copyPairingCode') copied = false;
+      render();
       Promise.resolve().then(() => alive && version === actionVersion ? onAction(action,value,observed) : null).then(result => {
         if (!alive || version !== actionVersion) return;
+        if (action === 'copyPairingCode' && (current.flowId !== observed.flowId || current.phase !== 'WAITING' || current.pairingCode !== observed.pairingCode)) return;
+        if (result?.accepted === true && action === 'copyPairingCode') copied = true;
         if (!result || result.accepted !== true) {
           const code = result?.errorCode || 'INTERNAL_FAILURE';
           if (action === 'manualConnect' && ['INVALID_ADDRESS','ADDRESS_NOT_FOUND'].includes(code)) addressError = code;
           else error = code;
         }
-      }).catch(() => { if(alive && version === actionVersion) error = 'INTERNAL_FAILURE'; }).finally(() => {
+      }).catch(() => {
+        if (alive && version === actionVersion && (action !== 'copyPairingCode' || (current.phase === 'WAITING' && current.pairingCode === observed.pairingCode))) error = 'INTERNAL_FAILURE';
+      }).finally(() => {
         if (alive && version === actionVersion) { pending = false; render(); }
       });
     }
@@ -414,13 +462,15 @@
       else if (button.dataset.transferTransport && current?.phase === 'IDLE') draft.transport = button.dataset.transferTransport;
       else if (button.dataset.transferScope && current?.phase === 'REVIEW' && current.role === 'SEND' && !current.offerReady && !current.preparing) draft.scope = button.dataset.transferScope;
       else if (button.dataset.transferPeer && current?.phase === 'DISCOVERING') return dispatch('peer',button.dataset.transferPeer);
+      else if (button.dataset.transferAction === 'copyPairingCode' && current?.phase === 'WAITING' && current.role === 'RECEIVE') return dispatch('copyPairingCode');
       else if (button.dataset.transferAction === 'revokeNetwork' && current?.phase === 'IDLE') return dispatch('revokeNetwork');
-      else if (button.dataset.transferAction === 'cancel') return dispatch(current?.phase === 'VERIFYING' ? 'mismatch' : ['FAILED','CANCELLED'].includes(current?.phase) ? 'close' : 'cancel');
+      else if (button.dataset.transferAction === 'cancel') return dispatch(['FAILED','CANCELLED'].includes(current?.phase) ? 'close' : 'cancel');
       else if (button.dataset.transferAction === 'primary' && current) {
         if (current.phase === 'IDLE' && draft.transport === 'LAN' && !['DEVELOPMENT','READY'].includes(current.networkAccess)) return dispatch('authorizeNetwork');
         if (current.phase === 'IDLE' || current.phase === 'DISCOVERING') return dispatch('begin',{...draft});
-        if (current.phase === 'VERIFYING') return dispatch('match');
-        if (current.phase === 'REVIEW') return dispatch(current.role === 'RECEIVE' ? 'accept' : current.offerReady ? 'send' : 'prepare',draft.scope);
+        if (current.phase === 'PAIRING_CODE') return submitCode();
+        if (current.phase === 'WAIT_APPROVAL') return dispatch('approve');
+        if (current.phase === 'REVIEW') return dispatch('send',draft.scope);
         if (['FAILED','CANCELLED'].includes(current.phase)) return dispatch('restart');
         if (['SENT','RECEIVED'].includes(current.phase)) return dispatch('close');
       }
@@ -431,10 +481,21 @@
       if (manual.hidden || pending || current?.manualSearching || addressButton.getAttribute('aria-disabled') === 'true') return;
       dispatch('manualConnect',addressInput.value.trim());
     }
+    function submitCode(event) {
+      event?.preventDefault();
+      if (current?.phase !== 'PAIRING_CODE' || pending) return;
+      const code = codeInput.value.replace(/ /g,'');
+      if (!/^[0-9]{8}$/.test(code)) { error = 'INVALID_PAIRING_CODE'; render(); return; }
+      codeInput.value = '';
+      dispatch('pairingCode',code);
+    }
+    function editCode() { if (error === 'INVALID_PAIRING_CODE') error = ''; render(); }
     function editAddress() { if (addressError) { addressError = ''; render(); } }
     container.addEventListener('click',click);
     addressForm.addEventListener('submit',submitAddress);
     addressInput.addEventListener('input',editAddress);
+    codeForm.addEventListener('submit',submitCode);
+    codeInput.addEventListener('input',editCode);
     return {
       project(value) {
         value = normalizeState(value);
@@ -450,8 +511,11 @@
         if (value.errorCode !== current?.errorCode && ['INVALID_ADDRESS','ADDRESS_NOT_FOUND'].includes(value.errorCode)) addressError = value.errorCode;
         if (value.offerReady) draft.scope = value.scope;
         if (error === 'LAN_ACCESS_REQUIRED' && value.networkAccess === 'READY') error = '';
+        if (value.flowId !== current?.flowId || value.phase !== current?.phase || value.pairingCode !== current?.pairingCode) copied = false;
         const panel = container.querySelector('[data-transfer-panel]:not([hidden])');
+        const focusCode = value.phase === 'PAIRING_CODE' && current?.phase !== 'PAIRING_CODE';
         current = value; render();
+        if (focusCode) codeInput.focus({preventScroll:true});
         if (panel !== container.querySelector('[data-transfer-panel]:not([hidden])') && !(keepManual && manual.open)) container.querySelector('.transfer-body').scrollTop = 0;
         return true;
       },
@@ -462,6 +526,8 @@
       dispose() {
         alive = false; actionVersion++; current = null; draft = null; peerNodes.clear(); addressNodes.clear();
         container.removeEventListener('click',click); addressForm.removeEventListener('submit',submitAddress);
+        codeInput.value = '';
+        codeForm.removeEventListener('submit',submitCode); codeInput.removeEventListener('input',editCode);
         addressInput.removeEventListener('input',editAddress); container.replaceChildren();
       },
     };
@@ -475,13 +541,12 @@
   function action(kind,value,observed) {
     if (!live || !bridge) return {accepted:false,errorCode:'SESSION_REQUIRED'};
     if (kind === 'close') { bridge.requestCloseV1(); return {accepted:true,errorCode:'OK'}; }
-    const methods = {begin:'beginV1',manualConnect:'connectAddressV1',peer:'choosePeerV1',match:'confirmSasV1',mismatch:'confirmSasV1',prepare:'prepareV1',accept:'acceptReceiveV1',send:'sendV1',cancel:'cancelV1',authorizeNetwork:'authorizeNetworkV1',revokeNetwork:'revokeNetworkV1',restart:'restartV1'};
+    const methods = {copyPairingCode:'copyPairingCodeV1',begin:'beginV1',manualConnect:'connectAddressV1',peer:'choosePeerV1',pairingCode:'submitPairingCodeV1',approve:'approvePeerV1',send:'sendV1',cancel:'cancelV1',authorizeNetwork:'authorizeNetworkV1',revokeNetwork:'revokeNetworkV1',restart:'restartV1'};
     const name = methods[kind];
     if (!name || typeof bridge[name] !== 'function') return {accepted:false,errorCode:'INTERNAL_FAILURE'};
     const args = [observed.flowId];
     if (kind === 'begin') args.push(value.role,value.transport);
-    else if (kind === 'peer' || kind === 'prepare' || kind === 'manualConnect') args.push(value);
-    else if (kind === 'match' || kind === 'mismatch') args.push(kind === 'match');
+    else if (kind === 'peer' || kind === 'pairingCode' || kind === 'send' || kind === 'manualConnect') args.push(value);
     return new Promise(resolve => bridge[name](...args,ack => {
       if (!ack || Object.keys(ack).length !== 2 || typeof ack.accepted !== 'boolean' || typeof ack.errorCode !== 'string') {
         resolve({accepted:false,errorCode:'INTERNAL_FAILURE'}); return;

@@ -461,7 +461,7 @@ class VaultModel private constructor(application: Application, private val clipb
         expireGeneratedIfNeeded()
         refreshBiometricPresentation()
         // 恢复呈现前同步清理到期状态，不能先更新时间或显示旧页面。
-        if (!expireIfNeeded()) { scheduleIdleLock(); startReadyExport() }
+        if (!expireIfNeeded()) { directTransfer?.recheckDeadline(); scheduleIdleLock(); startReadyExport() }
         refreshSystemAccess()
     }
 
@@ -1529,6 +1529,7 @@ class VaultModel private constructor(application: Application, private val clipb
 
     fun refreshVaults() { exitConfirmation.cancel(); loadVaults(restoreLast = false) }
     private fun loadVaults(restoreLast: Boolean) = perform {
+        val deletionCleanupPending = store.recoverVaultDeletions()
         val vaults = store.listVaults()
         var notice = UiText.Empty
         val lastId = if (restoreLast) try {
@@ -1539,6 +1540,7 @@ class VaultModel private constructor(application: Application, private val clipb
             catch (_: Exception) { notice = UiText(R.string.last_vault_read_failed); null }
             else null
         val selected = vaults.firstOrNull { it.id == lastId }
+        if (deletionCleanupPending) notice += UiText(R.string.deletion_cleanup_pending)
         VaultUiState(vaults = vaults, vault = selected, page = if (selected == null) Page.VAULTS else Page.LOCKED, notice = notice)
     }
 
@@ -2632,6 +2634,20 @@ class VaultModel private constructor(application: Application, private val clipb
             }
         }
     }
+    internal fun copyTransferPairingCode() {
+        val controller = directTransfer ?: return
+        val permission = generation
+        fun qualified() = permission == generation && directTransfer === controller && state.page == Page.TRANSFER &&
+            state.unlocked && !state.busy && foreground && contentVisible && !expireIfNeeded() && clipboardHostQualified()
+        if (!qualified()) return
+        controller.copyPairingCode { code, current ->
+            viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
+                clipboardPublisher(ClipboardField.TEXT) { qualified() && current() }
+                    .publish(ClipData.newPlainText("小仓", code))
+            }
+        }
+    }
+
     internal fun copyGenerated(input: Long) {
         val permission = generation
         val vaultId = state.vault?.id

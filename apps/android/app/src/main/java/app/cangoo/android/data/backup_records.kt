@@ -9,7 +9,8 @@ import java.util.UUID
 
 /** 备份记录映射与内容复核；会话、取消和事务始终由VaultStore持有。 */
 internal object BackupRecords {
-    fun export(database: VaultDatabase, scope: BackupScope, guard: () -> Unit, encryptedEnvelope: Boolean = true): BackupPayload {
+    fun export(database: VaultDatabase, scope: BackupScope, guard: () -> Unit, encryptedEnvelope: Boolean = true,
+               memory: BackupMemoryBudget = BackupMemoryBudget()): BackupPayload {
         val passwords = mutableListOf<BackupPassword>()
         val notes = mutableListOf<BackupNote>()
         guard()
@@ -25,29 +26,42 @@ internal object BackupRecords {
             if ((if (encryptedEnvelope) ((lowerBytes + 28 + 2) / 3) * 4 else lowerBytes) > BackupProtocol.MAX_BYTES) failLimit()
         }
         if (scope != BackupScope.NOTES) eachId(database, BackupImportKind.PASSWORD, guard) { id ->
-            budget(database.passwords().backupTextBytes(id) + 146)
-            guard()
-            val record = database.passwords().read(id) ?: throw VaultException(VaultError.DATA_UNAVAILABLE)
-            guard()
-            val codes = checkedRecoveryCodes(record.recoveryCodesJson)
-            codes.forEach { budget(utf8Bytes(it.value, guard) + 24) }
-            passwords.add(BackupPassword(record.title, record.account, record.password, record.notes, record.totpSecret,
-                record.strength, record.passwordChangedAt?.let(BackupProtocol::exportTimestamp),
-                BackupProtocol.exportTimestamp(record.updatedAt), record.favorite, codes))
+            val textBytes = database.passwords().backupTextBytes(id)
+            budget(textBytes + 146)
+            val allocation = textBytes + database.passwords().backupRecoveryBytes(id)
+            memory.reserve(2 * allocation + BackupMemoryBudget.RECORD_BYTES + 128 * BackupMemoryBudget.RECOVERY_CODE_BYTES)
+            val item = memory.temporary(4 * allocation) {
+                guard()
+                val record = database.passwords().read(id) ?: throw VaultException(VaultError.DATA_UNAVAILABLE)
+                guard()
+                val codes = checkedRecoveryCodes(record.recoveryCodesJson)
+                codes.forEach { budget(utf8Bytes(it.value, guard) + 24) }
+                BackupPassword(record.title, record.account, record.password, record.notes, record.totpSecret,
+                    record.strength, record.passwordChangedAt?.let(BackupProtocol::exportTimestamp),
+                    BackupProtocol.exportTimestamp(record.updatedAt), record.favorite, codes)
+            }
+            memory.release((128 - item.recoveryCodes.size) * BackupMemoryBudget.RECOVERY_CODE_BYTES)
+            passwords.add(item)
         }
         if (scope != BackupScope.PASSWORDS) eachId(database, BackupImportKind.NOTE, guard) { id ->
-            budget(database.notes().backupTextBytes(id) + 89)
-            guard()
-            val record = database.notes().read(id) ?: throw VaultException(VaultError.DATA_UNAVAILABLE)
-            guard()
-            notes.add(BackupNote(record.title, record.content, BackupProtocol.exportTimestamp(record.createdAt),
-                BackupProtocol.exportTimestamp(record.updatedAt), record.sortOrder, record.favorite))
+            val bytes = database.notes().backupTextBytes(id)
+            budget(bytes + 89)
+            memory.reserve(2 * bytes + BackupMemoryBudget.RECORD_BYTES)
+            notes.add(memory.temporary(4 * bytes) {
+                guard()
+                val record = database.notes().read(id) ?: throw VaultException(VaultError.DATA_UNAVAILABLE)
+                guard()
+                BackupNote(record.title, record.content, BackupProtocol.exportTimestamp(record.createdAt),
+                    BackupProtocol.exportTimestamp(record.updatedAt), record.sortOrder, record.favorite)
+            })
         }
         guard()
         return BackupPayload(BackupProtocol.exportTime(System.currentTimeMillis()), scope, passwords, notes)
     }
 
     fun snapshot(database: VaultDatabase, payload: BackupPayload, guard: () -> Unit): BackupTargetSnapshot {
+        val memory = BackupMemoryBudget()
+        memory.reserve((payload.passwords.size.toLong() + payload.notes.size) * BackupMemoryBudget.RECORD_BYTES)
         val names = payload.passwords.mapTo(mutableSetOf()) { it.platform }
         val passwordContents = payload.passwords.mapIndexed { index, source ->
             guard()
@@ -58,30 +72,38 @@ internal object BackupRecords {
         val wantedNotes = noteContents.toSet()
         val identicalPasswords = mutableSetOf<Int>()
         val matchingNotes = mutableMapOf<String, String>()
-        val noteKeys = payload.notes.map { guard(); similarNoteTitleKey(it.title) }
+        val noteKeys = payload.notes.map { guard(); memory.temporary(BackupMemoryBudget.textPeak(utf8Bytes(it.title, guard))) { similarNoteTitleKey(it.title) } }
         val groups = noteKeys.toSet().associateWith { mutableListOf<BackupNoteTarget>() }
         val passwords = mutableMapOf<String, BackupPasswordTarget>()
         if (names.isNotEmpty()) eachId(database, BackupImportKind.PASSWORD, guard) { id ->
             val title = title(database, BackupImportKind.PASSWORD, id, guard)
             if (title in names) {
+                memory.reserve(BackupMemoryBudget.RECORD_BYTES)
                 guard()
-                val record = database.passwords().read(id) ?: throw VaultException(VaultError.DATA_UNAVAILABLE)
-                guard()
-                passwords[title] = BackupPasswordTarget(record.toSummary(), fingerprint(record, guard))
-                val (index, expected) = passwordContents.getValue(title)
-                if (passwordContent(record.title, record.account, record.password, record.notes, record.totpSecret,
-                        checkedRecoveryCodes(record.recoveryCodesJson), record.favorite, guard) == expected) identicalPasswords.add(index)
+                memory.temporary(BackupMemoryBudget.textPeak(database.passwords().backupTextBytes(id) + database.passwords().backupRecoveryBytes(id)) +
+                    128 * BackupMemoryBudget.RECOVERY_CODE_BYTES) {
+                    val record = database.passwords().read(id) ?: throw VaultException(VaultError.DATA_UNAVAILABLE)
+                    guard()
+                    passwords[title] = BackupPasswordTarget(record.toSummary(), fingerprint(record, guard))
+                    val (index, expected) = passwordContents.getValue(title)
+                    if (passwordContent(record.title, record.account, record.password, record.notes, record.totpSecret,
+                            checkedRecoveryCodes(record.recoveryCodesJson), record.favorite, guard) == expected) identicalPasswords.add(index)
+                }
             }
         }
         if (groups.isNotEmpty()) eachId(database, BackupImportKind.NOTE, guard) { id ->
-            val key = similarNoteTitleKey(title(database, BackupImportKind.NOTE, id, guard))
+            val title = title(database, BackupImportKind.NOTE, id, guard)
+            val key = memory.temporary(BackupMemoryBudget.textPeak(utf8Bytes(title, guard))) { similarNoteTitleKey(title) }
             groups[key]?.let { values ->
+                memory.reserve(BackupMemoryBudget.RECORD_BYTES)
                 guard()
-                val record = database.notes().read(id) ?: throw VaultException(VaultError.DATA_UNAVAILABLE)
-                guard()
-                values.add(BackupNoteTarget(record.toSummary(), fingerprint(record, guard)))
-                val content = noteContent(record.title, record.content, record.favorite, guard)
-                if (content in wantedNotes) matchingNotes[content] = minOf(matchingNotes[content] ?: record.id, record.id)
+                memory.temporary(BackupMemoryBudget.textPeak(database.notes().backupTextBytes(id))) {
+                    val record = database.notes().read(id) ?: throw VaultException(VaultError.DATA_UNAVAILABLE)
+                    guard()
+                    values.add(BackupNoteTarget(record.toSummary(), fingerprint(record, guard)))
+                    val content = noteContent(record.title, record.content, record.favorite, guard)
+                    if (content in wantedNotes) matchingNotes[content] = minOf(matchingNotes[content] ?: record.id, record.id)
+                }
             }
         }
         val identicalNotes = noteContents.mapIndexedNotNull { index, content -> matchingNotes[content]?.let { index to it } }.toMap()
@@ -438,6 +460,10 @@ internal object BackupRecords {
 
     private fun title(database: VaultDatabase, kind: BackupImportKind, id: String, guard: () -> Unit): String {
         guard()
+        val table = if (kind == BackupImportKind.PASSWORD) "passwords" else "notes"
+        val bytes = database.openHelper.readableDatabase.compileStatement("SELECT length(CAST(title AS BLOB)) FROM $table WHERE id = ?")
+            .use { statement -> statement.bindString(1, id); statement.simpleQueryForLong() }
+        BackupMemoryBudget().checkAvailable(BackupMemoryBudget.textPeak(bytes))
         return database.openHelper.readableDatabase
             .compileStatement(if (kind == BackupImportKind.PASSWORD) "SELECT title FROM passwords WHERE id = ?" else "SELECT title FROM notes WHERE id = ?")
             .use { statement -> statement.bindString(1, id); (statement.simpleQueryForString() ?: throw VaultException(VaultError.DATA_UNAVAILABLE)).also { guard() } }

@@ -28,3 +28,78 @@
 +sqleet_defines.append(('MODULE_NAME', '"sqleet"'))
 @@ -29,0 +26 @@
 +                   extra_compile_args=["/utf-8"],
+--- a/_sqleet/connection.c
++++ b/_sqleet/connection.c
+@@ -82 +82 @@
+-        "key", NULL
++        "key", "max_length", NULL
+@@ -94,0 +95 @@
++    int max_length = -1;
+@@ -97 +98 @@
+-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|diOiOipz#", kwlist,
++    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|diOiOipz#i", kwlist,
+@@ -101 +102 @@
+-                                     &key, &keyLen))
++                                     &key, &keyLen, &max_length))
+@@ -102,0 +104,5 @@
++        return -1;
++    }
++
++    if (max_length < -1) {
++        PyErr_SetString(PyExc_ValueError, "max_length must be -1 or nonnegative");
+@@ -137,0 +144,5 @@
++    }
++
++    /* 在密钥验证及首次读取 schema 前限制原生单值和记录分配。 */
++    if (max_length >= 0) {
++        sqlite3_limit(self->db, SQLITE_LIMIT_LENGTH, max_length);
+@@ -1681,0 +1693,28 @@
++/* 沿 SQLite 标准接口设置限制，不接触加密实现或连接私有布局。 */
++static PyObject* pysqlite_connection_getlimit(pysqlite_Connection* self, PyObject* args)
++{
++    int category, limit;
++    if (!pysqlite_check_thread(self) || !pysqlite_check_connection(self)) return NULL;
++    if (!PyArg_ParseTuple(args, "i:getlimit", &category)) return NULL;
++    limit = sqlite3_limit(self->db, category, -1);
++    if (limit < 0) {
++        PyErr_SetString(pysqlite_ProgrammingError, "invalid SQLite limit category");
++        return NULL;
++    }
++    return PyLong_FromLong(limit);
++}
++
++static PyObject* pysqlite_connection_setlimit(pysqlite_Connection* self, PyObject* args)
++{
++    int category, limit, previous;
++    if (!pysqlite_check_thread(self) || !pysqlite_check_connection(self)) return NULL;
++    if (!PyArg_ParseTuple(args, "ii:setlimit", &category, &limit)) return NULL;
++    previous = sqlite3_limit(self->db, category, -1);
++    if (previous < 0) {
++        PyErr_SetString(pysqlite_ProgrammingError, "invalid SQLite limit category");
++        return NULL;
++    }
++    sqlite3_limit(self->db, category, limit);
++    return PyLong_FromLong(previous);
++}
++
+@@ -1682,0 +1722,4 @@
++    {"getlimit", (PyCFunction)pysqlite_connection_getlimit, METH_VARARGS,
++        PyDoc_STR("读取连接的 SQLite 资源限制。")},
++    {"setlimit", (PyCFunction)pysqlite_connection_setlimit, METH_VARARGS,
++        PyDoc_STR("设置连接的 SQLite 资源限制并返回原值。")},
+--- a/_sqleet/module.c
++++ b/_sqleet/module.c
+@@ -58 +58 @@
+-        "check_same_thread", "factory", "cached_statements", "uri", "key",
++        "check_same_thread", "factory", "cached_statements", "uri", "key", "max_length",
+@@ -70,0 +71 @@
++    int max_length = -1;
+@@ -74 +75 @@
+-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|diOiOipz#", kwlist,
++    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|diOiOipz#i", kwlist,
+@@ -77 +78 @@
+-                                     &factory, &cached_statements, &uri, &key, &keyLen))
++                                     &factory, &cached_statements, &uri, &key, &keyLen, &max_length))
+@@ -272,0 +274,2 @@
++    {"SQLITE_LIMIT_LENGTH", SQLITE_LIMIT_LENGTH},
++    {"SQLITE_LIMIT_SQL_LENGTH", SQLITE_LIMIT_SQL_LENGTH},

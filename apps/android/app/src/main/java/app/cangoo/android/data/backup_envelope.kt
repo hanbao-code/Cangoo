@@ -15,7 +15,7 @@ import java.nio.charset.CodingErrorAction
 import java.util.Base64
 
 // 仅保存本次加密字节；读入结束后封存，认证两遍始终读取同一份内容。
-internal class BackupPacketBytes : OutputStream() {
+internal class BackupPacketBytes(private val memory: BackupMemoryBudget = BackupMemoryBudget()) : OutputStream() {
     private val blocks = mutableListOf<ByteArray>()
     private var sealed = false
     var size = 0
@@ -23,7 +23,7 @@ internal class BackupPacketBytes : OutputStream() {
 
     override fun write(value: Int) {
         bound(1)
-        if (size % BLOCK == 0) blocks.add(ByteArray(BLOCK))
+        if (size % BLOCK == 0) addBlock()
         blocks.last()[size++ % BLOCK] = value.toByte()
     }
 
@@ -31,7 +31,7 @@ internal class BackupPacketBytes : OutputStream() {
         bound(length)
         var copied = 0
         while (copied < length) {
-            if (size % BLOCK == 0) blocks.add(ByteArray(BLOCK))
+            if (size % BLOCK == 0) addBlock()
             val count = minOf(length - copied, BLOCK - size % BLOCK)
             bytes.copyInto(blocks.last(), size % BLOCK, offset + copied, offset + copied + count)
             copied += count
@@ -41,7 +41,13 @@ internal class BackupPacketBytes : OutputStream() {
 
     private fun bound(length: Int) {
         check(!sealed)
+        require(length >= 0)
         if (size.toLong() + length > BackupProtocol.MAX_BYTES) packetFailure(BackupProblem.LIMIT)
+    }
+
+    private fun addBlock() {
+        memory.reserve(BLOCK.toLong())
+        blocks.add(ByteArray(BLOCK))
     }
 
     fun seal() { sealed = true }
@@ -72,7 +78,7 @@ internal class BackupPacketBytes : OutputStream() {
         }
     }
 
-    fun erase() { blocks.forEach { it.fill(0) }; blocks.clear(); size = 0; sealed = true }
+    fun erase() { blocks.forEach { it.fill(0) }; memory.release(blocks.size.toLong() * BLOCK); blocks.clear(); size = 0; sealed = true }
     private companion object { const val BLOCK = 8192 }
 }
 
@@ -89,9 +95,9 @@ internal class BackupEnvelope(val salt: ByteArray, val encrypted: BackupPacketBy
             .streamReadConstraints(StreamReadConstraints.builder().maxNameLength(11).maxStringLength(34)
                 .maxNumberLength(11).maxNestingDepth(2).build()).build()
 
-        fun read(input: InputStream, guard: () -> Unit): BackupEnvelope {
-            val original = BackupPacketBytes()
-            val encrypted = BackupPacketBytes()
+        fun read(input: InputStream, guard: () -> Unit, memory: BackupMemoryBudget = BackupMemoryBudget()): BackupEnvelope {
+            val original = BackupPacketBytes(memory)
+            val encrypted = BackupPacketBytes(memory)
             val buffer = ByteArray(8192)
             var salt: ByteArray? = null
             var completed = false

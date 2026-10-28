@@ -125,6 +125,10 @@ class _M4HostPort(Protocol):
 
     def on_m4_handshake(self, page_epoch: int) -> None: ...
 
+    def ensure_m4_power_protection(self) -> bool: ...
+
+    def m4_power_rebind_pending(self) -> bool: ...
+
     def on_m4_session_opened(self, session_epoch: int) -> None: ...
 
     def on_m4_locked(self, reason: str) -> None: ...
@@ -610,6 +614,12 @@ class M4BridgeRuntime(QObject):
         command_id: CommandId,
         arguments: tuple[object, ...],
     ) -> str | None:
+        if self._closed:
+            return "STALE_PAGE"
+        if self._host.m4_power_rebind_pending():
+            return "REQUEST_BUSY"
+        if command_id is CommandId.C04 and not self._host.ensure_m4_power_protection():
+            return "INTERNAL_FAILURE"
         # 备份操作只从独立窗口的固定命令面进入，主页面保留开窗能力。
         if command_id in BACKUP_COMMANDS:
             return "REQUEST_BUSY"
@@ -1152,21 +1162,20 @@ class M4BridgeRuntime(QObject):
         return str(projected_settings["closeBehavior"])
 
     def lock_session_from_native(self, reason: str) -> bool:
-        """Revoke one active SESSION for H04, D19, or editor failure.
-
-        This is a host-only path. The typed RequestBoundary revokes authority
-        and installs the native safety surface before phase 50 can wait for
-        accepted adapter work. Only then may a public S01 notification appear.
-        """
+        """先同步撤权和遮蔽，再清理会话；电源换绑也清理无会话公共页。"""
 
         boundary_reason = {
             "AUTO_LOCK": "auto_lock",
             "RENDERER_FAILURE": "renderer_failure",
             "SUSPEND_LOCK": "suspend_lock",
+            "SESSION_INVALIDATED": "session_invalidated",
         }.get(reason)
         if boundary_reason is None:
             raise ValueError("unsupported native lock reason")
-        if self._closed or self.bridge.active_session_epoch <= 0:
+        if self._closed or (
+            self.bridge.active_session_epoch <= 0
+            and (reason != "SESSION_INVALIDATED" or self.bridge.active_page_epoch <= 0)
+        ):
             return False
         c49_token = self.bridge.pending_change_key_token
         self._host.set_m4_external_change_key_settlement_token(c49_token)
@@ -1933,7 +1942,8 @@ class M4BridgeRuntime(QObject):
         result: object,
     ) -> None:
         if (
-            error_code == "OK"
+            not self._closed
+            and error_code == "OK"
             and isinstance(result, dict)
             and page_epoch == self.bridge.active_page_epoch
             and session_epoch > 0
@@ -1941,6 +1951,8 @@ class M4BridgeRuntime(QObject):
             and result.get("sessionEpoch") == session_epoch
             and result.get("state") == "UNLOCKED"
         ):
+            if not self._host.ensure_m4_power_protection():
+                return
             self.clear_change_key_connection_notice()
             database_label = result.get("databaseLabel", "")
             self._database_label = (
@@ -1999,6 +2011,7 @@ class M4BridgeRuntime(QObject):
             "AUTO_LOCK": "AUTO",
             "RENDERER_FAILURE": "RENDERER_FAILURE",
             "SUSPEND_LOCK": "SUSPEND",
+            "SESSION_INVALIDATED": "SESSION_INVALIDATED",
         }.get(reason)
         if presentation_reason is None:
             raise ValueError("unsupported public lock reason")

@@ -31,6 +31,12 @@ MAX_PROBE_TARGETS = 254
 BUFFER_LIMIT = 2 * MAX_INPUT
 SERVICE_UUID = "86acb2b0-92d5-4e2f-9635-72f7dc195a2a"
 SERVICE_NAME = "Cangoo Transfer"
+MAX_CANDIDATES = 4
+HELLO_SECONDS = 3
+AUTH_SECONDS = 10
+SOURCE_COOLDOWN = 2
+SOURCE_TTL = 60
+MAX_SOURCES = 64
 
 
 class DirectTransferTransport(QObject):
@@ -40,6 +46,10 @@ class DirectTransferTransport(QObject):
     drained = Signal()
     failed = Signal(str)
     discoveryFinished = Signal()
+    candidateConnected = Signal(str)
+    candidateData = Signal(str, bytes)
+    candidateFailed = Signal(str, str)
+    candidateDrained = Signal(str)
 
     def __init__(self, device_id: str, device_name: str, parent=None):
         super().__init__(parent)
@@ -55,6 +65,12 @@ class DirectTransferTransport(QObject):
         self._manual_path = None
         self._probe_targets = deque()
         self._discovery_sent = False
+        self._discovery_targets = set()
+        self._candidates = {}
+        self._sources = {}
+        self._winner = ""
+        self._tokens = float(MAX_CANDIDATES)
+        self._token_time = time.monotonic()
         self._socket = self._server = self._udp = self._local = self._service = None
         self._peers = {}
         self._endpoints = {}
@@ -67,6 +83,7 @@ class DirectTransferTransport(QObject):
         self._read_timer = self._timer(self._pump_read)
         self._udp_timer = self._timer(self._pump_udp)
         self._write_timer = self._timer(self._pump_write)
+        self._candidate_timer = self._timer(self.check_candidates, repeating=True)
 
     def _timer(self, callback, *, repeating=False):
         timer = QTimer(self)
@@ -119,8 +136,8 @@ class DirectTransferTransport(QObject):
     def _start_lan(self):
         if self._role == "RECEIVE":
             server = self._server = QTcpServer(self)
-            server.setMaxPendingConnections(1)
-            server.setListenBacklogSize(1)
+            server.setMaxPendingConnections(MAX_CANDIDATES)
+            server.setListenBacklogSize(MAX_CANDIDATES)
             server.newConnection.connect(lambda: self._accept(server))
             server.acceptError.connect(lambda _error: self._fail("UNAVAILABLE") if server is self._server else None)
             if not server.listen(QHostAddress.SpecialAddress.AnyIPv4, 0):
@@ -243,7 +260,12 @@ class DirectTransferTransport(QObject):
             candidates = remaining
         return targets
 
-    def _send_discovery(self, target, path):
+    def _send_discovery(self, target, path, *, repeat=False):
+        key = target, path[0], path[2]
+        if not repeat:
+            if key in self._discovery_targets:
+                return self._discovery_sent
+            self._discovery_targets.add(key)
         payload = _canonical({"v": 1, "kind": "discover", "request": self._request})
         datagram = QNetworkDatagram(payload, QHostAddress(target), DISCOVERY_PORT)
         datagram.setSender(QHostAddress(path[0]))
@@ -324,7 +346,7 @@ class DirectTransferTransport(QObject):
                 for address in dict.fromkeys((path[1], "255.255.255.255")):
                     if self._closed or self._udp is None:
                         return
-                    succeeded |= self._send_discovery(address, path)
+                    succeeded |= self._send_discovery(address, path, repeat=True)
             if not succeeded and not self._probe_targets and not self._discovery_sent:
                 self._fail("UNAVAILABLE")
         except (OSError, RuntimeError, ValueError, TypeError):
@@ -357,7 +379,7 @@ class DirectTransferTransport(QObject):
                     continue
                 try:
                     value = _parse(data)
-                    _integer(value.get("v"), 1, 1)
+                    _integer(value.get("v"), 1, 1 if self._role == "RECEIVE" else 2)
                     request = value.get("request")
                     if type(request) is not str or not _ID.fullmatch(request):
                         continue
@@ -365,7 +387,7 @@ class DirectTransferTransport(QObject):
                         _fields(value, "v", "kind", "request")
                         if value["kind"] != "discover" or not self.listening:
                             continue
-                        offer = _canonical({"v": 1, "kind": "offer", "request": request,
+                        offer = _canonical({"v": 2, "kind": "offer", "request": request,
                                             "id": self._device_id, "name": self._device_name,
                                             "port": self._server.serverPort()})
                         reply = datagram.makeReply(offer)
@@ -380,7 +402,7 @@ class DirectTransferTransport(QObject):
                         _name(value["name"], 64, 256)
                         peer_id = value["id"]
                         if type(peer_id) is str and _ID.fullmatch(peer_id) and peer_id != self._device_id:
-                            self._add_peer(peer_id, value["name"], (address.toString(), value["port"], source[0], source[2]))
+                            self._add_peer(peer_id, value["name"], (address.toString(), value["port"], source[0], source[2]), legacy=value["v"] == 1)
                 except (DirectTransferError, ValueError, TypeError):
                     continue
             if udp is self._udp and udp.hasPendingDatagrams() and not self._udp_timer.isActive():
@@ -388,12 +410,12 @@ class DirectTransferTransport(QObject):
         except (OSError, RuntimeError):
             self._fail("UNAVAILABLE")
 
-    def _add_peer(self, peer_id, name, endpoint):
+    def _add_peer(self, peer_id, name, endpoint, *, legacy=False):
         if peer_id in self._peers or endpoint in self._endpoints or len(self._peers) >= MAX_PEERS:
             return
-        self._peers[peer_id] = (name, endpoint)
+        self._peers[peer_id] = (name, endpoint, legacy)
         self._endpoints[endpoint] = peer_id
-        self.peersChanged.emit([{"peerId": key, "name": value[0]} for key, value in self._peers.items()])
+        self.peersChanged.emit([{"peerId": key, "name": value[0], "legacy": value[2]} for key, value in self._peers.items()])
 
     def _paired(self, address) -> bool:
         return self._local is not None and self._local.isValid() and self._local.pairingStatus(address) in {
@@ -409,7 +431,7 @@ class DirectTransferTransport(QObject):
                                           if local is self._local and mode == QBluetoothLocalDevice.HostMode.HostPoweredOff else None)
         if self._role == "RECEIVE":
             server = self._server = QBluetoothServer(QBluetoothServiceInfo.Protocol.RfcommProtocol, self)
-            server.setMaxPendingConnections(1)
+            server.setMaxPendingConnections(MAX_CANDIDATES)
             server.newConnection.connect(lambda: self._accept(server))
             server.errorOccurred.connect(lambda _error: self._fail("UNAVAILABLE") if server is self._server else None)
             service = server.listen(QBluetoothUuid(QUuid(SERVICE_UUID)), SERVICE_NAME)
@@ -471,6 +493,29 @@ class DirectTransferTransport(QObject):
             return
         self.discoveryFinished.emit()
 
+    def peer_target(self, peer_id):
+        return self._peers.get(peer_id)
+
+    def connect_target(self, peer_id, target, kind, manual_address=""):
+        if self._started or self._closed or not target or kind not in {"LAN", "BLUETOOTH"}:
+            return False
+        self._started, self._role, self._kind = True, "SEND", kind
+        self._peers[peer_id] = target
+        if manual_address:
+            manual_target = self.manual_lan_target(manual_address) if kind == "LAN" else None
+            if manual_target is None:
+                self._fail("CONNECT_FAILED")
+                return False
+            self._manual_address, self._manual_path = manual_target
+        if kind == "BLUETOOTH":
+            local = self._local = QBluetoothLocalDevice(self)
+            if not local.isValid() or local.hostMode() == QBluetoothLocalDevice.HostMode.HostPoweredOff:
+                self._fail("UNAVAILABLE")
+                return False
+            local.hostModeStateChanged.connect(lambda mode: self._fail("UNAVAILABLE")
+                if local is self._local and mode == QBluetoothLocalDevice.HostMode.HostPoweredOff else None)
+        return self.choose_peer(peer_id)
+
     def choose_peer(self, peer_id: str) -> bool:
         if self._closed or self._role != "SEND" or self._socket is not None or type(peer_id) is not str or peer_id not in self._peers:
             return False
@@ -524,18 +569,109 @@ class DirectTransferTransport(QObject):
             socket = server.nextPendingConnection()
             if socket is None:
                 return
-            if self._socket is not None or (self._kind == "BLUETOOTH" and not self._paired(socket.peerAddress())):
-                if not self._dispose(socket, "abort"):
-                    self._fail("UNAVAILABLE")
+            source = socket.peerAddress().toString()
+            now = time.monotonic()
+            self.check_candidates()
+            self._sources = {key: value for key, value in self._sources.items() if now - value[0] < SOURCE_TTL}
+            self._tokens = min(float(MAX_CANDIDATES), self._tokens + now - self._token_time)
+            self._token_time = now
+            recent = self._sources.get(source)
+            if (self._winner or len(self._candidates) >= MAX_CANDIDATES or self._tokens < 1
+                    or any(item[1] == source for item in self._candidates.values())
+                    or recent is not None and now < recent[1]
+                    or recent is None and len(self._sources) >= MAX_SOURCES
+                    or self._kind == "BLUETOOTH" and not self._paired(socket.peerAddress())):
+                self._cleanup_succeeded = self._dispose(socket, "abort") and self._cleanup_succeeded
                 return
-            self._bind_socket(socket)
-            discovery_closed = self._stop_discovery()
-            if not self._stop_listener() or not discovery_closed:
-                self._fail("UNAVAILABLE")
-                return
-            self._socket_connected(socket)
+            self._tokens -= 1
+            self._sources[source] = (now, 0.0)
+            candidate = secrets.token_hex(16)
+            child = DirectTransferTransport(self._device_id, self._device_name, self)
+            child._started, child._role, child._kind = True, "RECEIVE", self._kind
+            self._candidates[candidate] = [child, source, now, False]
+            child.dataReceived.connect(lambda data: self._candidate_data(candidate, data))
+            child.drained.connect(lambda: self.drained.emit() if self._winner == candidate else self.candidateDrained.emit(candidate))
+            child.failed.connect(lambda code: self._candidate_failed(candidate, code))
+            child._bind_socket(socket)
+            child._connected = True
+            self._candidate_timer.start(100)
+            self.candidateConnected.emit(candidate)
+            child._read_ready(socket)
         except (OSError, RuntimeError, ValueError, TypeError):
             self._fail("CONNECT_FAILED")
+
+    def _candidate_data(self, candidate, data):
+        if self._closed:
+            return
+        self.check_candidates()
+        if candidate not in self._candidates:
+            return
+        if self._winner == candidate:
+            self.dataReceived.emit(data)
+        else:
+            self.candidateData.emit(candidate, data)
+
+    def _candidate_failed(self, candidate, code):
+        if self._closed or candidate not in self._candidates:
+            return
+        if self._winner == candidate:
+            self._fail(code)
+        else:
+            self.reject_candidate(candidate)
+            self.candidateFailed.emit(candidate, code)
+
+    def mark_candidate_hello(self, candidate):
+        if candidate in self._candidates:
+            self._candidates[candidate][3] = True
+
+    def check_candidates(self):
+        if self._closed or self._winner:
+            return
+        now = time.monotonic()
+        for candidate, (_child, _source, started, hello) in list(self._candidates.items()):
+            if now - started >= AUTH_SECONDS or not hello and now - started >= HELLO_SECONDS:
+                self._candidate_failed(candidate, "TIMEOUT")
+
+    def candidate_alive(self, candidate):
+        self.check_candidates()
+        return candidate in self._candidates
+
+    def candidate_writing(self, candidate):
+        entry = self._candidates.get(candidate)
+        return bool(entry and entry[0]._out_frame is not None)
+
+    def write_candidate(self, candidate, frame):
+        entry = self._candidates.get(candidate)
+        return bool(not self._closed and entry and entry[0].write(frame))
+
+    def reject_candidate(self, candidate, *, cooldown=True):
+        entry = self._candidates.pop(candidate, None)
+        if entry is None:
+            return True
+        child, source, _started, _hello = entry
+        if not self._candidates:
+            self._candidate_timer.stop()
+        if cooldown:
+            now = time.monotonic()
+            self._sources[source] = (now, now + SOURCE_COOLDOWN)
+        succeeded = child.close()
+        child.deleteLater()
+        self._cleanup_succeeded = succeeded and self._cleanup_succeeded
+        return succeeded
+
+    def promote_candidate(self, candidate):
+        if self._closed or self._winner or candidate not in self._candidates:
+            return False
+        self._winner, self._connected = candidate, True
+        self._candidate_timer.stop()
+        succeeded = self._stop_discovery()
+        succeeded = self._stop_listener() and succeeded
+        for other in list(self._candidates):
+            if other != candidate:
+                succeeded = self.reject_candidate(other, cooldown=False) and succeeded
+        if not succeeded:
+            self._fail("UNAVAILABLE")
+        return succeeded
 
     def _bind_socket(self, socket):
         self._socket = socket
@@ -607,6 +743,8 @@ class DirectTransferTransport(QObject):
             self._reading = False
 
     def write(self, frame: bytes) -> bool:
+        if self._winner:
+            return self.write_candidate(self._winner, frame)
         if self._closed or not self._connected or self._socket is None or self._out_frame is not None:
             return False
         if type(frame) is not bytes or len(frame) < 5 or int.from_bytes(frame[:4], "big") != len(frame) - 4:
@@ -678,7 +816,13 @@ class DirectTransferTransport(QObject):
         local, self._local = self._local, None
         self._read_timer.stop()
         self._write_timer.stop()
-        succeeded = self._stop_discovery()
+        self._candidate_timer.stop()
+        succeeded = True
+        for candidate in list(self._candidates):
+            succeeded = self.reject_candidate(candidate, cooldown=False) and succeeded
+        self._sources.clear()
+        self._winner = ""
+        succeeded = self._stop_discovery() and succeeded
         succeeded = self._stop_listener() and succeeded
         succeeded = self._dispose(socket, "abort") and succeeded
         succeeded = self._dispose(local) and succeeded

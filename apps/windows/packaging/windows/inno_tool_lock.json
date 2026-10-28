@@ -1,0 +1,21 @@
+{
+  "version": "7.1.0",
+  "official_release": "https://github.com/jrsoftware/issrc/releases/tag/is-7_1_0",
+  "official_installer": "https://github.com/jrsoftware/issrc/releases/download/is-7_1_0/innosetup-7.1.0-x64.exe",
+  "installer_sha256": "0362a383ed217d4c4239b5933866dd96d3eb2102737da92f80f6057a4b40df2f",
+  "installer_authenticode": "Valid Pyrsys B.V.",
+  "license": "license.txt",
+  "files_sha256": {
+    "ISCC.exe": "d06ebd38f38e3cee60a3c50cc45bd449d77e0bc6a5cabc607ea9886808e4de1a",
+    "ISCmplr.dll": "a7a58961ca61bfb2570e66a29b40021b887c9a41d3cbf3ae79611538257864ee",
+    "ISPP.dll": "f875ddf920f17dceaaad05280dafd6d5376a1a4111cbd5fe97bfc47c286b5a41",
+    "ISPPBuiltins.iss": "fe474759a677d7e86ba3e452d7b89f5ee41a1e24b15b6c2350c71d1cdf682dbc",
+    "islzma-x64.dll": "40ff69ac37464035cec3338637f360f035f69beff8263c47f5913cbac8813158",
+    "Setup.e64": "ad12a06d09afefa9d1283c6616ef4d56289dc14a7137a12b24653a12637216bb",
+    "SetupLdr.e64": "ee1fdf9c8c352a5e699645f8a11fa25e69ef31ab76977c201ef00f470a4d387d",
+    "SetupCustomStyle.e64": "256f33b462473a6979314ffddc4df3a3d4eb680d35f0c82ae6ff7842c3f7f1a6",
+    "Default.isl": "b95385bf66ad61f40de6a8d2bbda3ada4d45bc7b0db1fa218a417e776be514fc",
+    "Languages/ChineseSimplified.isl": "e0b0b350e2245f3c5e65586dfe43d574f6e7f06f2261149aba284954b3fc9a8d",
+    "license.txt": "2e5346868c2a18434489824e11d65c3031620f792fefc415d05f19cd441abf5c"
+  }
+}

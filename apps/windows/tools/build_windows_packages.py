@@ -54,20 +54,31 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=WORKSPACE / "dist",
                         help="成品根目录，默认项目内dist")
-    parser.add_argument("--toolchain", type=Path, required=True, help="按tool_lock.json准备的独立WiX工具根")
-    parser.add_argument("--wix-source-archive", type=Path, required=True, help="tool_lock.json锁定的WiX对应源码归档")
+    parser.add_argument("--toolchain", type=Path, help="旧MSI构建使用的独立WiX工具根")
+    parser.add_argument("--wix-source-archive", type=Path, help="旧MSI构建使用的WiX对应源码归档")
     parser.add_argument("--compiler", type=Path, help="已配置x64环境的MSVC cl.exe")
     parser.add_argument("--accept-wix-eula", action="store_true", help="已核对WiX官方二进制维护协议")
+    parser.add_argument("--iscc", type=Path, help="Inno构建使用的固定ISCC.exe；与WiX参数互斥")
     args = parser.parse_args()
     if Path(sys.prefix).resolve() != (WORKSPACE / ".venv").resolve():
         parser.error("请使用项目 .venv/Scripts/python.exe 执行")
     try:
-        version = msi_version(read_product_version()[0])
-        if not args.accept_wix_eula:
+        version = read_product_version()[0]
+        if args.iscc:
+            if args.toolchain or args.wix_source_archive or args.accept_wix_eula:
+                raise ValueError("Inno与WiX构建参数不能混用")
+            from tools.build_windows_inno import verify_inno_toolchain
+            verify_inno_toolchain(args.iscc.resolve(strict=True))
+        else:
+            version = msi_version(version)
+        if not args.iscc and not args.accept_wix_eula:
             raise ValueError("请核对WiX维护协议并显式指定 --accept-wix-eula")
-        toolchain = args.toolchain.resolve(strict=True)
-        verify_toolchain(toolchain)
-        source_archive_name = verify_wix_source_archive(args.wix_source_archive)
+        if not args.iscc:
+            if not args.toolchain or not args.wix_source_archive:
+                raise ValueError("请选择 --iscc，或完整提供旧WiX工具链及源码归档")
+            toolchain = args.toolchain.resolve(strict=True)
+            verify_toolchain(toolchain)
+            source_archive_name = verify_wix_source_archive(args.wix_source_archive)
     except (OSError, ValueError) as error:
         parser.error(str(error))
     work = ProjectWorkRoot.resolve()
@@ -83,6 +94,7 @@ def main() -> int:
     env = {**os.environ, "TEMP": str(run.path / "temp"), "TMP": str(run.path / "temp"),
            "PYINSTALLER_CONFIG_DIR": str(run.path / "cache"),
            "PYTHONDONTWRITEBYTECODE": "1"}
+    env.pop("CANGOO_ACCEPTANCE_RUNTIME_HOOK", None)
 
     def execute(arguments: list[str], log_name: str) -> None:
         print(log_name, flush=True)
@@ -91,23 +103,35 @@ def main() -> int:
                            stdout=log, stderr=subprocess.STDOUT, check=True)
 
     try:
-        execute(["tools/build_web_frontend.py", "--product-only", "--check"], "frontend.log")
-        execute(["-m", "PyInstaller", "--distpath", str(run.path / "dist"),
-                 "--workpath", str(run.path / "work"),
-                 "packaging/windows/cangoo.spec"], "freeze.log")
-        payload = run.path / "dist/Cangoo"
-        write_manifest(payload, run.path / "manifest")
-        execute(["tools/build_windows_installer.py", "--payload", str(payload),
-                 "--output", str(run.path / "installer"), "--compiler", str(compiler),
-                 "--toolchain", str(toolchain), "--accept-wix-eula"],
-                "installer.log")
+        if args.iscc:
+            execute(["tools/build_windows_inno.py", "--output", str(run.path / "inno"),
+                     "--iscc", str(args.iscc.resolve()), "--compiler", str(compiler)], "inno.log")
+            payload = run.path / "inno/dist/Cangoo"
+            installer = run.path / "inno" / ("installer_" + version.replace(".", "_"))
+            record = run.path / "inno/installer_build_record.json"
+        else:
+            execute(["tools/build_web_frontend.py", "--product-only", "--check"], "frontend.log")
+            execute(["-m", "PyInstaller", "--distpath", str(run.path / "dist"),
+                     "--workpath", str(run.path / "work"),
+                     "packaging/windows/cangoo.spec"], "freeze.log")
+            payload = run.path / "dist/Cangoo"
+            write_manifest(payload, run.path / "manifest")
+            execute(["tools/build_windows_installer.py", "--payload", str(payload),
+                     "--output", str(run.path / "installer"), "--compiler", str(compiler),
+                     "--toolchain", str(toolchain), "--accept-wix-eula"],
+                    "installer.log")
+            installer = run.path / "installer"
+            record = installer / "installer_build_record.json"
         artifacts = run.path / "artifacts"
         artifacts.mkdir()
         setup_name = f"cangoo-{version}-windows-x64-setup.exe"
-        shutil.copy2(run.path / "installer" / setup_name, artifacts / setup_name)
-        shutil.copy2(run.path / "installer/installer_build_record.json", artifacts / "installer_build_record.json")
-        shutil.copy2(args.wix_source_archive, artifacts / source_archive_name)
-        verify_wix_source_archive(artifacts / source_archive_name)
+        shutil.copy2(installer / setup_name, artifacts / setup_name)
+        shutil.copy2(record, artifacts / "installer_build_record.json")
+        if args.iscc:
+            shutil.copy2(run.path / "inno/third_party/inno_license.txt", artifacts / "inno_license.txt")
+        else:
+            shutil.copy2(args.wix_source_archive, artifacts / source_archive_name)
+            verify_wix_source_archive(artifacts / source_archive_name)
         portable = artifacts / f"cangoo-{version}-windows-x64-portable.zip"
         write_portable(payload, portable)
         with zipfile.ZipFile(portable) as archive:

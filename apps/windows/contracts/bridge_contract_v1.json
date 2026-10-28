@@ -101,27 +101,27 @@
   "truth_sources": [
     {
       "path": "tests/reference/frontend/scope_matrix.json",
-      "sha256": "1b6a283d9e6dcbb8bf3d13129f69e48c368882b1d6c1af26161efb80e059f54e"
+      "sha256": "4ea8e6789c7204e065cbaad9a5f0c3c7c7ace862fea7e47aa7dd7dc04ae1e3c3"
     },
     {
       "path": "../../docs/product/product_brief.md",
-      "sha256": "fed1db44147dc3e849be504b5cc25568ef8ee02e20f22f31781cefadfb41584e"
+      "sha256": "ab838a7b8b316bc25cb4e26bab46a3b941ab30d5bb495e846c1b99c5b85221fd"
     },
     {
       "path": "../../docs/product/user_scenarios.md",
-      "sha256": "fcc9d4b19df4c526a5845e91f046779af38377a59b833356f5bc23e60e34a50f"
+      "sha256": "d9b147f2eba7f90eec41b5af48adf971deecb96b38bd18687f1f4f05358ff751"
     },
     {
       "path": "../../docs/decisions/product_decisions.md",
-      "sha256": "3716eb9aa495b3f72ad690f578e454d4b2291354fce4f8058d401cb874716cac"
+      "sha256": "41e1a44e7e1b559a798007689f57bf5438127f60a096ed1ee4d352ea377735ed"
     },
     {
       "path": "../../docs/platforms/windows/webengine_security.md",
-      "sha256": "56740eb4e7a8a0562d340c2b9ce3ca420f84b332bec84094d694c553d385776a"
+      "sha256": "ea415a012e0847748ff22a1f7a8deed0bd1c68534429357c140b27b8ae050229"
     },
     {
       "path": "../../docs/platforms/windows/quality.md",
-      "sha256": "f56b37a1bd77afb29ee387ebed58dc777bf2a39f4ad258c17e5be6aaec20a34e"
+      "sha256": "08e58f99de0df10d9c79fb3100ee4c05824aee64ab669da4580a12c0732e0328"
     }
   ],
   "adjudications": [
@@ -294,6 +294,14 @@
     "DATABASE_IO_FAILED": {
       "retryable": true,
       "recovery": "show_blocking_error_and_offer_retry"
+    },
+    "DATABASE_LIMIT_EXCEEDED": {
+      "retryable": true,
+      "recovery": "free_memory_and_retry"
+    },
+    "DATABASE_SPACE_INSUFFICIENT": {
+      "retryable": true,
+      "recovery": "free_disk_space_and_retry"
     },
     "CLIPBOARD_UNAVAILABLE": {
       "retryable": true,
@@ -1207,6 +1215,7 @@
         "MANUAL_LOCK",
         "AUTO_LOCK",
         "SUSPEND_LOCK",
+        "SESSION_INVALIDATED",
         "SWITCH_DATABASE",
         "CHANGE_KEY_SUCCESS",
         "CHANGE_KEY_RESTORED",
@@ -1471,6 +1480,8 @@
         "SELECTION_EXPIRED",
         "DATABASE_INVALID",
         "DATABASE_IO_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
+        "DATABASE_SPACE_INSUFFICIENT",
         "CLIPBOARD_UNAVAILABLE",
         "HOTKEY_INVALID",
         "HOTKEY_REGISTER_FAILED",
@@ -4034,6 +4045,8 @@
         "NOT_FOUND",
         "DATABASE_INVALID",
         "DATABASE_IO_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
+        "DATABASE_SPACE_INSUFFICIENT",
         "CANCELLED",
         "INTERNAL_FAILURE"
       ],
@@ -4351,6 +4364,7 @@
         "SESSION_REQUIRED",
         "CANCELLED",
         "DATABASE_IO_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -4411,6 +4425,7 @@
         "NOT_FOUND",
         "REVISION_CONFLICT",
         "DATABASE_IO_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -4467,6 +4482,7 @@
         "NOT_FOUND",
         "REVISION_CONFLICT",
         "DATABASE_IO_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -4528,6 +4544,7 @@
         "NOT_FOUND",
         "REVISION_CONFLICT",
         "DATABASE_IO_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -4609,6 +4626,7 @@
         "DATABASE_IO_FAILED",
         "CANCELLED",
         "PASSWORD_STRENGTH_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE",
         "RECOVERY_CODES_INVALID",
         "RECOVERY_CODES_DUPLICATE",
@@ -4722,6 +4740,7 @@
         "DATABASE_IO_FAILED",
         "CANCELLED",
         "PASSWORD_STRENGTH_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE",
         "RECOVERY_CODES_INVALID",
         "RECOVERY_CODES_DUPLICATE",
@@ -4799,6 +4818,7 @@
         "NOT_FOUND",
         "REVISION_CONFLICT",
         "DATABASE_IO_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -4850,6 +4870,7 @@
         "SESSION_REQUIRED",
         "NOT_FOUND",
         "REVISION_CONFLICT",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -4903,6 +4924,7 @@
         "REVISION_CONFLICT",
         "SECRET_LEASE_EXPIRED",
         "DATABASE_IO_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -4959,6 +4981,7 @@
         "NOT_FOUND",
         "REVISION_CONFLICT",
         "CLIPBOARD_UNAVAILABLE",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -5016,6 +5039,7 @@
         "NOT_FOUND",
         "REVISION_CONFLICT",
         "CLIPBOARD_UNAVAILABLE",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -5072,6 +5096,7 @@
         "NOT_FOUND",
         "REVISION_CONFLICT",
         "TOTP_UNAVAILABLE",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -5128,6 +5153,7 @@
         "REVISION_CONFLICT",
         "TOTP_UNAVAILABLE",
         "CLIPBOARD_UNAVAILABLE",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -5236,6 +5262,7 @@
         "SESSION_REQUIRED",
         "CANCELLED",
         "DATABASE_IO_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -5289,6 +5316,7 @@
         "NOT_FOUND",
         "REVISION_CONFLICT",
         "DATABASE_IO_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -5347,6 +5375,7 @@
         "REQUEST_BUSY",
         "DUPLICATE_REQUEST",
         "DATABASE_IO_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -5413,6 +5442,7 @@
         "NOT_FOUND",
         "REVISION_CONFLICT",
         "DATABASE_IO_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -5470,6 +5500,7 @@
         "NOT_FOUND",
         "REVISION_CONFLICT",
         "DATABASE_IO_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -5521,6 +5552,7 @@
         "SESSION_REQUIRED",
         "NOT_FOUND",
         "REVISION_CONFLICT",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -5572,6 +5604,7 @@
         "REVISION_CONFLICT",
         "SECRET_LEASE_EXPIRED",
         "DATABASE_IO_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -5615,6 +5648,7 @@
         "SESSION_REQUIRED",
         "CANCELLED",
         "DATABASE_IO_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -5673,6 +5707,7 @@
         "SESSION_REQUIRED",
         "CANCELLED",
         "DATABASE_IO_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -6682,6 +6717,7 @@
         "BACKUP_PASSWORD_MISMATCH",
         "DATABASE_IO_FAILED",
         "CANCELLED",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE",
         "BACKUP_TARGET_IS_DATABASE"
       ],
@@ -6796,6 +6832,7 @@
         "BACKUP_INVALID",
         "BACKUP_LIMIT_EXCEEDED",
         "CANCELLED",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -7120,6 +7157,7 @@
         "BACKUP_CONFLICTS_UNRESOLVED",
         "DATABASE_IO_FAILED",
         "CANCELLED",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -7246,6 +7284,7 @@
         "REVISION_CONFLICT",
         "SECRET_LEASE_EXPIRED",
         "DATABASE_IO_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -7422,6 +7461,7 @@
         "DATABASE_IO_FAILED",
         "CANCELLED",
         "PASSWORD_STRENGTH_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE",
         "RECOVERY_CODES_INVALID",
         "RECOVERY_CODES_DUPLICATE",
@@ -7506,6 +7546,7 @@
         "REVISION_CONFLICT",
         "SECRET_LEASE_EXPIRED",
         "DATABASE_IO_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -7633,6 +7674,7 @@
         "NOT_FOUND",
         "REVISION_CONFLICT",
         "DATABASE_IO_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -7696,6 +7738,7 @@
         "NOT_FOUND",
         "REVISION_CONFLICT",
         "DATABASE_IO_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -7750,6 +7793,7 @@
         "SESSION_REQUIRED",
         "CANCELLED",
         "DATABASE_IO_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -7806,6 +7850,7 @@
         "CANCELLED",
         "NOT_FOUND",
         "DATABASE_IO_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -8136,6 +8181,7 @@
         "SESSION_REQUIRED",
         "CANCELLED",
         "DATABASE_IO_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -8187,6 +8233,7 @@
         "NOT_FOUND",
         "REVISION_CONFLICT",
         "CLIPBOARD_UNAVAILABLE",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -8239,6 +8286,7 @@
         "NOT_FOUND",
         "REVISION_CONFLICT",
         "CLIPBOARD_UNAVAILABLE",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -8343,6 +8391,7 @@
         "NOT_FOUND",
         "REVISION_CONFLICT",
         "DATABASE_IO_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE",
         "CANCELLED"
       ],
@@ -8406,6 +8455,7 @@
         "NOT_FOUND",
         "REVISION_CONFLICT",
         "DATABASE_IO_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE",
         "REQUEST_BUSY"
       ],
@@ -8468,6 +8518,7 @@
         "NOT_FOUND",
         "REVISION_CONFLICT",
         "DATABASE_IO_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -8529,6 +8580,7 @@
         "REVISION_CONFLICT",
         "CLIPBOARD_UNAVAILABLE",
         "DATABASE_IO_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -8593,6 +8645,7 @@
         "NOT_FOUND",
         "REVISION_CONFLICT",
         "DATABASE_IO_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE"
       ],
       "truth": {
@@ -9389,7 +9442,7 @@
         ],
         "flows": []
       },
-      "notes": "pdmTransferLauncherV1仅开放设备传输入口；独立pdmDirectTransferV1以原生flowId和借用会话核定开始、设备选择、短码确认、范围准备、接受、发送、取消及失败后重新开始。authorizeNetworkV1/revokeNetworkV1只提交固定局域网授权/撤销意图，限无活动传输时由原生确定当前冻结EXE和受限规则并请求Windows管理员确认；networkAccess只投影系统状态，迟到结果不自动连接。connectAddressV1仅提交本次手动IPv4地址，原生严格复核当前局域网子网并限定UDP45962发现请求；回复还须匹配本次nonce、地址和入站网卡，再进入既有设备选择及SAS验证。非法地址不替换当前流程；有效手动查询撤销旧设备选择资格，仅保留旧行展示。localAddresses只在局域网等待接收时投影最多64个本机地址行，每行仅address/interfaceIndex/name/kind/preferred；网卡名最多128码点，kind限WIFI/ETHERNET/OTHER，preferred仅用于展示排序，不改变发现或连接资格。只读网卡元信息失败仍保留地址。网页不接正文、私钥、程序路径、命令或任意网络访问能力。双端SAS和MAC通过后才传资料，完整接收校验后交现有比较窗；实际传输保活绑定原会话，WTS锁屏及安全离开撤销本次任务。仅主动查找/等待才启用网络，小网段补查复用同次发现截止且最多254个唯一目标，比较和日常不监听。协议见docs/architecture/direct_transfer_protocol.md，局部窗口与Coordinator顺序见秘密生命周期合同。"
+      "notes": "pdmTransferLauncherV1只开放设备传输入口；独立pdmDirectTransferV1以原生flowId和借用会话处理开始、设备选择、本地8位配对码提交、接收端一次允许、发送、取消及重新开始。submitPairingCodeV1只收本次码字符串，approvePeerV1只提交接收端允许意图，sendV1同时带ALL/PASSWORDS/NOTES范围；没有旧confirmSas/prepare/acceptReceive入口。pairingCode只在接收WAITING投影，退出、认证成功或撤权即清；网页不接正文、密钥、程序路径或任意网络能力。候选认证与用户批准分开，SRP及HPKE通道绑定成功且接收端允许后才能交换库名与资料；错误候选不结束接收等待，升格后拒绝或断线结束本轮。authorizeNetworkV1/revokeNetworkV1保持原固定EXE、本地子网和Windows系统确认；connectAddressV1仅查询原生复核的当前子网IPv4，保原发现截止及254个唯一定向目标，广播每2秒。局域网v1查询、新版v2应答；旧v1应答仅提示升级不降级。localAddresses的网卡元信息只用于显示。完整接收校验后移交比较，只有start至完整校验期间保活，WTS/睡眠及安全离开撤销；日常和比较阶段不监听。精确协议及候选上限见docs/architecture/direct_transfer_protocol.md，原生所有权见秘密生命周期。"
     }
   ],
   "frontend_operations": [

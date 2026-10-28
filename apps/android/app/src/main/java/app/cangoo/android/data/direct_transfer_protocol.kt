@@ -4,12 +4,18 @@ import com.google.gson.Strictness
 import com.google.gson.stream.JsonReader
 import com.google.gson.stream.JsonToken
 import java.io.StringReader
+import java.math.BigInteger
 import java.nio.ByteBuffer
 import java.nio.charset.CodingErrorAction
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Base64
 import org.bouncycastle.crypto.AsymmetricCipherKeyPair
+import org.bouncycastle.crypto.agreement.srp.SRP6Client
+import org.bouncycastle.crypto.agreement.srp.SRP6Server
+import org.bouncycastle.crypto.agreement.srp.SRP6StandardGroups
+import org.bouncycastle.crypto.agreement.srp.SRP6VerifierGenerator
+import org.bouncycastle.util.BigIntegers
 import org.bouncycastle.crypto.digests.SHA256Digest
 import org.bouncycastle.crypto.generators.HKDFBytesGenerator
 import org.bouncycastle.crypto.hpke.HPKE
@@ -39,10 +45,12 @@ internal class DirectTransferSession(
     val role: String,
     private val deviceId: String,
     private val deviceName: String,
+    pairingCode: String,
+    private val memory: BackupMemoryBudget = BackupMemoryBudget(),
 ) {
     var phase = "CONNECTING"
         private set
-    var sas: List<Int>? = null
+    var approved = false
         private set
     var peerId: String? = null
         private set
@@ -61,13 +69,14 @@ internal class DirectTransferSession(
     private var session: String? = null
     private var hpkePair: AsymmetricCipherKeyPair? = null
     private var peerHpke: ByteArray? = null
-    private var sasPair: AsymmetricCipherKeyPair? = null
-    private var peerSas: ByteArray? = null
+    private var password: ByteArray? = pairingCode.toByteArray(Charsets.US_ASCII)
+    private var srpServer: SRP6Server? = null
+    private var srpSalt: ByteArray? = null
+    private var srpB: BigInteger? = null
+    private var expectedProof: ByteArray? = null
     private var secret: ByteArray? = null
-    private var startBytes: ByteArray? = null
-    private var commitment: ByteArray? = null
-    private var locallyConfirmed = false
-    private var peerConfirmed = false
+    private val transcript = mutableListOf<ByteArray>()
+    private var binding: ByteArray? = null
     private var sending: HPKEContextWithEncapsulation? = null
     private var receiving: HPKEContext? = null
     private var receivingEnc: ByteArray? = null
@@ -85,6 +94,7 @@ internal class DirectTransferSession(
     init {
         ensure(role == "SENDER" || role == "RECEIVER")
         ensure(HEX_ID.matches(deviceId))
+        ensure(Regex("[0-9]{8}").matches(pairingCode))
         name(deviceName, 64, 256)
         hpkePair = newPair()
     }
@@ -95,7 +105,9 @@ internal class DirectTransferSession(
         if (sender) {
             session = hex(ByteArray(16).also(RANDOM::nextBytes))
             handshake = "WELCOME"
-            outbound += clearFrame(identity("hello"))
+            val hello = identity("hello")
+            transcript += canonical(hello)
+            outbound += clearFrame(hello)
         }
     }
 
@@ -125,15 +137,11 @@ internal class DirectTransferSession(
         }
     }
 
-    fun confirmSas(): DirectTransferResult = run {
-        if (locallyConfirmed) return@run
-        ensure(handshake == "MAC" && sas != null, "SEQUENCE")
-        locallyConfirmed = true
-        val id = "hpke:$deviceId"
-        outbound += clearFrame(mapOf("type" to "mac", "session" to session,
-            "keys" to b64(mac(deviceId, requireNotNull(peerId), "KEY_IDS", id)),
-            "mac" to mapOf(id to b64(mac(deviceId, requireNotNull(peerId), id, b64(publicKey(requireNotNull(hpkePair))))))))
-        startProtected(this)
+    fun approvePeer(): DirectTransferResult = run {
+        ensure(!sender && authenticated, "SEQUENCE")
+        if (approved) return@run
+        control(mapOf("type" to "approved"), outgoing = true, this)
+        outbound += protectedControl(mapOf("type" to "approved"))
     }
 
     fun sendMessage(message: Map<String, Any?>): DirectTransferResult = run {
@@ -226,8 +234,9 @@ internal class DirectTransferSession(
         when (handshake) {
             "HELLO", "WELCOME" -> {
                 ensure(type == if (sender) "welcome" else "hello", "SEQUENCE")
-                fields(message, "type", "version", "session", "device", "name", "hpke")
-                ensure(number(message, "version") == 1L)
+                val version = number(message, "version")
+                val extra = if (version == 1L) emptyArray() else if (sender) arrayOf("suite", "salt", "B") else arrayOf("suite")
+                fields(message, "type", "version", "session", "device", "name", "hpke", *extra)
                 val incomingSession = string(message, "session")
                 ensure(HEX_ID.matches(incomingSession))
                 if (sender) ensure(session == incomingSession, "SEQUENCE") else session = incomingSession
@@ -235,94 +244,109 @@ internal class DirectTransferSession(
                 ensure(HEX_ID.matches(incomingId) && incomingId != deviceId)
                 val incomingName = string(message, "name").also { name(it, 64, 256) }
                 val key = unbase64(string(message, "hpke"))
-                // 握手早期即排除低阶点；不保留用于检查的共享值。
                 shared(requireNotNull(hpkePair), key).fill(0)
+                ensure(version == 2L, "UPGRADE_REQUIRED")
+                ensure(string(message, "suite") == SRP_SUITE, "UPGRADE_REQUIRED")
                 peerId = incomingId
                 peerName = incomingName
                 peerHpke = key
                 result.events += DirectTransferEvent("peer", mapOf("deviceId" to peerId, "name" to peerName))
+                transcript += canonical(message)
+                phase = "PAIRING"
                 if (sender) {
-                    val start = startMessage()
-                    startBytes = canonical(start)
-                    result.outbound += clearFrame(start)
-                    handshake = "ACCEPT"
+                    val saltText = string(message, "salt")
+                    ensure(saltText.length in 2..22)
+                    val salt = unbase64(saltText, saltText.length * 6 / 8)
+                    val b = srpPublic(string(message, "B"))
+                    val client = SRP6Client().also { it.init(SRP_GROUP, SHA256Digest(), RANDOM) }
+                    val a = client.generateClientCredentials(salt, SRP_IDENTITY, requireNotNull(password))
+                    password?.fill(0); password = null
+                    val shared = auth { client.calculateSecret(b) }
+                    secret = sha256(unsigned(shared))
+                    val proof = srpProof(a, b, salt, requireNotNull(secret))
+                    expectedProof = sha256(unsigned(a) + proof + requireNotNull(secret))
+                    val response = mapOf("type" to "srp_client", "session" to session,
+                        "A" to srpWire(a), "proof" to b64(proof))
+                    transcript += canonical(response)
+                    setBinding()
+                    result.outbound += clearFrame(response)
+                    handshake = "SRP_SERVER"
                 } else {
-                    result.outbound += clearFrame(identity("welcome"))
-                    handshake = "START"
+                    val salt = ByteArray(16).also(RANDOM::nextBytes)
+                    srpSalt = salt
+                    val generator = SRP6VerifierGenerator().also { it.init(SRP_GROUP, SHA256Digest(), RANDOM) }
+                    val verifier = generator.generateVerifier(salt, SRP_IDENTITY, requireNotNull(password))
+                    password?.fill(0); password = null
+                    val server = SRP6Server().also { it.init(SRP_GROUP, verifier, SHA256Digest(), RANDOM) }
+                    srpServer = server
+                    srpB = server.generateServerCredentials()
+                    val response = identity("welcome") + mapOf("salt" to b64(salt), "B" to srpWire(requireNotNull(srpB)))
+                    transcript += canonical(response)
+                    result.outbound += clearFrame(response)
+                    handshake = "SRP_CLIENT"
                 }
             }
-            "START" -> {
-                ensure(type == "start", "SEQUENCE")
-                ensure(message == startMessage())
-                startBytes = canonical(message)
-                sasPair = newPair()
-                val committed = sha256(b64(publicKey(requireNotNull(sasPair))).toByteArray(Charsets.UTF_8) + requireNotNull(startBytes))
-                result.outbound += clearFrame(mapOf("type" to "accept", "session" to session, "commitment" to b64(committed)))
-                handshake = "KEY"
-            }
-            "ACCEPT" -> {
-                ensure(type == "accept", "SEQUENCE")
-                fields(message, "type", "session", "commitment")
+            "SRP_CLIENT" -> {
+                ensure(type == "srp_client", "SEQUENCE")
+                fields(message, "type", "session", "A", "proof")
                 sameSession(message)
-                commitment = unbase64(string(message, "commitment"))
-                sasPair = newPair()
-                result.outbound += clearFrame(mapOf("type" to "key", "session" to session, "key" to b64(publicKey(requireNotNull(sasPair)))))
-                handshake = "KEY"
+                val a = srpPublic(string(message, "A"))
+                val shared = auth { requireNotNull(srpServer).calculateSecret(a) }
+                srpServer = null
+                secret = sha256(unsigned(shared))
+                val proof = srpProof(a, requireNotNull(srpB), requireNotNull(srpSalt), requireNotNull(secret))
+                ensure(MessageDigest.isEqual(proof, unbase64(string(message, "proof"))), "AUTH")
+                val serverProof = sha256(unsigned(a) + proof + requireNotNull(secret))
+                srpSalt?.fill(0); srpSalt = null; srpB = null
+                transcript += canonical(message)
+                setBinding()
+                result.outbound += clearFrame(mapOf("type" to "srp_server", "session" to session,
+                    "proof" to b64(serverProof), "mac" to b64(bindingMac("RECEIVER"))))
+                handshake = "BIND"
             }
-            "KEY" -> {
-                ensure(type == "key", "SEQUENCE")
-                fields(message, "type", "session", "key")
+            "SRP_SERVER" -> {
+                ensure(type == "srp_server", "SEQUENCE")
+                fields(message, "type", "session", "proof", "mac")
                 sameSession(message)
-                val key = unbase64(string(message, "key"))
-                if (sender) {
-                    val actual = sha256(b64(key).toByteArray(Charsets.UTF_8) + requireNotNull(startBytes))
-                    ensure(MessageDigest.isEqual(actual, commitment), "AUTH")
-                }
-                secret = shared(requireNotNull(sasPair), key)
-                peerSas = key
-                if (!sender) result.outbound += clearFrame(mapOf("type" to "key", "session" to session,
-                    "key" to b64(publicKey(requireNotNull(sasPair)))))
-                val ours = b64(publicKey(requireNotNull(sasPair)))
-                val theirs = b64(key)
-                val info = if (sender) "CANGOO_DIRECT_SAS_V1|$deviceId|$ours|$peerId|$theirs|$session"
-                    else "CANGOO_DIRECT_SAS_V1|$peerId|$theirs|$deviceId|$ours|$session"
-                val bits = hkdf(requireNotNull(secret), info, 5)
-                val b = bits.map { it.toInt() and 255 }
-                sas = listOf(((b[0] shl 5) or (b[1] shr 3)) + 1000,
-                    (((b[1] and 7) shl 10) or (b[2] shl 2) or (b[3] shr 6)) + 1000,
-                    (((b[3] and 63) shl 7) or (b[4] shr 1)) + 1000)
-                bits.fill(0)
-                handshake = "MAC"
-                phase = "SAS"
-                result.events += DirectTransferEvent("sas", mapOf("numbers" to sas))
+                ensure(MessageDigest.isEqual(expectedProof, unbase64(string(message, "proof"))), "AUTH")
+                ensure(MessageDigest.isEqual(bindingMac("RECEIVER"), unbase64(string(message, "mac"))), "AUTH")
+                expectedProof?.fill(0); expectedProof = null
+                result.outbound += clearFrame(mapOf("type" to "bind", "session" to session, "mac" to b64(bindingMac("SENDER"))))
+                startProtected(result)
             }
-            "MAC" -> {
-                ensure(type == "mac" && !peerConfirmed, "SEQUENCE")
-                fields(message, "type", "session", "keys", "mac")
+            "BIND" -> {
+                ensure(type == "bind", "SEQUENCE")
+                fields(message, "type", "session", "mac")
                 sameSession(message)
-                val id = "hpke:$peerId"
-                val provided = message["mac"] as? Map<*, *> ?: fail("INVALID")
-                ensure(provided.keys == setOf(id))
-                val keyMac = unbase64(provided[id] as? String ?: fail("INVALID"))
-                val idsMac = unbase64(string(message, "keys"))
-                ensure(MessageDigest.isEqual(keyMac, mac(requireNotNull(peerId), deviceId, id, b64(requireNotNull(peerHpke)))), "AUTH")
-                ensure(MessageDigest.isEqual(idsMac, mac(requireNotNull(peerId), deviceId, "KEY_IDS", id)), "AUTH")
-                peerConfirmed = true
+                ensure(MessageDigest.isEqual(bindingMac("SENDER"), unbase64(string(message, "mac"))), "AUTH")
                 startProtected(result)
             }
             else -> fail("SEQUENCE")
         }
     }
 
+    private fun setBinding() {
+        val hash = MessageDigest.getInstance("SHA-256")
+        transcript.forEach { hash.update(ByteBuffer.allocate(4).putInt(it.size).array()); hash.update(it) }
+        binding = hash.digest()
+        transcript.clear()
+    }
+
+    private fun bindingMac(role: String): ByteArray {
+        val key = hkdf(requireNotNull(secret), "CANGOO_DIRECT_BIND_V2|$role", 32, requireNotNull(binding))
+        try {
+            val hmac = HMac(SHA256Digest())
+            hmac.init(KeyParameter(key))
+            val bytes = requireNotNull(binding)
+            hmac.update(bytes, 0, bytes.size)
+            return ByteArray(32).also { hmac.doFinal(it, 0) }
+        } finally { key.fill(0) }
+    }
+
     private fun startProtected(result: Pending) {
-        if (!locallyConfirmed || !peerConfirmed) return
+        ensure(sending == null, "SEQUENCE")
         sending = auth { hpke().setupAuthS(X25519PublicKeyParameters(requireNotNull(peerHpke)), hpkeInfo(true), requireNotNull(hpkePair)) }
-        secret?.fill(0)
-        secret = null
-        sasPair = null
-        peerSas = null
-        commitment = null
-        startBytes = null
+        secret?.fill(0); secret = null
         phase = "WAIT_READY"
         handshake = "DONE"
         result.outbound += protectedControl(mapOf("type" to "ready"))
@@ -341,21 +365,30 @@ internal class DirectTransferSession(
             fields(message, "type")
             ensure(!outgoing && phase == "WAIT_READY", "SEQUENCE")
             authenticated = true
-            phase = "AUTHENTICATED"
+            phase = "WAIT_APPROVAL"
             result.events += DirectTransferEvent("authenticated")
             return
         }
         ensure(authenticated, "SEQUENCE")
+        if (type == "approved") {
+            fields(message, "type")
+            ensure(outgoing != sender && phase == "WAIT_APPROVAL", "SEQUENCE")
+            approved = true
+            phase = "READY"
+            result.events += DirectTransferEvent("approved")
+            return
+        }
+        ensure(approved, "SEQUENCE")
         when (type) {
             "metadata" -> {
                 fields(message, "type", "vaultName")
-                ensure(phase == "AUTHENTICATED" && !(if (outgoing) localMetadata else remoteMetadata), "SEQUENCE")
+                ensure(phase == "READY" && !(if (outgoing) localMetadata else remoteMetadata), "SEQUENCE")
                 name(string(message, "vaultName"), 256, 1024)
                 if (outgoing) localMetadata = true else remoteMetadata = true
             }
             "offer" -> {
                 fields(message, "type", "scope", "byteCount", "passwordCount", "noteCount", "sha256")
-                ensure(outgoing == sender && phase == "AUTHENTICATED" && localMetadata && remoteMetadata && offer == null, "SEQUENCE")
+                ensure(outgoing == sender && phase == "READY" && localMetadata && remoteMetadata && offer == null, "SEQUENCE")
                 ensure(number(message, "byteCount") in 1..MAX_BYTES.toLong(), "LIMIT")
                 val passwords = number(message, "passwordCount")
                 val notes = number(message, "noteCount")
@@ -370,7 +403,14 @@ internal class DirectTransferSession(
             "accept" -> {
                 checkTransferControl(message)
                 ensure(outgoing != sender && phase == "OFFERED", "SEQUENCE")
-                if (!sender) buffer = ByteArray(number(requireNotNull(offer), "byteCount").toInt())
+                if (!sender) {
+                    val proposal = requireNotNull(offer)
+                    val bytes = number(proposal, "byteCount")
+                    val records = number(proposal, "passwordCount") + number(proposal, "noteCount")
+                    memory.checkAvailable(bytes + BackupMemoryBudget.textPeak(bytes) + records * BackupMemoryBudget.RECORD_BYTES)
+                    memory.reserve(bytes)
+                    buffer = ByteArray(bytes.toInt())
+                }
                 digest = MessageDigest.getInstance("SHA-256")
                 phase = "ACCEPTED"
             }
@@ -425,36 +465,21 @@ internal class DirectTransferSession(
         result.events += DirectTransferEvent("progress", mapOf("bytes" to receivedBytes))
     }
 
-    private fun identity(type: String): Map<String, Any?> = mapOf("type" to type, "version" to 1L,
-        "session" to session, "device" to deviceId, "name" to deviceName, "hpke" to b64(publicKey(requireNotNull(hpkePair))))
-
-    private fun startMessage(): Map<String, Any?> = mapOf("type" to "start", "version" to 1L,
-        "session" to session, "from" to if (sender) deviceId else peerId, "to" to if (sender) peerId else deviceId,
-        "method" to "m.sas.v1", "keyAgreement" to "curve25519-hkdf-sha256", "hash" to "sha256",
-        "mac" to "hkdf-hmac-sha256.v2", "sas" to "decimal")
+    private fun identity(type: String): Map<String, Any?> = mapOf("type" to type, "version" to 2L,
+        "session" to session, "device" to deviceId, "name" to deviceName,
+        "hpke" to b64(publicKey(requireNotNull(hpkePair))), "suite" to SRP_SUITE)
 
     private fun sameSession(message: Map<String, Any?>) { ensure(string(message, "session") == session, "SEQUENCE") }
-
-    private fun mac(origin: String, target: String, suffix: String, value: String): ByteArray {
-        val key = hkdf(requireNotNull(secret), "CANGOO_DIRECT_MAC_V1|$origin|$target|$session|$suffix", 32)
-        try {
-            val hmac = HMac(SHA256Digest())
-            hmac.init(KeyParameter(key))
-            val bytes = value.toByteArray(Charsets.UTF_8)
-            hmac.update(bytes, 0, bytes.size)
-            return ByteArray(32).also { hmac.doFinal(it, 0) }
-        } finally { key.fill(0) }
-    }
 
     private fun hpkeInfo(outgoing: Boolean): ByteArray {
         val origin = if (outgoing) deviceId else peerId
         val target = if (outgoing) peerId else deviceId
         val direction = if (outgoing == sender) "SENDER_TO_RECEIVER" else "RECEIVER_TO_SENDER"
-        return "CANGOO_DIRECT_HPKE_V1|$session|$origin|$target|$direction".toByteArray(Charsets.US_ASCII)
+        return "CANGOO_DIRECT_HPKE_V2|$session|$origin|$target|$direction|${hex(requireNotNull(binding))}".toByteArray(Charsets.US_ASCII)
     }
 
     private fun aad(seq: Long, enc: ByteArray, outgoing: Boolean): ByteArray {
-        val prefix = "CANGOO_DIRECT_FRAME_V1|".toByteArray(Charsets.US_ASCII)
+        val prefix = "CANGOO_DIRECT_FRAME_V2|".toByteArray(Charsets.US_ASCII)
         val sessionBytes = requireNotNull(session).chunked(2).map { it.toInt(16).toByte() }.toByteArray()
         return ByteBuffer.allocate(prefix.size + 16 + 1 + 8 + 32).put(prefix).put(sessionBytes)
             .put(if (outgoing == sender) 1.toByte() else 2.toByte()).putLong(seq).put(enc).array()
@@ -478,13 +503,17 @@ internal class DirectTransferSession(
 
     private fun erase() {
         secret?.fill(0); secret = null
-        hpkePair = null; sasPair = null; peerHpke = null; peerSas = null
+        hpkePair = null; peerHpke = null
+        password?.fill(0); password = null
+        srpServer = null; srpB = null
+        srpSalt?.fill(0); srpSalt = null
+        expectedProof?.fill(0); expectedProof = null
+        transcript.clear(); binding = null
         sending = null; receiving = null; receivingEnc = null
-        startBytes = null; commitment = null; sas = null
         buffer?.fill(0); buffer = null
         frameBuffer.fill(0); frameUsed = 0; frameSize = 0
         digest?.reset(); digest = null
-        offer = null; authenticated = false
+        offer = null; authenticated = false; approved = false
     }
 
     private class Pending {
@@ -503,7 +532,8 @@ internal class DirectTransferSession(
             result.outbound.forEach { it.fill(0) }
             erase()
             phase = "FAILED"
-            throw DirectTransferException((error as? DirectTransferException)?.code ?: "INVALID")
+            throw DirectTransferException(if (error is BackupProtocolException && error.problem == BackupProblem.MEMORY) "MEMORY"
+                else (error as? DirectTransferException)?.code ?: "INVALID")
         }
     }
 
@@ -516,6 +546,23 @@ internal class DirectTransferSession(
         private val HEX_HASH = Regex("[0-9a-f]{64}")
         private val INTEGER = Regex("-?(0|[1-9][0-9]*)")
         private val RANDOM = SecureRandom()
+        private const val SRP_SUITE = "srp6a-3072-sha256"
+        private val SRP_IDENTITY = "CANGOO_DIRECT_PAIR_V2".toByteArray(Charsets.US_ASCII)
+        private val SRP_GROUP = SRP6StandardGroups.rfc5054_3072
+
+        private fun unsigned(value: BigInteger) = BigIntegers.asUnsignedByteArray(value)
+        private fun padded(value: BigInteger) = BigIntegers.asUnsignedByteArray(384, value)
+        private fun srpWire(value: BigInteger) = b64(padded(value))
+        private fun srpPublic(text: String): BigInteger = BigInteger(1, unbase64(text, 384)).also {
+            ensure(it.signum() > 0 && it < SRP_GROUP.n, "AUTH")
+        }
+        private fun srpProof(a: BigInteger, b: BigInteger, salt: ByteArray, key: ByteArray): ByteArray {
+            // 沿pysrp 1.0.22的证明编码；BC默认M1/M2与此格式不同。
+            val nHash = sha256(unsigned(SRP_GROUP.n))
+            val gHash = sha256(padded(SRP_GROUP.g))
+            val groupHash = ByteArray(32) { (nHash[it].toInt() xor gHash[it].toInt()).toByte() }
+            return sha256(groupHash + sha256(SRP_IDENTITY) + salt + unsigned(a) + unsigned(b) + key)
+        }
 
         private fun fail(code: String): Nothing = throw DirectTransferException(code)
         private fun ensure(condition: Boolean, code: String = "INVALID") { if (!condition) fail(code) }
@@ -527,10 +574,10 @@ internal class DirectTransferSession(
         }
         private fun fields(message: Map<String, Any?>, vararg expected: String) { ensure(message.keys == expected.toSet()) }
         private fun b64(bytes: ByteArray): String = Base64.getEncoder().withoutPadding().encodeToString(bytes)
-        private fun unbase64(value: String): ByteArray {
-            ensure(value.length == 43)
+        private fun unbase64(value: String, size: Int = 32): ByteArray {
+            ensure(value.length == (size * 8 + 5) / 6)
             val bytes = try { Base64.getDecoder().decode(value) } catch (_: IllegalArgumentException) { fail("INVALID") }
-            ensure(bytes.size == 32 && b64(bytes) == value)
+            ensure(bytes.size == size && b64(bytes) == value)
             return bytes
         }
         private fun hex(bytes: ByteArray) = bytes.joinToString("") { "%02x".format(it.toInt() and 255) }
@@ -545,9 +592,9 @@ internal class DirectTransferSession(
             ByteArray(32).also { (pair.private as X25519PrivateKeyParameters).generateSecret(X25519PublicKeyParameters(peer), it, 0) }
         }
         private inline fun <T> auth(block: () -> T): T = try { block() } catch (_: Exception) { fail("AUTH") }
-        private fun hkdf(secret: ByteArray, info: String, count: Int): ByteArray {
+        private fun hkdf(secret: ByteArray, info: String, count: Int, salt: ByteArray? = null): ByteArray {
             val generator = HKDFBytesGenerator(SHA256Digest())
-            generator.init(HKDFParameters(secret, null, info.toByteArray(Charsets.UTF_8)))
+            generator.init(HKDFParameters(secret, salt, info.toByteArray(Charsets.UTF_8)))
             return ByteArray(count).also { generator.generateBytes(it, 0, count) }
         }
         private fun frame(body: ByteArray): ByteArray {

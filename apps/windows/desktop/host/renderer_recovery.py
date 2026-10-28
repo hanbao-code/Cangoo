@@ -44,6 +44,7 @@ class RendererRecoveryViewState(str, Enum):
     RECOVERY_AVAILABLE = "recovery_available"
     REBUILDING = "rebuilding"
     BLOCKED = "blocked"
+    POWER_PROTECTION_UNAVAILABLE = "power_protection_unavailable"
     DATABASE_RECOVERY_FAILED = "database_recovery_failed"
     STARTUP_BLOCKED = "startup_blocked"
     RUNTIME_PATH_BLOCKED = "runtime_path_blocked"
@@ -87,6 +88,10 @@ _FIXED_COPY = {
     RendererRecoveryViewState.BLOCKED: (
         "应用保持锁定",
         "安全清理或界面恢复未完整结束。为保护数据，请退出应用。",
+    ),
+    RendererRecoveryViewState.POWER_PROTECTION_UNAVAILABLE: (
+        "系统电源保护不可用",
+        "为保护数据，请安全退出应用并重新启动。",
     ),
     RendererRecoveryViewState.DATABASE_RECOVERY_FAILED: (
         "数据库恢复未完成",
@@ -136,6 +141,10 @@ _FIXED_COPY_EN = {
     RendererRecoveryViewState.BLOCKED: (
         "The app remains locked",
         "Security cleanup or interface recovery did not complete. Exit the app to protect your data.",
+    ),
+    RendererRecoveryViewState.POWER_PROTECTION_UNAVAILABLE: (
+        "System power protection is unavailable",
+        "To protect your data, exit the app safely and restart it.",
     ),
     RendererRecoveryViewState.DATABASE_RECOVERY_FAILED: (
         "Database recovery did not complete",
@@ -689,6 +698,7 @@ class RendererRecoveryCurtain(QWidget):
         starting = state is RendererRecoveryViewState.STARTING
         transition = state is RendererRecoveryViewState.TRANSITION
         exit_only = state in {
+            RendererRecoveryViewState.POWER_PROTECTION_UNAVAILABLE,
             RendererRecoveryViewState.DATABASE_RECOVERY_FAILED,
             RendererRecoveryViewState.STARTUP_BLOCKED,
             RendererRecoveryViewState.RUNTIME_PATH_BLOCKED,

@@ -1,0 +1,45 @@
+--- a/src/bluetooth/qbluetoothsocket_winrt.cpp
++++ b/src/bluetooth/qbluetoothsocket_winrt.cpp
+@@ -16,6 +16,7 @@
+ #include <windows.networking.sockets.h>
+ #include <windows.storage.streams.h>
+ #include <wrl.h>
++#include <memory>
+ 
+ using namespace Microsoft::WRL;
+ using namespace Microsoft::WRL::Wrappers;
+@@ -78,9 +79,34 @@
+     hr = byteArrayAccess->Buffer(&bytes);
+     Q_ASSERT_SUCCEEDED(hr);
+     memcpy(bytes, data, ulen);
++    // 回调与等待端共同持有事件，晚到的回调不会访问已关闭的句柄。
++    auto completed = std::make_shared<Event>();
++    completed->Attach(CreateEvent(nullptr, TRUE, FALSE, nullptr));
++    if (!completed->IsValid()) {
++        hr = HRESULT_FROM_WIN32(GetLastError());
++        RETURN_IF_FAILED("Failed to create write completion event", return -1);
++    }
++    using WriteCompletedHandler = IAsyncOperationWithProgressCompletedHandler<UINT32, UINT32>;
++    auto handler = Callback<Implements<RuntimeClassFlags<ClassicCom>, WriteCompletedHandler, FtmBase>>(
++            [completed](IAsyncOperationWithProgress<UINT32, UINT32> *, AsyncStatus) {
++                return SetEvent(completed->Get()) ? S_OK : HRESULT_FROM_WIN32(GetLastError());
++            });
++    if (!handler) {
++        hr = E_OUTOFMEMORY;
++        RETURN_IF_FAILED("Failed to create write completion handler", return -1);
++    }
+     ComPtr<IAsyncOperationWithProgress<UINT32, UINT32>> op;
+     hr = stream->WriteAsync(tempBuffer.Get(), &op);
+     RETURN_IF_FAILED("Failed to write to stream", return -1);
++    hr = op->put_Completed(handler.Get());
++    if (SUCCEEDED(hr) && WaitForSingleObject(completed->Get(), INFINITE) != WAIT_OBJECT_0)
++        hr = HRESULT_FROM_WIN32(GetLastError());
++    if (FAILED(hr)) {
++        ComPtr<IAsyncInfo> info;
++        if (SUCCEEDED(op.As(&info)))
++            info->Cancel();
++        RETURN_IF_FAILED("Failed to wait for stream write", return -1);
++    }
+     UINT32 bytesWritten;
+     hr = QWinRTFunctions::await(op, &bytesWritten);
+     RETURN_IF_FAILED("Failed to write to stream", return -1);

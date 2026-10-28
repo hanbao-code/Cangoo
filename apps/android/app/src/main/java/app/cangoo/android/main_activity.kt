@@ -67,7 +67,7 @@ class MainActivity : ComponentActivity() {
     private var clipboardHost = 0L
     private var biometricHost = 0L
     private var biometricRequest: Long? = null
-    private var blockedTouch = false
+    private val protectedTouch = ProtectedTouchDispatcher()
     private var appliedSystemAppearance: Pair<Boolean, Int>? = null
     private var productReady by mutableStateOf(false)
     private var termsContent by mutableStateOf<LegalContent?>(null)
@@ -103,6 +103,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        if (Build.VERSION.SDK_INT >= 31) window.setHideOverlayWindows(true)
         super.onCreate(savedInstanceState)
         if (Build.VERSION.SDK_INT >= 33) setRecentsScreenshotEnabled(false)
         val filter = IntentFilter(Intent.ACTION_SCREEN_OFF).apply { addAction(Intent.ACTION_USER_PRESENT) }
@@ -322,18 +323,9 @@ class MainActivity : ComponentActivity() {
         super.onUserInteraction()
     }
 
-    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
-        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
-            blockedTouch = ::model.isInitialized && !model.observeUserInteraction()
-        }
-        if (blockedTouch) {
-            if (event.actionMasked == MotionEvent.ACTION_UP || event.actionMasked == MotionEvent.ACTION_CANCEL) {
-                blockedTouch = false
-            }
-            return true
-        }
-        return super.dispatchTouchEvent(event)
-    }
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean = protectedTouch.dispatch(event,
+        allowed = { !::model.isInitialized || model.observeUserInteraction() },
+        forward = { super.dispatchTouchEvent(it) })
 
     private fun revealAllowedContent() {
         if (!resumed || !topResumed || isFinishing || isDestroyed) return

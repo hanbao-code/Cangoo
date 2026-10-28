@@ -157,6 +157,16 @@ class NativeClipboard:
         self._backend_factory = backend_factory
         self._backend: ClipboardBackend | None = None
         self._lock = threading.RLock()
+        self._owner_hwnd = 0
+
+    def bind_window_handle(self, hwnd: int) -> None:
+        """接收宿主已捕获的句柄，后端延迟创建和句柄重建使用同一份值。"""
+        with self._lock:
+            self._owner_hwnd = hwnd
+            if self._backend is not None:
+                bind = getattr(self._backend, "bind_window_handle", None)
+                if bind is not None:
+                    bind(hwnd)
 
     @property
     def initialized(self) -> bool:
@@ -167,6 +177,9 @@ class NativeClipboard:
         with self._lock:
             if self._backend is None:
                 self._backend = self._backend_factory()
+                bind = getattr(self._backend, "bind_window_handle", None)
+                if bind is not None:
+                    bind(self._owner_hwnd)
             return self._backend
 
     def copy(self, text: str, label: str = "") -> bool:

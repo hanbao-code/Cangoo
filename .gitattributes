@@ -10,3 +10,4 @@ third_party/android/licenses/** -text !eol whitespace=-blank-at-eol,-blank-at-eo
 apps/android/app/src/main/assets/third_party/androidx_license.txt whitespace=-blank-at-eof
 apps/android/app/src/main/assets/third_party/bouncycastle_1_86_license.html whitespace=-blank-at-eol,-blank-at-eof
 apps/android/app/src/main/assets/third_party/libtomcrypt_license.txt whitespace=-blank-at-eol,-blank-at-eof
+third_party/inno_license.txt -text !eol

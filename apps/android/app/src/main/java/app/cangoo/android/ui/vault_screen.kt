@@ -86,6 +86,7 @@ import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.toArgb
@@ -94,6 +95,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalClipboard
@@ -293,7 +295,7 @@ private fun CangooContent(model: VaultModel, contentVisible: Boolean, onLeave: (
                 } else if (state.page == Page.TRANSFER) {
                     model.directTransfer?.let { controller ->
                         BDirectTransferPage(controller, onStartTransfer, model::closeDirectTransfer, onTransferSettings,
-                            Modifier.fillMaxSize())
+                            Modifier.fillMaxSize(), model::copyTransferPairingCode)
                     }
                 } else if (state.page == Page.CHECKS) {
                     ChecksPage(state, listState, model)
@@ -559,7 +561,29 @@ private fun CangooContent(model: VaultModel, contentVisible: Boolean, onLeave: (
 }
 
 // 自有对话框属于独立窗口，其滚动和按键不会经过活动的输入分发。
-internal fun Modifier.recordDialogInteraction(model: VaultModel): Modifier =
+internal fun Modifier.recordDialogInteraction(model: VaultModel): Modifier = composed {
+    val view = LocalView.current
+    var parent: android.view.View? = view
+    var window: android.view.Window? = null
+    while (parent != null && window == null) {
+        window = (parent as? androidx.compose.ui.window.DialogWindowProvider)?.window
+        parent = parent.parent as? android.view.View
+    }
+    DisposableEffect(window, model) {
+        val target = window
+        val previous = target?.callback
+        if (target == null || previous == null) onDispose { }
+        else {
+            val dispatcher = app.cangoo.android.ProtectedTouchDispatcher()
+            val protected = object : android.view.Window.Callback by previous {
+                override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean = dispatcher.dispatch(event,
+                    allowed = { model.onUserInteraction() }, forward = previous::dispatchTouchEvent)
+            }
+            target.callback = protected
+            if (android.os.Build.VERSION.SDK_INT >= 31) target.setHideOverlayWindows(true)
+            onDispose { if (target.callback === protected) target.callback = previous }
+        }
+    }
     onPreviewKeyEvent { !model.onUserInteraction() }.pointerInput(model) {
         awaitPointerEventScope {
             while (true) {
@@ -570,6 +594,7 @@ internal fun Modifier.recordDialogInteraction(model: VaultModel): Modifier =
             }
         }
     }
+}
 
 @Composable
 private fun Header(state: VaultUiState, onBack: () -> Unit, onAdd: () -> Unit, onLock: () -> Unit, onSettings: () -> Unit,
@@ -1148,7 +1173,7 @@ private fun BrowseControls(state: VaultUiState, model: VaultModel) {
             Text(if (state.browseSort == BrowseSort.RECENT) texts.getString(R.string.sort_recent) else texts.getString(R.string.sort_name), fontSize = businessSp(14.sp), fontWeight = FontWeight.SemiBold, lineHeight = 1.5.em)
         }
     }
-    if (chooser.isNotEmpty()) AlertDialog(onDismissRequest = { chooser = "" }, properties = ProtectedDialog,
+    if (chooser.isNotEmpty()) AlertDialog(modifier = Modifier.recordDialogInteraction(model), onDismissRequest = { chooser = "" }, properties = ProtectedDialog,
         title = { Text(if (chooser == "sort") texts.getString(R.string.sort_order) else texts.getString(R.string.filter_items)) }, text = {
             Column {
                 if (chooser == "sort") listOf(BrowseSort.RECENT to texts.getString(R.string.sort_recent), BrowseSort.NAME to texts.getString(R.string.sort_name)).forEach { (sort, label) ->

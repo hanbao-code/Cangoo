@@ -147,12 +147,12 @@ class VaultStore private constructor(context: Context, documentFactory: (Context
                         override fun write(buffer: ByteArray, offset: Int, length: Int) { guard(); out.write(buffer, offset, length); bytes += length; limit() }
                         override fun flush() { guard(); out.flush(); guard() }
                         private fun limit() { if (bytes > BackupProtocol.MAX_BYTES) throw BackupStoreException(BackupStoreProblem.LIMIT); guard() }
-                    }, guard)
+                    }, guard = guard)
                     guard()
                     output.fd.sync()
                 }
                 guard()
-                file.inputStream().use { input -> BackupProtocol.verify(guardedInput(input, guard), password, contentProof!!, guard) }
+                file.inputStream().use { input -> BackupProtocol.verify(guardedInput(input, guard), password, contentProof!!, guard = guard) }
                 guard()
                 val receipt = backupDocuments.exportNew(file, destination, { backupAllowed(guard) }, stillOwned)
                 // 已发生的完整导出事实在原库同步收尾；不再读库或恢复会话。
@@ -228,7 +228,7 @@ class VaultStore private constructor(context: Context, documentFactory: (Context
                 if (expectedPasswordCount < 0 || expectedNoteCount < 0 ||
                     expectedPasswordCount.toLong() + expectedNoteCount > BackupProtocol.MAX_RECORDS)
                     throw BackupProtocolException(BackupProblem.FORMAT)
-                val payload = encoded.inputStream().use { BackupProtocol.readPayload(guardedInput(it, guard)) }
+                val payload = encoded.inputStream().use { BackupProtocol.readPayload(guardedInput(it, guard), encoded.size) }
                 guard()
                 if (payload.scope != expectedScope || payload.passwords.size != expectedPasswordCount || payload.notes.size != expectedNoteCount)
                     throw BackupProtocolException(BackupProblem.FORMAT)
@@ -239,7 +239,7 @@ class VaultStore private constructor(context: Context, documentFactory: (Context
 
     internal suspend fun previewImport(vaultId: String, source: Uri, password: String, qualified: () -> Boolean): BackupImportPreview =
         previewPayload(vaultId, source, qualified) { guard ->
-            val read = backupDocuments.readImport(source, { backupAllowed(guard) }) { BackupProtocol.decrypt(it, password, guard) }
+            val read = backupDocuments.readImport(source, { backupAllowed(guard) }) { BackupProtocol.decrypt(it, password, guard = guard) }
             read.value to read.receipt
         }
 
@@ -674,6 +674,15 @@ class VaultStore private constructor(context: Context, documentFactory: (Context
 
     suspend fun listVaults(): List<VaultInfo> = safely {
         withContext(Dispatchers.IO) { mutex.withLock { listVaultsLocked() } }
+    }
+
+    internal suspend fun recoverVaultDeletions(): Boolean = safely {
+        withContext(Dispatchers.IO) {
+            val request = currentCoroutineContext()
+            mutex.withLock {
+                VaultDeletion.recover(root) { request.ensureActive() }
+            }
+        }
     }
 
     internal suspend fun prepareVaultDeletion(vaultId: String, rawMaster: String, qualified: () -> Boolean): DeletionPreview {

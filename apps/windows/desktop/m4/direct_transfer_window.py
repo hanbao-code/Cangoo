@@ -62,20 +62,20 @@ class DirectTransferWindowBridge(QObject):
         return self._invoke("connectAddress", flow_id, address)
 
     @Slot("QVariant", "QVariant", result="QVariantMap")
-    def confirmSasV1(self, flow_id, matches):
-        return self._invoke("confirm", flow_id, matches)
+    def submitPairingCodeV1(self, flow_id, code):
+        return self._invoke("pairingCode", flow_id, code)
+
+    @Slot("QVariant", result="QVariantMap")
+    def copyPairingCodeV1(self, flow_id):
+        return self._invoke("copyPairingCode", flow_id)
+
+    @Slot("QVariant", result="QVariantMap")
+    def approvePeerV1(self, flow_id):
+        return self._invoke("approve", flow_id)
 
     @Slot("QVariant", "QVariant", result="QVariantMap")
-    def prepareV1(self, flow_id, scope):
-        return self._invoke("prepare", flow_id, scope)
-
-    @Slot("QVariant", result="QVariantMap")
-    def acceptReceiveV1(self, flow_id):
-        return self._invoke("accept", flow_id)
-
-    @Slot("QVariant", result="QVariantMap")
-    def sendV1(self, flow_id):
-        return self._invoke("send", flow_id)
+    def sendV1(self, flow_id, scope):
+        return self._invoke("send", flow_id, scope)
 
     @Slot("QVariant", result="QVariantMap")
     def cancelV1(self, flow_id):

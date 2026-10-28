@@ -17,11 +17,16 @@ os.environ["PATH"] = os.pathsep.join(str(path) for path in (
 from desktop.m4.contract import load_m4_contract
 from desktop.m4.resources import M4ResourceCatalog
 from tools.build_windows_installer import read_product_version
+from tools.qt_bluetooth_build import prepare_inputs, replace_binary
 from PyInstaller.utils.win32.versioninfo import (
     VSVersionInfo, FixedFileInfo, StringFileInfo, StringTable, StringStruct, VarFileInfo, VarStruct,
 )
 
 product_version, file_version = read_product_version()
+bluetooth_dll, bluetooth_sources = prepare_inputs(root)
+# 验收钩子只在冻结时写入两个程序，正式构建不包含路径切换能力。
+acceptance_hook = os.environ.get("CANGOO_ACCEPTANCE_RUNTIME_HOOK")
+runtime_hooks = [str(Path(acceptance_hook).resolve(strict=True))] if acceptance_hook else []
 version_info = VSVersionInfo(
     ffi=FixedFileInfo(filevers=file_version, prodvers=file_version, fileType=1),
     kids=[StringFileInfo([StringTable('040904B0', [
@@ -53,12 +58,15 @@ for directory, pattern in (
 ):
     datas.extend((str(path), directory) for path in sorted((root / directory).glob(pattern)))
 datas.append((str(root / "contracts/bridge_contract_v1.json"), "contracts"))
+datas.extend(bluetooth_sources)
 
 main = Analysis([str(root / "desktop/product_app.py")], pathex=[str(root)], datas=datas,
                 hiddenimports=["desktop.host.lan_access", "desktop.host.lan_access_native"],
                 hookspath=[str(root / "packaging/windows/hooks")],
-                excludes=["cffi._shimmed_dist_utils"])
-worker = Analysis([str(root / "desktop/m4/strength_worker.py")], pathex=[str(root)])
+                runtime_hooks=runtime_hooks,
+                excludes=["cffi._shimmed_dist_utils", "srp._ctsrp"])
+worker = Analysis([str(root / "desktop/m4/strength_worker.py")], pathex=[str(root)],
+                  runtime_hooks=runtime_hooks)
 
 for analysis in (main, worker):
     for destination, source, kind in analysis.binaries:
@@ -72,6 +80,8 @@ for analysis in (main, worker):
             "Qt6VirtualKeyboard.dll",
         }:
             raise ValueError(f"非产品Qt扩展被收集：{destination}")
+if sum(replace_binary(analysis.binaries, bluetooth_dll) for analysis in (main, worker)) < 1:
+    raise ValueError("冻结结果缺少 QtBluetooth，不能生成候选")
 app = EXE(
     PYZ(main.pure), main.scripts, [],
     exclude_binaries=True, name="Cangoo", console=False, upx=False,

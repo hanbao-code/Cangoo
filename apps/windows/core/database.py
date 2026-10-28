@@ -76,6 +76,11 @@ from core.backup import (
     validate_backup_payload,
 )
 from core.crypto import CryptoHelper, SecureKeyBuffer
+from core.database_resources import (
+    COPY_CHUNK_BYTES, DatabaseMemoryBudget, DatabaseOperationCancelled,
+    DatabaseResourceError, bounded_rows, check_cancelled, database_operation,
+    require_copy_space, connect_database, native_resource_failure,
+)
 from core.password_tools import PasswordTools
 from core.recovery_codes import RecoveryCodeError, dump_codes, load_codes, validate_codes
 
@@ -192,6 +197,10 @@ class DatabaseService:
 
     @staticmethod
     def _classify_connection_error(exc) -> str:
+        if isinstance(exc, (DatabaseResourceError, DatabaseOperationCancelled)):
+            return exc.kind
+        if native_resource_failure(exc):
+            return "resource_limit"
         text = str(exc).lower()
         if any(
             marker in text
@@ -211,6 +220,16 @@ class DatabaseService:
         if isinstance(exc, IsADirectoryError):
             return "invalid_path"
         return "corrupt_or_unreadable"
+
+    def _operation_error_kind(self, exc) -> str:
+        """保留已知资源失败；普通业务或后端异常仍沿原 I/O 分类。"""
+        if isinstance(exc, (DatabaseResourceError, DatabaseOperationCancelled)):
+            return exc.kind
+        if native_resource_failure(exc):
+            return "resource_limit"
+        if self.last_error_kind in {"resource_limit", "insufficient_space", "cancelled"}:
+            return self.last_error_kind
+        return "database_io_failed"
 
     def is_connected(self) -> bool:
         """是否已成功连接数据库（以派生密钥缓冲区是否存在为准）"""
@@ -265,6 +284,7 @@ class DatabaseService:
         password: str,
         *,
         pre_write_guard: Callable[[], bool] | None = None,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> bool:
         """只打开已有产品数据库，不创建文件且不在识别前写入。
 
@@ -287,6 +307,10 @@ class DatabaseService:
         if pre_write_guard is not None and not callable(pre_write_guard):
             self.last_error = "数据库写前身份守卫无效"
             self.last_error_kind = "invalid_path"
+            return False
+        if should_cancel is not None and not callable(should_cancel):
+            self.last_error = "数据库取消回调无效"
+            self.last_error_kind = "invalid_argument"
             return False
         if not os.path.exists(db_path):
             self.last_error = "数据库文件不存在"
@@ -313,6 +337,7 @@ class DatabaseService:
         con = None
         pending_key = None
         try:
+            check_cancelled(should_cancel)
             resolved = Path(db_path).resolve(strict=True)
             initial_identity = self._path_identity(resolved)
 
@@ -327,7 +352,7 @@ class DatabaseService:
                     )
 
             read_only_uri = resolved.as_uri() + "?mode=ro"
-            inspection = sqleet.connect(
+            inspection = connect_database(
                 read_only_uri,
                 key=password,
                 uri=True,
@@ -336,18 +361,19 @@ class DatabaseService:
             raw_key, needs_migration = self._inspect_product_schema(
                 inspection,
                 password,
+                should_cancel=should_cancel,
             )
             require_initial_identity()
             inspection.close()
             inspection = None
 
             uri = resolved.as_uri() + "?mode=rw"
-            con = sqleet.connect(uri, key=password, uri=True)
+            con = connect_database(uri, key=password, uri=True)
             require_initial_identity()
             con.execute("PRAGMA query_only=ON")
             try:
                 verified_key, verified_needs_migration = (
-                    self._inspect_product_schema(con, password)
+                    self._inspect_product_schema(con, password, should_cancel=should_cancel)
                 )
                 if (
                     not hmac.compare_digest(raw_key, verified_key)
@@ -366,7 +392,7 @@ class DatabaseService:
                         )
                     con.execute("PRAGMA query_only=OFF")
                     con.execute("BEGIN IMMEDIATE")
-                    locked_key, locked_needs_migration = self._inspect_product_schema(con, password)
+                    locked_key, locked_needs_migration = self._inspect_product_schema(con, password, should_cancel=should_cancel)
                     if (
                         not hmac.compare_digest(raw_key, locked_key)
                         or needs_migration != locked_needs_migration
@@ -377,14 +403,16 @@ class DatabaseService:
                             raise RuntimeError("WAL database cannot be copied as one file")
                         snapshot_path, snapshot_hash = self._create_change_key_snapshot(
                             str(resolved), purpose="before-recovery-codes",
+                            should_cancel=should_cancel,
                         )
                         snapshot_con = None
                         try:
-                            snapshot_con = sqleet.connect(
+                            snapshot_con = connect_database(
                                 Path(snapshot_path).as_uri() + "?mode=ro", key=password, uri=True,
                             )
                             snapshot_key, snapshot_needs_migration = self._inspect_product_schema(
                                 snapshot_con, password,
+                                should_cancel=should_cancel,
                             )
                             if (
                                 not hmac.compare_digest(raw_key, snapshot_key)
@@ -402,13 +430,14 @@ class DatabaseService:
                                 snapshot_con.close()
                         require_initial_identity()
                         if not hmac.compare_digest(
-                            snapshot_hash, self._change_key_file_sha256(str(resolved)),
+                            snapshot_hash, self._change_key_file_sha256(str(resolved), should_cancel=should_cancel),
                         ):
                             raise RuntimeError("database changed during upgrade snapshot")
                         self.migration_snapshot_path = snapshot_path
-                    self._prepare_product_schema(con)
+                    with database_operation(con, should_cancel):
+                        self._prepare_product_schema(con)
                     current_key, still_needs_migration = (
-                        self._inspect_product_schema(con, password)
+                        self._inspect_product_schema(con, password, should_cancel=should_cancel)
                     )
                     if (
                         still_needs_migration
@@ -423,6 +452,7 @@ class DatabaseService:
                             "database identity changed during migration"
                         )
                     require_initial_identity()
+                    check_cancelled(should_cancel)
                     con.commit()
                 require_initial_identity()
                 opened_identity = initial_identity
@@ -461,12 +491,12 @@ class DatabaseService:
 
     @staticmethod
     def _table_columns(con, table: str) -> dict[str, tuple]:
-        return {
-            str(row[1]).lower(): tuple(row)
-            for row in con.execute(
-                f'PRAGMA table_xinfo("{table}")'
-            ).fetchall()
-        }
+        columns = {}
+        for row in con.execute(f'PRAGMA table_xinfo("{table}")'):
+            if len(columns) >= 11:
+                raise RuntimeError("unsupported product column count")
+            columns[str(row[1]).lower()] = tuple(row)
+        return columns
 
     @staticmethod
     def _column_signature(row: tuple) -> tuple[str, int, str | None, int, int]:
@@ -484,21 +514,22 @@ class DatabaseService:
     @staticmethod
     def _index_signatures(con, table: str) -> set[tuple]:
         signatures = set()
-        for row in con.execute(f'PRAGMA index_list("{table}")').fetchall():
+        for row in con.execute(f'PRAGMA index_list("{table}")'):
+            if signatures:
+                raise RuntimeError("unsupported product index count")
             if len(row) < 5:
                 raise RuntimeError("unsupported product index metadata")
-            columns = tuple(
-                str(value[2]).lower()
-                for value in con.execute(
-                    f'PRAGMA index_info("{row[1]}")'
-                ).fetchall()
-            )
+            columns = []
+            for value in con.execute(f'PRAGMA index_info("{row[1]}")'):
+                if columns:
+                    raise RuntimeError("unsupported product index columns")
+                columns.append(str(value[2]).lower())
             signatures.add(
                 (
                     int(row[2]),
                     str(row[3]).lower(),
                     int(row[4]),
-                    columns,
+                    tuple(columns),
                 )
             )
         return signatures
@@ -508,15 +539,32 @@ class DatabaseService:
         cls,
         con,
         password: str,
+        *,
+        should_cancel: Callable[[], bool] | None = None,
+        full_check: bool = False,
     ) -> tuple[bytes, bool]:
         """只读认证已知 Argon2id 产品结构，返回密钥和迁移需求。"""
+        with database_operation(con, should_cancel) as budget:
+            return cls._inspect_product_schema_on(con, password, budget, full_check)
 
-        quick_check = con.execute("PRAGMA quick_check").fetchone()
+    @classmethod
+    def _inspect_product_schema_on(cls, con, password, budget, full_check):
+        page_size = con.execute("PRAGMA page_size").fetchone()[0]
+        page_count = con.execute("PRAGMA page_count").fetchone()[0]
+        if not 512 <= page_size <= 65536 or page_size & (page_size - 1) or page_count < 1:
+            raise RuntimeError("invalid database page layout")
+        # SQLite 完整性检查按全库页数分配一位图和一页工作区。
+        budget.require(page_count // 8 + 1 + page_size)
+
+        quick_check = con.execute("PRAGMA integrity_check(1)" if full_check else "PRAGMA quick_check(1)").fetchone()
         if quick_check != ("ok",):
             raise RuntimeError("database integrity check failed")
-        object_rows = con.execute(
-            "SELECT type, name, sql FROM sqlite_master"
-        ).fetchall()
+        # 已知产品结构仅六个对象；额外预留到 64 KiB，避免超长 DDL 的分词放大。
+        metadata_budget = DatabaseMemoryBudget(budget.should_cancel)
+        metadata_budget.limit = min(metadata_budget.limit, 64 * 1024 * metadata_budget.EXPANSION)
+        object_rows = list(bounded_rows(con, "sqlite_master", "type, name, sql", budget=metadata_budget, suffix="LIMIT 7", retain=True))
+        if len(object_rows) > 6:
+            raise RuntimeError("unsupported product schema object count")
         if any(
             str(kind).lower() in {"view", "trigger"}
             for kind, name, _sql in object_rows
@@ -534,13 +582,8 @@ class DatabaseService:
             for kind, name, sql in object_rows
             if str(kind).lower() == "table"
         }
-        rows = con.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ).fetchall()
         tables = {
-            str(row[0]).lower()
-            for row in rows
-            if not str(row[0]).lower().startswith("sqlite_")
+            name for name in table_sql if not name.startswith("sqlite_")
         }
         if tables != {"ttable", "notestable", "_meta"}:
             raise RuntimeError("unsupported product table set")
@@ -651,7 +694,7 @@ class DatabaseService:
                 raise RuntimeError("unsupported product table semantics")
             if con.execute(
                 f'PRAGMA foreign_key_list("{table}")'
-            ).fetchall():
+            ).fetchone():
                 raise RuntimeError("unsupported product foreign key")
         meta_sql = " ".join(table_sql.get("_meta", "").lower().split())
         if (
@@ -674,59 +717,51 @@ class DatabaseService:
         }:
             raise RuntimeError("unsupported metadata key")
 
-        salt_row = con.execute(
-            "SELECT value FROM _meta WHERE key='salt'"
-        ).fetchone()
-        if con.execute("SELECT key FROM _meta").fetchall() != [("salt",)]:
-            raise RuntimeError("unsupported product metadata set")
-        if (
-            salt_row is None
-            or len(salt_row) != 1
-            or not isinstance(salt_row[0], str)
-        ):
-            raise RuntimeError("missing product salt")
-        try:
-            salt = base64.b64decode(salt_row[0], validate=True)
-        except Exception as exc:
-            raise RuntimeError("invalid product salt") from exc
-        if len(salt) != 16:
-            raise RuntimeError("invalid product salt length")
+        salt = cls._read_product_salt(con)
+        check_cancelled(budget.should_cancel)
         raw_key = CryptoHelper.derive_key(password, salt)
+        check_cancelled(budget.should_cancel)
 
         encrypted_columns = ["account", "password", "notes"]
         if "totp_secret" in password_columns:
             encrypted_columns.append("totp_secret")
         if "recovery_codes" in password_columns:
             encrypted_columns.append("recovery_codes")
-        for row in con.execute(
-            "SELECT " + ", ".join(encrypted_columns) + " FROM TTable"
-        ).fetchall():
+        for row in bounded_rows(con, "TTable", ", ".join(encrypted_columns), budget=budget):
             for field_name, value in zip(encrypted_columns, row):
+                check_cancelled(budget.should_cancel)
                 if value in {None, ""}:
                     continue
                 if not isinstance(value, str):
-                    raise RuntimeError("invalid password field ciphertext")
-                decoded = base64.b64decode(value, validate=True)
-                if len(decoded) < 28:
                     raise RuntimeError("invalid password field ciphertext")
                 plaintext = CryptoHelper.decrypt_data(value, raw_key)
                 if field_name == "recovery_codes":
                     load_codes(plaintext)
                 plaintext = ""
-        for row in con.execute(
-            "SELECT title, content, created_at, updated_at FROM NotesTable"
-        ).fetchall():
+        for row in bounded_rows(con, "NotesTable", "title, content, created_at, updated_at", budget=budget):
             for value in row:
+                check_cancelled(budget.should_cancel)
                 if value in {None, ""}:
                     continue
                 if not isinstance(value, str):
                     raise RuntimeError("invalid note field ciphertext")
-                decoded = base64.b64decode(value, validate=True)
-                if len(decoded) < 28:
-                    raise RuntimeError("invalid note field ciphertext")
                 CryptoHelper.decrypt_data(value, raw_key)
 
         return raw_key, stage != schema_stages[-1]
+
+    @staticmethod
+    def _read_product_salt(con) -> bytes:
+        rows = list(con.execute(
+            "SELECT CASE WHEN typeof(key)='text' AND length(CAST(key AS BLOB))=4 THEN key END, "
+            "CASE WHEN typeof(value)='text' AND length(CAST(value AS BLOB))=24 THEN value END "
+            "FROM _meta LIMIT 2"
+        ))
+        if len(rows) != 1 or rows[0][0] != "salt" or not isinstance(rows[0][1], str):
+            raise RuntimeError("invalid product salt metadata")
+        salt = base64.b64decode(rows[0][1], validate=True)
+        if len(salt) != 16:
+            raise RuntimeError("invalid product salt length")
+        return salt
 
     def _prepare_product_schema(self, con) -> None:
         """在调用方控制的单个事务内迁移已认证产品结构。"""
@@ -782,7 +817,7 @@ class DatabaseService:
         path_value = self.db_name
         key_value = self.db_key
         self._assert_bound_identity()
-        con = sqleet.connect(path_value, key=key_value)
+        con = connect_database(path_value, key=key_value)
         try:
             self._assert_bound_identity()
         except Exception:
@@ -874,7 +909,7 @@ class DatabaseService:
             )
             os.close(fd)
             temp_path = Path(temp_name)
-            con = sqleet.connect(str(temp_path), key=password)
+            con = connect_database(str(temp_path), key=password)
             con.execute("BEGIN IMMEDIATE")
             con.execute(
                 "CREATE TABLE TTable ("
@@ -905,7 +940,7 @@ class DatabaseService:
             with temp_path.open("r+b") as handle:
                 handle.flush()
                 os.fsync(handle.fileno())
-            verify = sqleet.connect(
+            verify = connect_database(
                 temp_path.resolve(strict=True).as_uri() + "?mode=ro",
                 key=password,
                 uri=True,
@@ -983,16 +1018,8 @@ class DatabaseService:
         con = None
         try:
             con = self._connect_bound()
-            row = con.execute(
-                "SELECT value FROM _meta WHERE key='salt'"
-            ).fetchone()
-            if (
-                row is None
-                or len(row) != 1
-                or not isinstance(row[0], str)
-            ):
-                return CurrentPasswordStatus.ERROR
-            salt = base64.b64decode(row[0], validate=True)
+            salt = self._read_product_salt(con)
+            DatabaseMemoryBudget().charge(0)
             test_key = CryptoHelper.derive_key(password, salt)
             current_key = self.derived_key.use()
             try:
@@ -1040,6 +1067,7 @@ class DatabaseService:
                 self.derived_key.lock()
         except Exception as e:
             self.last_error = f"加密失败: {e}"
+            self.last_error_kind = self._operation_error_kind(e)
             return None
 
     def _decrypt(self, text):
@@ -1057,6 +1085,7 @@ class DatabaseService:
                 self.derived_key.lock()
         except Exception as e:
             self.last_error = f"解密失败: {e}"
+            self.last_error_kind = self._operation_error_kind(e)
             return None
 
     def _compute_strength(
@@ -1096,7 +1125,7 @@ class DatabaseService:
     def _column_exists(con, table: str, column: str) -> bool:
         """通过 PRAGMA table_info 检测指定列是否已存在（用于幂等迁移）"""
         cur = con.execute(f"PRAGMA table_info({table})")
-        for row in cur.fetchall():
+        for row in cur:
             if row[1] == column:
                 return True
         return False
@@ -1222,7 +1251,7 @@ class DatabaseService:
             recovery_codes = load_codes(self._decrypt(row[10])) if row[10] else []
         except RecoveryCodeError:
             self.last_error = "恢复码数据无效"
-            self.last_error_kind = "database_io_failed"
+            self.last_error_kind = self.last_error_kind or "database_io_failed"
             return None
         if self.last_error:
             return None
@@ -1245,7 +1274,7 @@ class DatabaseService:
             'is_favorite': is_favorite,
         }
 
-    def get_record_counts(self) -> tuple[int, int] | None:
+    def get_record_counts(self, *, should_cancel=None) -> tuple[int, int] | None:
         """返回密码和记事数量，不读取或解密记录正文；失败返回 None。"""
         self.last_error = None
         self.last_error_kind = None
@@ -1256,47 +1285,48 @@ class DatabaseService:
         try:
             con = self._connect_bound()
             try:
-                self._ensure_password_table_on(con)
-                self._ensure_notes_table_on(con)
-                counts = con.execute(
-                    "SELECT (SELECT COUNT(*) FROM TTable), "
-                    "(SELECT COUNT(*) FROM NotesTable)"
-                ).fetchone()
+                with database_operation(con, should_cancel):
+                    counts = con.execute(
+                        "SELECT (SELECT COUNT(*) FROM TTable), "
+                        "(SELECT COUNT(*) FROM NotesTable)"
+                    ).fetchone()
                 return int(counts[0]), int(counts[1])
             finally:
                 con.close()
         except Exception as exc:
             self.last_error = f"统计记录数量失败: {exc}"
-            self.last_error_kind = "database_io_failed"
+            self.last_error_kind = self._operation_error_kind(exc)
             return None
 
-    def get_all_passwords(self) -> list:
-        """返回全部密码记录（解密后的字典列表）
+    def get_all_passwords(self, *, should_cancel=None) -> list:
+        """返回有界的完整密码记录列表；不同时保留整表密文。"""
+        return self._read_record_list("TTable", self._PASSWORD_SELECT_COLUMNS, self._decrypt_password_row, should_cancel=should_cancel)
 
-        每条字典字段：id / platform / account / password / notes / totp_secret /
-                      strength / password_changed_at / updated_at / is_favorite
-        """
-        self.last_error = None
+    def _read_record_list(self, table, columns, decrypt, *, suffix="", parameters=(), should_cancel=None):
+        self.last_error = self.last_error_kind = None
         if not self.is_connected():
             self.last_error = "数据库未连接"
+            self.last_error_kind = "not_connected"
             return []
+        con = None
         try:
             con = self._connect_bound()
-            self._ensure_password_table_on(con)
-            cur = con.execute(f'SELECT {self._PASSWORD_SELECT_COLUMNS} FROM TTable')
-            rows = cur.fetchall()
-            con.close()
-        except Exception as e:
-            self.last_error = f"查询密码记录失败: {e}"
+            with database_operation(con, should_cancel) as budget:
+                result = []
+                for row in bounded_rows(con, table, columns, budget=budget,
+                                        suffix=suffix, parameters=parameters, retain=True):
+                    item = decrypt(row)
+                    if item is None:
+                        return []
+                    result.append(item)
+                return result
+        except Exception as exc:
+            self.last_error = "读取数据库记录失败"
+            self.last_error_kind = self._operation_error_kind(exc)
             return []
-
-        result = []
-        for row in rows:
-            item = self._decrypt_password_row(row)
-            if item is None:
-                return []
-            result.append(item)
-        return result
+        finally:
+            if con is not None:
+                con.close()
 
     def get_password_by_id(self, item_id: int) -> dict | None:
         """Return one decrypted password record by immutable ID.
@@ -1321,16 +1351,13 @@ class DatabaseService:
             con = self._connect_bound()
             try:
                 self._ensure_password_table_on(con)
-                row = con.execute(
-                    f"SELECT {self._PASSWORD_SELECT_COLUMNS} "
-                    "FROM TTable WHERE ID=?",
-                    (item_id,),
-                ).fetchone()
+                row = next(bounded_rows(con, "TTable", self._PASSWORD_SELECT_COLUMNS,
+                    budget=DatabaseMemoryBudget(), suffix="WHERE ID=?", parameters=(item_id,)), None)
             finally:
                 con.close()
         except Exception as exc:
             self.last_error = f"查询密码记录失败: {exc}"
-            self.last_error_kind = "database_io_failed"
+            self.last_error_kind = self._operation_error_kind(exc)
             return None
         if row is None:
             return None
@@ -1340,36 +1367,40 @@ class DatabaseService:
         return item
 
     def get_password_strength_ids(self) -> list[int] | None:
-        """固定一次体检的记录范围，仅查询 ID，不读取或解密整库正文。"""
+        """仅保留有界的记录标识，不读取正文。"""
         self.last_error = self.last_error_kind = None
+        con = None
         try:
             con = self._connect_bound()
-            try:
-                return [int(row[0]) for row in con.execute(
-                    "SELECT ID FROM TTable ORDER BY ID"
-                ).fetchall()]
-            finally:
-                con.close()
-        except Exception:
+            budget = DatabaseMemoryBudget()
+            return [int(row[0]) for row in bounded_rows(
+                con, "TTable", "ID", budget=budget, suffix=" ORDER BY ID", retain=True,
+            )]
+        except Exception as exc:
             self.last_error = "读取体检记录范围失败"
-            self.last_error_kind = "database_io_failed"
+            self.last_error_kind = self._operation_error_kind(exc)
             return None
+        finally:
+            if con is not None:
+                con.close()
 
     def get_pending_strength_ids(self) -> list[int] | None:
-        """仅读取未评级记录的标识，供解锁后恢复后台检测。"""
+        """仅保留有界的记录标识，不读取正文。"""
         self.last_error = self.last_error_kind = None
+        con = None
         try:
             con = self._connect_bound()
-            try:
-                return [int(row[0]) for row in con.execute(
-                    "SELECT ID FROM TTable WHERE strength IS NULL ORDER BY ID"
-                ).fetchall()]
-            finally:
-                con.close()
-        except Exception:
-            self.last_error = "读取待检测记录失败"
-            self.last_error_kind = "database_io_failed"
+            budget = DatabaseMemoryBudget()
+            return [int(row[0]) for row in bounded_rows(
+                con, "TTable", "ID", budget=budget, suffix="WHERE strength IS NULL ORDER BY ID", retain=True,
+            )]
+        except Exception as exc:
+            self.last_error = "读取体检记录范围失败"
+            self.last_error_kind = self._operation_error_kind(exc)
             return None
+        finally:
+            if con is not None:
+                con.close()
 
     def get_password_strength_snapshot(
         self, item_id: int,
@@ -1383,11 +1414,9 @@ class DatabaseService:
         try:
             con = self._connect_bound()
             try:
-                row = con.execute(
-                    "SELECT ID, platform, account, password, "
-                    "password_changed_at, updated_at, strength FROM TTable WHERE ID=?",
-                    (item_id,),
-                ).fetchone()
+                row = next(bounded_rows(con, "TTable",
+                    "ID, platform, account, password, password_changed_at, updated_at, strength",
+                    budget=DatabaseMemoryBudget(), suffix="WHERE ID=?", parameters=(item_id,)), None)
             finally:
                 con.close()
             if row is None:
@@ -1399,9 +1428,9 @@ class DatabaseService:
             ):
                 raise ValueError("评级输入无效")
             return PasswordStrengthSnapshot(item_id, row[1], account, password, tuple(row[:6]), row[6])
-        except Exception:
+        except Exception as exc:
             self.last_error = "读取体检记录失败"
-            self.last_error_kind = "database_io_failed"
+            self.last_error_kind = self._operation_error_kind(exc)
             return None
 
     def update_password_strength(
@@ -1430,44 +1459,23 @@ class DatabaseService:
             )
             self._commit_bound(con)
             return cursor.rowcount == 1
-        except Exception:
+        except Exception as exc:
             if con is not None:
                 con.rollback()
             self.last_error = "更新体检评级失败"
-            self.last_error_kind = "database_io_failed"
+            self.last_error_kind = self._operation_error_kind(exc)
             return None
         finally:
             if con is not None:
                 con.close()
 
     def search_passwords(self, keyword: str) -> list:
-        """按平台名称模糊查询密码记录（keyword 为空时返回全部）"""
-        self.last_error = None
-        if not self.is_connected():
-            self.last_error = "数据库未连接"
-            return []
-        if not keyword:
-            return self.get_all_passwords()
-        try:
-            con = self._connect_bound()
-            self._ensure_password_table_on(con)
-            cur = con.execute(
-                f"SELECT {self._PASSWORD_SELECT_COLUMNS} FROM TTable WHERE platform LIKE ?",
-                (f'%{keyword}%',)
-            )
-            rows = cur.fetchall()
-            con.close()
-        except Exception as e:
-            self.last_error = f"搜索密码记录失败: {e}"
-            return []
-
-        result = []
-        for row in rows:
-            item = self._decrypt_password_row(row)
-            if item is None:
-                return []
-            result.append(item)
-        return result
+        """按平台名称模糊查询；空词返回全部。"""
+        return self._read_record_list(
+            "TTable", self._PASSWORD_SELECT_COLUMNS, self._decrypt_password_row,
+            suffix="WHERE platform LIKE ?" if keyword else "",
+            parameters=(f"%{keyword}%",) if keyword else (),
+        )
 
     def insert_password(
         self,
@@ -1525,13 +1533,7 @@ class DatabaseService:
             self._ensure_password_table_on(con)
             self._commit_bound(con)
             con.execute("BEGIN IMMEDIATE")
-            existing = con.execute(
-                "SELECT platform FROM TTable"
-            ).fetchall()
-            if any(
-                isinstance(row[0], str) and row[0] == platform
-                for row in existing
-            ):
+            if con.execute("SELECT 1 FROM TTable WHERE platform=? LIMIT 1", (platform,)).fetchone():
                 con.rollback()
                 self.last_error = f"平台名称「{platform}」已存在"
                 self.last_error_kind = "platform_conflict"
@@ -1544,7 +1546,7 @@ class DatabaseService:
             enc_recovery = self._encrypt(dump_codes(recovery_codes)) if recovery_codes else None
             if self.last_error:
                 con.rollback()
-                self.last_error_kind = "database_io_failed"
+                self.last_error_kind = self.last_error_kind or "database_io_failed"
                 return None
 
             strength = None if defer_strength and password else self._compute_strength(
@@ -1604,7 +1606,7 @@ class DatabaseService:
                 self.last_error_kind = "platform_conflict"
             else:
                 self.last_error = f"新增密码记录失败: {e}"
-                self.last_error_kind = "database_io_failed"
+                self.last_error_kind = self._operation_error_kind(e)
             return None
         finally:
             if con is not None:
@@ -1654,10 +1656,8 @@ class DatabaseService:
             self._ensure_password_table_on(con)
             self._commit_bound(con)
             con.execute("BEGIN IMMEDIATE")
-            row = con.execute(
-                f"SELECT {self._PASSWORD_SELECT_COLUMNS} FROM TTable WHERE ID=?",
-                (item_id,),
-            ).fetchone()
+            row = next(bounded_rows(con, "TTable", self._PASSWORD_SELECT_COLUMNS,
+                budget=DatabaseMemoryBudget(), suffix="WHERE ID=?", parameters=(item_id,)), None)
             if row is None:
                 con.rollback()
                 self.last_error = f"密码记录 ID={item_id} 不存在"
@@ -1666,7 +1666,7 @@ class DatabaseService:
             old_item = self._decrypt_password_row(row)
             if old_item is None:
                 con.rollback()
-                self.last_error_kind = "database_io_failed"
+                self.last_error_kind = self.last_error_kind or "database_io_failed"
                 return False
 
             if expected is not None:
@@ -1736,14 +1736,8 @@ class DatabaseService:
                 self.last_error_kind = "invalid_argument"
                 return False
 
-            existing_names = con.execute(
-                "SELECT platform FROM TTable WHERE ID!=?",
-                (item_id,),
-            ).fetchall()
-            if any(
-                isinstance(value[0], str) and value[0] == new_platform
-                for value in existing_names
-            ):
+            if con.execute("SELECT 1 FROM TTable WHERE ID!=? AND platform=? LIMIT 1",
+                           (item_id, new_platform)).fetchone():
                 con.rollback()
                 self.last_error = f"平台名称「{new_platform}」已存在"
                 self.last_error_kind = "platform_conflict"
@@ -1785,7 +1779,7 @@ class DatabaseService:
             enc_recovery = self._encrypt(dump_codes(new_recovery)) if new_recovery else None
             if self.last_error:
                 con.rollback()
-                self.last_error_kind = "database_io_failed"
+                self.last_error_kind = self.last_error_kind or "database_io_failed"
                 return False
 
             cursor = con.execute(
@@ -1856,7 +1850,7 @@ class DatabaseService:
                 self.last_error_kind = "platform_conflict"
             else:
                 self.last_error = f"更新密码记录失败: {exc}"
-                self.last_error_kind = "database_io_failed"
+                self.last_error_kind = self._operation_error_kind(exc)
             return False
         finally:
             if con is not None:
@@ -1900,10 +1894,8 @@ class DatabaseService:
             self._ensure_password_table_on(con)
             self._commit_bound(con)
             con.execute("BEGIN IMMEDIATE")
-            row = con.execute(
-                f"SELECT {self._PASSWORD_SELECT_COLUMNS} FROM TTable WHERE ID=?",
-                (item_id,),
-            ).fetchone()
+            row = next(bounded_rows(con, "TTable", self._PASSWORD_SELECT_COLUMNS,
+                budget=DatabaseMemoryBudget(), suffix="WHERE ID=?", parameters=(item_id,)), None)
             if row is None:
                 con.rollback()
                 self.last_error = f"密码记录 ID={item_id} 不存在"
@@ -1912,7 +1904,7 @@ class DatabaseService:
             current = self._decrypt_password_row(row)
             if current is None:
                 con.rollback()
-                self.last_error_kind = "database_io_failed"
+                self.last_error_kind = self.last_error_kind or "database_io_failed"
                 return False
 
             snapshot_fields = (
@@ -1955,7 +1947,7 @@ class DatabaseService:
                 except Exception:
                     pass
             self.last_error = f"删除密码记录失败: {exc}"
-            self.last_error_kind = "database_io_failed"
+            self.last_error_kind = self._operation_error_kind(exc)
             return False
         finally:
             for value in (current, expected):
@@ -2108,64 +2100,21 @@ class DatabaseService:
             'is_favorite': is_favorite,
         }
 
-    def get_all_notes(self) -> list:
-        """返回全部记事（按 sort_order 升序、ID 降序排序，解密后）"""
-        self.last_error = None
-        if not self.is_connected():
-            self.last_error = "数据库未连接"
-            return []
-        try:
-            con = self._connect_bound()
-            self._ensure_notes_table_on(con)
-            cur = con.execute(
-                f'SELECT {self._NOTE_SELECT_COLUMNS} FROM NotesTable '
-                'ORDER BY sort_order ASC, ID DESC'
-            )
-            rows = cur.fetchall()
-            con.close()
-        except Exception as e:
-            self.last_error = f"查询记事失败: {e}"
-            return []
-
-        result = []
-        for row in rows:
-            item = self._decrypt_note(row)
-            if item is None:
-                return []
-            result.append(item)
-        return result
+    def get_all_notes(self, *, should_cancel=None) -> list:
+        """返回有界的完整记事列表，沿原排序解密。"""
+        return self._read_record_list(
+            "NotesTable", self._NOTE_SELECT_COLUMNS, self._decrypt_note,
+            suffix="ORDER BY sort_order ASC, ID DESC",
+            should_cancel=should_cancel,
+        )
 
     def search_notes(self, keyword: str) -> list:
-        """按标题或内容模糊搜索记事（keyword 为空时返回全部）"""
-        self.last_error = None
-        if not self.is_connected():
-            self.last_error = "数据库未连接"
-            return []
-        if not keyword:
-            return self.get_all_notes()
-        try:
-            con = self._connect_bound()
-            self._ensure_notes_table_on(con)
-            cur = con.execute(
-                f'SELECT {self._NOTE_SELECT_COLUMNS} FROM NotesTable '
-                'ORDER BY sort_order ASC, ID DESC'
-            )
-            rows = cur.fetchall()
-            con.close()
-        except Exception as e:
-            self.last_error = f"搜索记事失败: {e}"
-            return []
-
-        result = []
-        query_lower = keyword.lower()
-        for row in rows:
-            item = self._decrypt_note(row)
-            if item is None:
-                return []
-            if query_lower in (item['title'] or "").lower() \
-                    or query_lower in (item['content'] or "").lower():
-                result.append(item)
-        return result
+        """按完整标题或内容搜索，集合预算沿同一读取入口。"""
+        rows = self.get_all_notes()
+        if not keyword or self.last_error:
+            return rows
+        query = keyword.lower()
+        return [row for row in rows if query in row["title"].lower() or query in row["content"].lower()]
 
     def get_note(self, item_id: int) -> dict | None:
         """按不可变 ID 读取一条解密记事。"""
@@ -2183,15 +2132,13 @@ class DatabaseService:
             con = self._connect_bound()
             try:
                 self._ensure_notes_table_on(con)
-                row = con.execute(
-                    f"SELECT {self._NOTE_SELECT_COLUMNS} FROM NotesTable WHERE ID=?",
-                    (item_id,),
-                ).fetchone()
+                row = next(bounded_rows(con, "NotesTable", self._NOTE_SELECT_COLUMNS,
+                    budget=DatabaseMemoryBudget(), suffix="WHERE ID=?", parameters=(item_id,)), None)
             finally:
                 con.close()
         except Exception as exc:
             self.last_error = f"查询记事失败: {exc}"
-            self.last_error_kind = "database_io_failed"
+            self.last_error_kind = self._operation_error_kind(exc)
             return None
         if row is None:
             return None
@@ -2252,7 +2199,7 @@ class DatabaseService:
             enc_updated = self._encrypt(now)
             if self.last_error:
                 con.rollback()
-                self.last_error_kind = "database_io_failed"
+                self.last_error_kind = self.last_error_kind or "database_io_failed"
                 return None
             next_order = con.execute(
                 "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM NotesTable"
@@ -2284,7 +2231,7 @@ class DatabaseService:
                 except Exception:
                     pass
             self.last_error = f"新增记事失败: {exc}"
-            self.last_error_kind = "database_io_failed"
+            self.last_error_kind = self._operation_error_kind(exc)
             return None
         finally:
             if con is not None:
@@ -2323,10 +2270,8 @@ class DatabaseService:
             self._ensure_notes_table_on(con)
             self._commit_bound(con)
             con.execute("BEGIN IMMEDIATE")
-            row = con.execute(
-                f"SELECT {self._NOTE_SELECT_COLUMNS} FROM NotesTable WHERE ID=?",
-                (item_id,),
-            ).fetchone()
+            row = next(bounded_rows(con, "NotesTable", self._NOTE_SELECT_COLUMNS,
+                budget=DatabaseMemoryBudget(), suffix="WHERE ID=?", parameters=(item_id,)), None)
             if row is None:
                 con.rollback()
                 self.last_error = f"记事 ID={item_id} 不存在"
@@ -2335,7 +2280,7 @@ class DatabaseService:
             old_note = self._decrypt_note(row)
             if old_note is None:
                 con.rollback()
-                self.last_error_kind = "database_io_failed"
+                self.last_error_kind = self.last_error_kind or "database_io_failed"
                 return False
             if expected is not None and any(
                 field not in expected or expected[field] != old_note[field]
@@ -2387,7 +2332,7 @@ class DatabaseService:
                 enc_updated = self._encrypt(updated_at)
                 if self.last_error:
                     con.rollback()
-                    self.last_error_kind = "database_io_failed"
+                    self.last_error_kind = self.last_error_kind or "database_io_failed"
                     return False
                 cursor = con.execute(
                     "UPDATE NotesTable SET title=?, content=?, updated_at=?, is_favorite=? WHERE ID=?",
@@ -2421,7 +2366,7 @@ class DatabaseService:
                 except Exception:
                     pass
             self.last_error = f"更新记事失败: {exc}"
-            self.last_error_kind = "database_io_failed"
+            self.last_error_kind = self._operation_error_kind(exc)
             return False
         finally:
             if con is not None:
@@ -2481,10 +2426,8 @@ class DatabaseService:
             self._ensure_notes_table_on(con)
             self._commit_bound(con)
             con.execute("BEGIN IMMEDIATE")
-            row = con.execute(
-                f"SELECT {self._NOTE_SELECT_COLUMNS} FROM NotesTable WHERE ID=?",
-                (item_id,),
-            ).fetchone()
+            row = next(bounded_rows(con, "NotesTable", self._NOTE_SELECT_COLUMNS,
+                budget=DatabaseMemoryBudget(), suffix="WHERE ID=?", parameters=(item_id,)), None)
             if row is None:
                 con.rollback()
                 self.last_error = f"记事 ID={item_id} 不存在"
@@ -2493,7 +2436,7 @@ class DatabaseService:
             current = self._decrypt_note(row)
             if current is None:
                 con.rollback()
-                self.last_error_kind = "database_io_failed"
+                self.last_error_kind = self.last_error_kind or "database_io_failed"
                 return False
             if expected is not None and any(
                 field not in expected or expected[field] != current[field]
@@ -2518,7 +2461,7 @@ class DatabaseService:
                 except Exception:
                     pass
             self.last_error = f"删除记事失败: {exc}"
-            self.last_error_kind = "database_io_failed"
+            self.last_error_kind = self._operation_error_kind(exc)
             return False
         finally:
             if con is not None:
@@ -2588,18 +2531,15 @@ class DatabaseService:
         try:
             con = self._connect_bound()
             con.execute("BEGIN")
+            budget = DatabaseMemoryBudget()
             password_rows = (
-                con.execute(
-                    f"SELECT {self._PASSWORD_SELECT_COLUMNS} FROM TTable ORDER BY ID"
-                ).fetchall()
+                bounded_rows(con, "TTable", self._PASSWORD_SELECT_COLUMNS, budget=budget, suffix="ORDER BY ID", retain=True)
                 if scope in {"ALL", "PASSWORDS"}
                 else []
             )
             note_rows = (
-                con.execute(
-                    f"SELECT {self._NOTE_SELECT_COLUMNS} FROM NotesTable "
-                    "ORDER BY sort_order ASC, ID DESC"
-                ).fetchall()
+                bounded_rows(con, "NotesTable", self._NOTE_SELECT_COLUMNS, budget=budget,
+                             suffix="ORDER BY sort_order ASC, ID DESC", retain=True)
                 if scope in {"ALL", "NOTES"}
                 else []
             )
@@ -2659,7 +2599,7 @@ class DatabaseService:
             self.last_error_kind = (
                 "backup_invalid"
                 if isinstance(exc, BackupError)
-                else "database_io_failed"
+                else self._operation_error_kind(exc)
             )
             return {}
         finally:
@@ -2737,10 +2677,9 @@ class DatabaseService:
         try:
             con = self._connect_bound()
             con.execute("BEGIN IMMEDIATE")
+            budget = DatabaseMemoryBudget()
             existing = {}
-            for row in con.execute(
-                f"SELECT {self._PASSWORD_SELECT_COLUMNS} FROM TTable"
-            ).fetchall():
+            for row in bounded_rows(con, "TTable", self._PASSWORD_SELECT_COLUMNS, budget=budget, retain=True):
                 item = self._decrypt_password_row(row)
                 if item is None:
                     raise RuntimeError("密码记录解密失败")
@@ -2770,9 +2709,8 @@ class DatabaseService:
             note_targets = {}
             identical_notes = {}
             if note_items:
-                rows = [self._decrypt_note(row) for row in con.execute(
-                    f"SELECT {self._NOTE_SELECT_COLUMNS} FROM NotesTable"
-                ).fetchall()]
+                rows = [self._decrypt_note(row) for row in bounded_rows(
+                    con, "NotesTable", self._NOTE_SELECT_COLUMNS, budget=budget, retain=True)]
                 if any(row is None for row in rows):
                     raise RuntimeError("记事记录解密失败")
                 identical_notes = backup_identical_note_targets(rows, note_items)
@@ -2929,7 +2867,7 @@ class DatabaseService:
                 except Exception:
                     pass
             self.last_error = f"导入备份失败: {exc}"
-            self.last_error_kind = "database_io_failed"
+            self.last_error_kind = self._operation_error_kind(exc)
             return None
         finally:
             if con is not None:
@@ -3231,11 +3169,22 @@ class DatabaseService:
             return False
 
     @staticmethod
-    def _change_key_file_sha256(path: str) -> str:
+    def _change_key_file_sha256(path: str, *, should_cancel=None) -> str:
         digest = hashlib.sha256()
         with open(path, "rb") as handle:
-            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            size = os.fstat(handle.fileno()).st_size
+            remaining = size
+            while True:
+                check_cancelled(should_cancel)
+                chunk = handle.read(min(COPY_CHUNK_BYTES, remaining + 1))
+                if not chunk:
+                    break
+                remaining -= len(chunk)
+                if remaining < 0:
+                    raise OSError("database grew during checksum")
                 digest.update(chunk)
+            if remaining or os.fstat(handle.fileno()).st_size != size:
+                raise OSError("database changed during checksum")
         return digest.hexdigest()
 
     @staticmethod
@@ -3243,23 +3192,6 @@ class DatabaseService:
         with open(path, "r+b") as handle:
             handle.flush()
             os.fsync(handle.fileno())
-
-    @staticmethod
-    def _verify_encrypted_fields(con, derived_key: bytes) -> None:
-        """Authenticate every field ciphertext without retaining plaintext."""
-
-        for row in con.execute(
-            "SELECT account, password, notes, totp_secret, recovery_codes FROM TTable"
-        ).fetchall():
-            for value in row:
-                if value:
-                    CryptoHelper.decrypt_data(value, derived_key)
-        for row in con.execute(
-            "SELECT title, content, created_at, updated_at FROM NotesTable"
-        ).fetchall():
-            for value in row:
-                if value:
-                    CryptoHelper.decrypt_data(value, derived_key)
 
     def _verify_change_key_database(
         self,
@@ -3269,33 +3201,30 @@ class DatabaseService:
         expected_salt: bytes | None = None,
         expected_derived_key: bytes | None = None,
         expected_file_sha256: str | None = None,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> tuple[bool, bytes | None]:
         """Verify file identity, sqleet key, salt, integrity, and field AEAD."""
 
         con = None
         try:
             if expected_file_sha256 is not None and not hmac.compare_digest(
-                self._change_key_file_sha256(path),
+                self._change_key_file_sha256(path, should_cancel=should_cancel),
                 expected_file_sha256,
             ):
                 return False, None
-            con = sqleet.connect(path, key=password)
-            row = con.execute(
-                "SELECT value FROM _meta WHERE key='salt'"
-            ).fetchone()
-            if (
-                row is None
-                or len(row) != 1
-                or not isinstance(row[0], str)
-            ):
+            check_cancelled(should_cancel)
+            con = connect_database(Path(path).resolve(strict=True).as_uri() + "?mode=ro", key=password, uri=True)
+            derived_key, needs_migration = self._inspect_product_schema(
+                con, password, should_cancel=should_cancel, full_check=True,
+            )
+            if needs_migration:
                 return False, None
-            salt = base64.b64decode(row[0], validate=True)
+            salt = self._read_product_salt(con)
             if expected_salt is not None and not hmac.compare_digest(
                 salt,
                 expected_salt,
             ):
                 return False, None
-            derived_key = CryptoHelper.derive_key(password, salt)
             if (
                 expected_derived_key is not None
                 and not hmac.compare_digest(
@@ -3304,11 +3233,9 @@ class DatabaseService:
                 )
             ):
                 return False, None
-            integrity_rows = con.execute("PRAGMA integrity_check").fetchall()
-            if integrity_rows != [("ok",)]:
-                return False, None
-            self._verify_encrypted_fields(con, derived_key)
             return True, salt
+        except DatabaseOperationCancelled:
+            raise
         except Exception:
             return False, None
         finally:
@@ -3323,9 +3250,14 @@ class DatabaseService:
         database_path: str,
         *,
         purpose: str = "change-key",
+        should_cancel: Callable[[], bool] | None = None,
     ) -> tuple[str, str]:
         """Create and read back an fsynced same-directory encrypted snapshot."""
 
+        check_cancelled(should_cancel)
+        source_size = os.path.getsize(database_path)
+        require_copy_space(os.path.dirname(database_path), source_size,
+                           copies=3 if purpose == "change-key" else 2)
         snapshot_fd, snapshot_path = tempfile.mkstemp(
             prefix=f".{os.path.basename(database_path)}.{purpose}-",
             suffix=".bak",
@@ -3333,10 +3265,10 @@ class DatabaseService:
         )
         os.close(snapshot_fd)
         try:
-            source_hash = self._change_key_file_sha256(database_path)
-            shutil.copy2(database_path, snapshot_path)
+            source_hash = self._change_key_file_sha256(database_path, should_cancel=should_cancel)
+            self._copy_database_file(database_path, snapshot_path, source_size, should_cancel=should_cancel)
             self._fsync_change_key_file(snapshot_path)
-            snapshot_hash = self._change_key_file_sha256(snapshot_path)
+            snapshot_hash = self._change_key_file_sha256(snapshot_path, should_cancel=should_cancel)
             if not hmac.compare_digest(source_hash, snapshot_hash):
                 raise OSError("change-key snapshot readback mismatch")
             return snapshot_path, snapshot_hash
@@ -3346,6 +3278,23 @@ class DatabaseService:
             except OSError:
                 pass
             raise
+
+    @staticmethod
+    def _copy_database_file(source, target, size, *, should_cancel=None):
+        remaining = size
+        with open(source, "rb") as reader, open(target, "wb") as writer:
+            while True:
+                check_cancelled(should_cancel)
+                chunk = reader.read(min(COPY_CHUNK_BYTES, remaining + 1))
+                if not chunk:
+                    break
+                remaining -= len(chunk)
+                if remaining < 0:
+                    raise OSError("database grew during copy")
+                writer.write(chunk)
+            if remaining or os.fstat(reader.fileno()).st_size != size:
+                raise OSError("database changed during copy")
+        shutil.copystat(source, target)
 
     def _restore_change_key_snapshot(
         self,
@@ -3370,13 +3319,15 @@ class DatabaseService:
         try:
             if not os.path.isfile(snapshot_path):
                 return False
+            source_size = os.path.getsize(snapshot_path)
+            require_copy_space(os.path.dirname(database_path), source_size, copies=1)
             candidate_fd, candidate_path = tempfile.mkstemp(
                 prefix=f".{os.path.basename(database_path)}.restore-",
                 suffix=".candidate",
                 dir=os.path.dirname(database_path),
             )
             os.close(candidate_fd)
-            shutil.copy2(snapshot_path, candidate_path)
+            self._copy_database_file(snapshot_path, candidate_path, source_size)
             self._fsync_change_key_file(candidate_path)
             if not hmac.compare_digest(
                 self._change_key_file_sha256(candidate_path),
@@ -3448,6 +3399,7 @@ class DatabaseService:
         *,
         should_cancel: Callable[[], bool] | None = None,
         progress: Callable[[str, int, int], None] | None = None,
+        budget: DatabaseMemoryBudget,
     ):
         """用旧密钥解密全部数据，再用新密钥重新加密（调用方负责 con 的生命周期）
 
@@ -3455,14 +3407,11 @@ class DatabaseService:
         is_favorite / strength / password_changed_at 为明文字段，原样回写。
         """
         # TTable: 用显式列名 SELECT，避免列顺序问题
-        password_rows = con.execute(
-            "SELECT ID, account, password, notes, totp_secret, strength, "
-            "password_changed_at, is_favorite, recovery_codes FROM TTable"
-        ).fetchall()
-        note_rows = con.execute(
-            "SELECT ID, title, content, created_at, updated_at, is_favorite FROM NotesTable"
-        ).fetchall()
-        total = len(password_rows) + len(note_rows)
+        password_rows = bounded_rows(con, "TTable",
+            "ID, account, password, notes, totp_secret, strength, password_changed_at, is_favorite, recovery_codes",
+            budget=budget)
+        note_rows = bounded_rows(con, "NotesTable", "ID, title, content, created_at, updated_at, is_favorite", budget=budget)
+        total = con.execute("SELECT (SELECT COUNT(*) FROM TTable)+(SELECT COUNT(*) FROM NotesTable)").fetchone()[0]
         completed = 0
         self._emit_change_key_progress(
             progress,
@@ -3739,6 +3688,7 @@ class DatabaseService:
                 database_path,
                 old_password,
                 expected_derived_key=old_derived_key,
+                should_cancel=should_cancel,
             )
             if not healthy or old_salt is None:
                 return self._change_key_terminal_result(
@@ -3762,7 +3712,7 @@ class DatabaseService:
                 1,
             )
             snapshot_path, snapshot_sha256 = self._create_change_key_snapshot(
-                database_path
+                database_path, should_cancel=should_cancel,
             )
             self._emit_change_key_progress(
                 progress,
@@ -3774,19 +3724,7 @@ class DatabaseService:
                 return finish_precommit(ChangeKeyStatus.CANCELLED)
 
             con = self._connect_bound()
-            salt_row = con.execute(
-                "SELECT value FROM _meta WHERE key='salt'"
-            ).fetchone()
-            if (
-                salt_row is None
-                or len(salt_row) != 1
-                or not isinstance(salt_row[0], str)
-            ):
-                raise RuntimeError("change-key salt unavailable")
-            transaction_salt = base64.b64decode(
-                salt_row[0],
-                validate=True,
-            )
+            transaction_salt = self._read_product_salt(con)
             if not hmac.compare_digest(transaction_salt, old_salt):
                 raise RuntimeError("change-key salt changed")
 
@@ -3810,13 +3748,11 @@ class DatabaseService:
                 return finish_precommit(ChangeKeyStatus.CANCELLED)
 
             con.execute("BEGIN IMMEDIATE")
-            self._reencrypt_all_data(
-                con,
-                old_derived_key,
-                new_derived_key,
-                should_cancel=should_cancel,
-                progress=progress,
-            )
+            with database_operation(con, should_cancel) as budget:
+                self._reencrypt_all_data(
+                    con, old_derived_key, new_derived_key,
+                    should_cancel=should_cancel, progress=progress, budget=budget,
+                )
             if self._change_key_cancel_requested(should_cancel):
                 raise _ChangeKeyCancelled()
 
@@ -3906,7 +3842,9 @@ class DatabaseService:
                 3,
             )
             return self._change_key_terminal_result(ChangeKeyStatus.SUCCESS)
-        except _ChangeKeyCancelled:
+        except (_ChangeKeyCancelled, DatabaseOperationCancelled):
+            if snapshot_path is None:
+                return self._change_key_terminal_result(ChangeKeyStatus.CANCELLED)
             return finish_precommit(ChangeKeyStatus.CANCELLED)
         except Exception:
             close_connection(rollback=not commit_boundary_crossed)

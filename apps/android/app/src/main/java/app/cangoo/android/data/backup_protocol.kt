@@ -69,6 +69,7 @@ internal data class BackupPayload(
 internal enum class BackupProblem(val text: String) {
     FORMAT("备份格式、字段或编码无效，请检查文件。"),
     LIMIT("备份大小、记录数量或字段长度超出限制。"),
+    MEMORY("当前可用内存不足，请关闭其他任务或选择更小的资料范围后重试。"),
     PASSWORD("备份密码须非空且不超出1024个字符，请检查后重试。"),
     AUTHENTICATION("未能认证备份，请检查密码或文件。"),
     IO("未能读取或写入备份，请重试。"),
@@ -133,7 +134,8 @@ internal object BackupProtocol {
     }
 
     // 调用者持有并关闭流；输出仍开放，以便父层同步、读回和最终发布。
-    fun encrypt(payload: BackupPayload, password: String, output: OutputStream, guard: () -> Unit = {}) = checked {
+    fun encrypt(payload: BackupPayload, password: String, output: OutputStream,
+                memory: BackupMemoryBudget = BackupMemoryBudget(), guard: () -> Unit = {}) = checked {
         guard()
         validatePassword(password)
         validate(payload, exporting = true)
@@ -162,7 +164,7 @@ internal object BackupProtocol {
                 if (header.size + encodedSize > MAX_BYTES) fail(BackupProblem.LIMIT)
                 val expectedContent = BackupContentProof(plaintextBytes, expected.digest())
                 proof = expectedContent
-                val derived = VaultCrypto.deriveKey(password, salt)
+                val derived = memory.temporary(BackupMemoryBudget.KDF_BYTES) { VaultCrypto.deriveKey(password, salt) }
                 key = derived
                 guard()
                 output.write(header, 0, header.size - 2)
@@ -194,8 +196,9 @@ internal object BackupProtocol {
         } finally { expected.reset() }
     }
 
-    fun decrypt(input: InputStream, password: String, guard: () -> Unit = {}): BackupPayload = checked {
-        openDecryption(input, password, guard).use { decryption ->
+    fun decrypt(input: InputStream, password: String, memory: BackupMemoryBudget = BackupMemoryBudget(),
+                guard: () -> Unit = {}): BackupPayload = checked {
+        openDecryption(input, password, guard, memory).use { decryption ->
             // 首遍只认证同一封存密文；在标签通过前不构造记录。
             val discard = ByteArray(8192)
             try {
@@ -205,7 +208,7 @@ internal object BackupProtocol {
                 }
             } finally { discard.fill(0) }
             decryption.input().use { plaintext ->
-                val result = readPayload(plaintext)
+                val result = readPayload(plaintext, decryption.plaintextBytes, memory)
                 plaintext.finish()
                 guard()
                 result
@@ -214,13 +217,14 @@ internal object BackupProtocol {
     }
 
     // 自有导出包只核本次预检的完整字节证明；不向导入或界面交付明文记录。
-    fun verify(input: InputStream, password: String, expected: BackupContentProof, guard: () -> Unit = {}) = checked {
+    fun verify(input: InputStream, password: String, expected: BackupContentProof,
+               memory: BackupMemoryBudget = BackupMemoryBudget(), guard: () -> Unit = {}) = checked {
         val digest = MessageDigest.getInstance("SHA-256")
         val buffer = ByteArray(8192)
         var actual: ByteArray? = null
         try {
             var bytes = 0L
-            openDecryption(input, password, guard).use { decryption ->
+            openDecryption(input, password, guard, memory).use { decryption ->
                 decryption.input().use { plaintext ->
                     while (true) {
                         guard()
@@ -243,17 +247,17 @@ internal object BackupProtocol {
         } finally { buffer.fill(0); actual?.fill(0); digest.reset() }
     }
 
-    private fun openDecryption(input: InputStream, password: String, guard: () -> Unit): Decryption {
+    private fun openDecryption(input: InputStream, password: String, guard: () -> Unit, memory: BackupMemoryBudget): Decryption {
         guard()
         validatePassword(password)
-        val envelope = BackupEnvelope.read(input, guard)
+        val envelope = BackupEnvelope.read(input, guard, memory)
         val nonce = ByteArray(VaultCrypto.NONCE_BYTES)
         var key: ByteArray? = null
         var completed = false
         try {
             repeat(nonce.size) { nonce[it] = envelope.encrypted.byteAt(it).toByte() }
             guard()
-            val derived = VaultCrypto.deriveKey(password, envelope.salt)
+            val derived = memory.temporary(BackupMemoryBudget.KDF_BYTES) { VaultCrypto.deriveKey(password, envelope.salt) }
             key = derived
             guard()
             return Decryption(envelope, derived, nonce, guard).also { completed = true }
@@ -264,13 +268,30 @@ internal object BackupProtocol {
 
     private class Decryption(private val envelope: BackupEnvelope, private val key: ByteArray,
                              private val nonce: ByteArray, private val guard: () -> Unit) : AutoCloseable {
+        val plaintextBytes get() = envelope.encrypted.size - VaultCrypto.NONCE_BYTES - 16
         fun input() = GcmInput(envelope.encrypted.input(nonce.size, guard), key, nonce, guard)
         override fun close() { key.fill(0); nonce.fill(0); envelope.salt.fill(0); envelope.encrypted.erase() }
     }
 
     // 纯结构入口供公开检查复用；产品导入须先通过decrypt认证。
-    fun readPayload(input: InputStream): BackupPayload = checked {
-        val reader = reader(input)
+    fun readPayload(input: InputStream, memory: BackupMemoryBudget = BackupMemoryBudget()): BackupPayload = checked {
+        val packet = BackupPacketBytes(memory)
+        val buffer = ByteArray(8192)
+        try {
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                if (count > 0) packet.write(buffer, 0, count)
+            }
+            packet.seal()
+            readPayload(packet.input(guard = {}), packet.size, memory)
+        } finally { buffer.fill(0); packet.erase() }
+    }
+
+    internal fun readPayload(input: InputStream, byteCount: Int, memory: BackupMemoryBudget = BackupMemoryBudget()): BackupPayload = checked {
+        if (byteCount !in 1..MAX_BYTES) fail(if (byteCount == 0) BackupProblem.FORMAT else BackupProblem.LIMIT)
+        memory.reserve(BackupMemoryBudget.textPeak(byteCount.toLong()))
+        val reader = reader(input, byteCount)
         var version: Int? = null
         var exportTime: String? = null
         var scope: BackupScope? = null
@@ -286,8 +307,8 @@ internal object BackupProtocol {
                     val value = reader.string()
                     scope = BackupScope.entries.firstOrNull { it.name == value } ?: fail()
                 }
-                "passwords" -> passwords = reader.items(remaining) { readPassword(reader) }.also { remaining -= it.size }
-                "notes" -> notes = reader.items(remaining) { readNote(reader) }.also { remaining -= it.size }
+                "passwords" -> passwords = reader.items(remaining) { memory.reserve(BackupMemoryBudget.RECORD_BYTES); readPassword(reader, memory) }.also { remaining -= it.size }
+                "notes" -> notes = reader.items(remaining) { memory.reserve(BackupMemoryBudget.RECORD_BYTES); readNote(reader) }.also { remaining -= it.size }
                 else -> fail()
             }
         }
@@ -303,7 +324,7 @@ internal object BackupProtocol {
         override fun toString() = "ParsedPassword(内容已隐藏)"
     }
 
-    private fun readPassword(reader: JsonReader): ParsedPassword {
+    private fun readPassword(reader: JsonReader, memory: BackupMemoryBudget): ParsedPassword {
         var platform: String? = null
         var account: String? = null
         var password: String? = null
@@ -325,7 +346,7 @@ internal object BackupProtocol {
                 "password_changed_at" -> changed = reader.nullableString()
                 "updated_at" -> updated = reader.string()
                 "is_favorite" -> favorite = reader.boolean()
-                "recovery_codes" -> codes = reader.items(128) { readRecoveryCode(reader) }
+                "recovery_codes" -> codes = reader.items(128) { memory.reserve(BackupMemoryBudget.RECOVERY_CODE_BYTES); readRecoveryCode(reader) }
                 else -> fail()
             }
         }
@@ -401,22 +422,26 @@ internal object BackupProtocol {
         }
     }
 
-    internal fun encodePayload(payload: BackupPayload, guard: () -> Unit): ByteArray = checked {
+    internal fun encodePayload(payload: BackupPayload, guard: () -> Unit, memory: BackupMemoryBudget = BackupMemoryBudget()): ByteArray = checked {
         guard()
         validate(payload, exporting = true)
-        val output = object : ByteArrayOutputStream() {
-            private fun bound(length: Int) {
-                guard()
-                if (count.toLong() + length > MAX_BYTES) fail(BackupProblem.LIMIT)
-            }
-            override fun write(value: Int) { bound(1); super.write(value) }
-            override fun write(bytes: ByteArray, offset: Int, length: Int) { bound(length); super.write(bytes, offset, length) }
-            fun erase() { buf.fill(0); reset() }
-        }
+        val output = BackupPacketBytes(memory)
         try {
-            writePayload(payload, output)
+            writePayload(payload, object : OutputStream() {
+                override fun write(value: Int) { guard(); output.write(value) }
+                override fun write(bytes: ByteArray, offset: Int, length: Int) { guard(); output.write(bytes, offset, length) }
+            })
             guard()
-            output.toByteArray()
+            output.seal()
+            memory.reserve(output.size.toLong())
+            val result = ByteArray(output.size)
+            try {
+                output.input(guard = guard).use { input ->
+                    var position = 0
+                    while (position < result.size) { val count = input.read(result, position, result.size - position); check(count > 0); position += count }
+                }
+                guard(); result
+            } catch (failure: Exception) { result.fill(0); throw failure }
         } finally { output.erase() }
     }
 
@@ -458,8 +483,8 @@ internal object BackupProtocol {
         writer.flush()
     }
 
-    private fun reader(input: InputStream): JsonReader {
-        val decoded = PushbackReader(InputStreamReader(LimitedInput(input),
+    private fun reader(input: InputStream, byteCount: Int): JsonReader {
+        val decoded = PushbackReader(InputStreamReader(LimitedInput(input, byteCount),
             Charsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT).onUnmappableCharacter(CodingErrorAction.REPORT)), 1)
         val first = decoded.read()
         // Gson即使在严格模式也跳过开头BOM；Windows的UTF-8字符串JSON入口拒绝它。
@@ -606,13 +631,13 @@ internal object BackupProtocol {
         return decoded
     }
 
-    private class LimitedInput(private val source: InputStream) : InputStream() {
+    private class LimitedInput(private val source: InputStream, private val maximum: Int) : InputStream() {
         private var count = 0
-        override fun read(): Int = source.read().also { if (it >= 0 && ++count > MAX_BYTES) fail(BackupProblem.LIMIT) }
+        override fun read(): Int = source.read().also { if (it >= 0 && ++count > maximum) fail(BackupProblem.LIMIT) }
         override fun read(bytes: ByteArray, offset: Int, length: Int): Int {
             if (length == 0) return 0
-            return source.read(bytes, offset, minOf(length, MAX_BYTES - count + 1)).also {
-                if (it > 0) { count += it; if (count > MAX_BYTES) fail(BackupProblem.LIMIT) }
+            return source.read(bytes, offset, minOf(length, maximum - count + 1)).also {
+                if (it > 0) { count += it; if (count > maximum) fail(BackupProblem.LIMIT) }
             }
         }
     }

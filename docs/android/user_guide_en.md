@@ -1,8 +1,6 @@
-# Cangoo for Android 1.0.0 — User Guide
+# Cangoo for Android 1.0.1 — User Guide
 
 [简体中文](user_guide_zh.md) · [Project home](../../README.md) · [Release notes](../../release_notes.md) · [Third-party sources and licenses](../../third_party/android/README.md)
-
-
 
 ## First use and your first vault
 
@@ -76,16 +74,16 @@ If the file picker does not show a file, browse to its saved folder through the 
 ## Send or receive from a nearby device
 
 1. Unlock the intended vault on each device and open Settings → Device transfer. Choose Send data on one and Receive data on the other, using the same connection method. The vault names do not need to match.
-2. For LAN, connect both devices to the same Wi-Fi or to a hotspot turned on manually on one device. If a Windows device needs permission, choose Allow local device connections there and confirm its system prompt. For Bluetooth Classic, pair in system settings first, keep Bluetooth on and allow connection permissions when prompted.
-3. The receiver chooses Wait to receive (Wait for sender on Windows) first. Once the receiver is waiting, the sender chooses Find receiving devices (Find nearby devices on Windows) and selects it.
-4. Compare all three groups of numbers on both screens. Confirm on both devices only if they match; cancel if they differ.
-5. The sender chooses which data to transfer and selects Prepare data (Confirm contents on Windows).
-6. The receiver checks the vaults, direction and item counts, then chooses Accept this transfer (Accept contents on Windows). After acceptance, the sender chooses Start sending (Start transfer on Windows).
-7. After complete receipt and validation, the receiver compares differences and confirms import as described above. The sender may now leave. Receipt does not mean the data has been imported into the vault.
+2. For LAN, connect both devices to the same Wi-Fi or to a hotspot turned on manually on one device. If Windows needs permission, choose Allow local device connections there and confirm its system prompt. For Bluetooth Classic, pair in system settings first, keep Bluetooth on and allow connection permissions when prompted.
+3. The receiver chooses Wait to receive (Wait for sender on Windows) to show an 8-digit temporary pairing code. The sender chooses Find receiving devices (Find nearby devices on Windows), selects the receiver and enters its current code, including any leading zeros. Choose Connect device (Pair devices on Windows). The code expires after 10 minutes or successful pairing. Starting a new receiving session generates a new code.
+4. After the code is verified, the receiver checks the other device and chooses Allow receiving (Allow sending on Windows) once. Device names are for recognition only. The sender waits for this approval.
+5. The sender selects the data range and chooses Send this batch (Send contents on Windows). The receiver automatically receives this batch without another confirmation.
+6. After complete receipt and validation, the connection closes. The receiver compares differences and confirms import as described above. The sender may now leave. Receipt does not mean the data has been imported into the vault.
 
-If a LAN device is not found, the sender can expand Connect manually, enter an IPv4 address from the receiver’s waiting screen without a port, and choose Connect device. If connection still fails, check that the receiver is still waiting and check the network or system pairing. You can also try the other connection method.
+If a LAN device is not found, expand Connect manually on the sender, enter an IPv4 address from the receiver’s waiting screen without a port and choose Find device. Enter the pairing code after the device is found. If connection still fails, check that the receiver is waiting and check the network or system pairing. You can also try the other connection method.
+If pairing fails, check the current code and retry on the sender; the receiver keeps waiting. Code expiry, receiver rejection, disconnection after pairing or cancellation ends this session. Start receiving again and use the new code; the app does not reconnect automatically. Both apps must support temporary pairing codes. If the other device shows no 8-digit code, update its app first. Existing encrypted backup files can still be exported and imported in the usual way.
 A transfer sends data in one direction; it does not automatically make both vaults identical. The sending vault stays unchanged, and existing destination records not included in this transfer are not deleted. Master passwords, app settings and quick-unlock settings are not transferred.
-Idle-lock and lock-on-leave are temporarily paused during transfer and validation. Keep the apps in the foreground where possible. Locking the phone or vault, switching vaults or quitting ends the transfer. The idle timer restarts afterwards and normal locking applies during comparison. After interruption or failed validation, start waiting and connect again, then check the new verification numbers. The transfer does not resume automatically.
+Normal locking rules apply while entering the code, waiting for approval and preparing data. Idle-lock and lock-on-leave are temporarily paused during transfer and complete validation. Keep the apps in the foreground where possible. Locking the phone or vault, switching vaults or quitting ends the transfer. The idle timer restarts afterwards and normal locking applies during comparison. Failed validation does not open import; start a new transfer.
 
 ## Manage vaults and change the master password
 

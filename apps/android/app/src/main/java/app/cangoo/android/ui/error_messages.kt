@@ -44,6 +44,7 @@ internal fun BackupStoreProblem.uiText(): UiText = UiText(when (this) {
 internal fun BackupProblem.uiText(): UiText = UiText(when (this) {
     BackupProblem.FORMAT -> R.string.backup_error_format
     BackupProblem.LIMIT -> R.string.backup_error_limit
+    BackupProblem.MEMORY -> R.string.backup_error_memory
     BackupProblem.PASSWORD -> R.string.backup_error_password
     BackupProblem.AUTHENTICATION -> R.string.backup_error_authentication
     BackupProblem.IO -> R.string.backup_error_io

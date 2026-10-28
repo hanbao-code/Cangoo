@@ -1,4 +1,4 @@
-"""本地直传的有界帧、SAS认证和单次接收；不持有库权限或系统通道。"""
+"""本地直传的短码认证、有界帧和单次接收；不持有库权限或系统通道。"""
 from __future__ import annotations
 
 import base64
@@ -15,6 +15,8 @@ from Crypto.Hash import SHA256
 from Crypto.Protocol import DH, HPKE
 from Crypto.Protocol.KDF import HKDF
 from Crypto.PublicKey import ECC
+# 固定纯Python后端；发行包排除会搜索旧OpenSSL DLL的可选后端。
+import srp._pysrp as srp
 
 
 MAX_PAYLOAD = 64 * 1024 * 1024
@@ -25,6 +27,30 @@ MAX_JSON = 16_384
 MAX_RECORDS = 100_000
 _ID = re.compile(r"[0-9a-f]{32}\Z")
 _DIGEST = re.compile(r"[0-9a-f]{64}\Z")
+_PAIRING_CODE = re.compile(r"[0-9]{8}\Z")
+_SRP_SUITE = "srp6a-3072-sha256"
+_SRP_IDENTITY = b"CANGOO_DIRECT_PAIR_V2"
+# RFC5054附录A的3072位组；只固定参数，SRP运算交给上游实现。
+_SRP_N_HEX = (
+    "FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD129024E08"
+    "8A67CC74020BBEA63B139B22514A08798E3404DDEF9519B3CD3A431B"
+    "302B0A6DF25F14374FE1356D6D51C245E485B576625E7EC6F44C42E9"
+    "A637ED6B0BFF5CB6F406B7EDEE386BFB5A899FA5AE9F24117C4B1FE6"
+    "49286651ECE45B3DC2007CB8A163BF0598DA48361C55D39A69163FA8"
+    "FD24CF5F83655D23DCA3AD961C62F356208552BB9ED529077096966D"
+    "670C354E4ABC9804F1746C08CA18217C32905E462E36CE3BE39E772C"
+    "180E86039B2783A2EC07A28FB5C55DF06F4C52C9DE2BCBF695581718"
+    "3995497CEA956AE515D2261898FA051015728E5A8AAAC42DAD33170D"
+    "04507A33A85521ABDF1CBA64ECFB850458DBEF0A8AEA71575D060C7D"
+    "B3970F85A6E1E4C7ABF5AE8CDB0933D71E8C94E04A25619DCEE3D226"
+    "1AD2EE6BF12FFA06D98A0864D87602733EC86A64521F2B18177B200C"
+    "BBE117577A615D6C770988C0BAD946E208E24FA074E5AB3143DB5BFC"
+    "E0FD108E4B82D120A93AD2CAFFFFFFFFFFFFFFFF"
+)
+_SRP_N = int(_SRP_N_HEX, 16)
+_SRP_OPTIONS = dict(hash_alg=srp.SHA256, ng_type=srp.NG_CUSTOM, n_hex=_SRP_N_HEX, g_hex="5")
+srp.rfc5054_enable(True)
+srp.no_username_in_x(False)
 
 
 class DirectTransferError(ValueError):
@@ -78,6 +104,16 @@ def _unb64(value: Any, length: int = 32) -> bytes:
         raise DirectTransferError("INVALID") from None
     _check(len(result) == length and _b64(result) == value)
     return result
+
+
+def _srp_public(value: Any) -> bytes:
+    result = _unb64(value, 384)
+    _check(0 < int.from_bytes(result, "big") < _SRP_N, "AUTH")
+    return result
+
+
+def _srp_wire(value: bytes) -> str:
+    return _b64(int.from_bytes(value, "big").to_bytes(384, "big"))
 
 
 def _canonical(value: dict) -> bytes:
@@ -150,15 +186,16 @@ def _operation(method):
 class DirectTransferSession:
     """同一实例由一个串行控制器调用；事件中的完整缓冲交调用方独占。"""
 
-    def __init__(self, role: str, device_id: str, device_name: str):
+    def __init__(self, role: str, device_id: str, device_name: str, pairing_code: str):
         _check(role in ("SENDER", "RECEIVER") and type(role) is str)
         _check(type(device_id) is str and _ID.fullmatch(device_id) is not None)
         _name(device_name, 64, 256)
+        _check(type(pairing_code) is str and _PAIRING_CODE.fullmatch(pairing_code) is not None)
         self.role = role
         self.device_id = device_id
         self.device_name = device_name
         self.phase = "CONNECTING"
-        self.sas: list[int] | None = None
+        self.approved = False
         self.peer_id: str | None = None
         self.peer_name: str | None = None
         self.sent_bytes = 0
@@ -169,14 +206,11 @@ class DirectTransferSession:
         self._length: int | None = None
         self._hpke = ECC.generate(curve="Curve25519")
         self._peer_hpke = None
-        self._peer_hpke_text: str | None = None
-        self._sas_key = None
-        self._peer_sas_text: str | None = None
-        self._start: bytes | None = None
-        self._commitment: bytes | None = None
+        self._pairing_code: str | None = pairing_code
+        self._pake = None
+        self._transcript: list[bytes] = []
+        self._binding: bytes | None = None
         self._shared: bytes | None = None
-        self._confirmed = False
-        self._peer_confirmed = False
         self._ready_received = False
         self._tx = None
         self._rx = None
@@ -201,13 +235,13 @@ class DirectTransferSession:
         self._wire.clear()
         self._length = None
         self._payload = None
-        self._hpke = self._peer_hpke = self._sas_key = self._shared = None
+        self._hpke = self._peer_hpke = self._shared = self._pake = None
         self._tx = self._rx = self._rx_enc = None
-        self._start = self._commitment = self._peer_sas_text = self._peer_hpke_text = None
-        self.sas = None
+        self._pairing_code = self._binding = None
+        self._transcript.clear()
         self._offer = None
         self._digest = None
-        self._confirmed = self._peer_confirmed = self._ready_received = False
+        self.approved = self._ready_received = False
         if self.phase != "FAILED":
             self.phase = "CLOSED"
 
@@ -219,25 +253,23 @@ class DirectTransferSession:
             return DirectTransferResult()
         self._session = secrets.token_hex(16)
         self._step = "WELCOME"
-        return DirectTransferResult([_handshake(self._identity("hello"))])
+        hello = self._identity("hello")
+        self._transcript.append(_canonical(hello))
+        return DirectTransferResult([_handshake(hello)])
 
     def _identity(self, kind: str) -> dict:
-        return {"type": kind, "version": 1, "session": self._session, "device": self.device_id,
-                "name": self.device_name, "hpke": _b64(self._hpke.public_key().export_key(format="raw"))}
-
-    def _start_message(self) -> dict:
-        sender, receiver = self._participants()
-        return {"type": "start", "version": 1, "session": self._session, "from": sender, "to": receiver,
-                "method": "m.sas.v1", "keyAgreement": "curve25519-hkdf-sha256", "hash": "sha256",
-                "mac": "hkdf-hmac-sha256.v2", "sas": "decimal"}
+        return {"type": kind, "version": 2, "session": self._session, "device": self.device_id,
+                "name": self.device_name, "hpke": _b64(self._hpke.public_key().export_key(format="raw")),
+                "suite": _SRP_SUITE}
 
     def _participants(self) -> tuple[str, str]:
         return (self.device_id, self.peer_id) if self.role == "SENDER" else (self.peer_id, self.device_id)
 
     def _take_identity(self, value: dict, kind: str) -> None:
-        _fields(value, "type", "version", "session", "device", "name", "hpke")
+        _check(type(value.get("version")) is int)
+        extra = () if value["version"] == 1 else ("suite", "salt", "B") if kind == "welcome" else ("suite",)
+        _fields(value, "type", "version", "session", "device", "name", "hpke", *extra)
         _check(value["type"] == kind)
-        _integer(value["version"], 1, 1)
         _check(type(value["session"]) is str and _ID.fullmatch(value["session"]) is not None)
         if self._session is not None:
             _check(value["session"] == self._session, "SEQUENCE")
@@ -251,7 +283,8 @@ class DirectTransferSession:
             _check(any(shared), "AUTH")
         except ValueError:
             raise DirectTransferError("AUTH") from None
-        self._peer_hpke_text = value["hpke"]
+        _check(value["version"] == 2, "UPGRADE_REQUIRED")
+        _check(value["suite"] == _SRP_SUITE, "UPGRADE_REQUIRED")
         self._session = value["session"]
         self.peer_id, self.peer_name = value["device"], value["name"]
 
@@ -301,102 +334,88 @@ class DirectTransferSession:
             return
         if self._step == "HELLO":
             self._take_identity(value, "hello")
-            self._step = "START"
-            result.outbound.append(_handshake(self._identity("welcome")))
+            self._transcript.append(_canonical(value))
+            salt, verifier = srp.create_salted_verification_key(
+                _SRP_IDENTITY, self._pairing_code.encode("ascii"), salt_len=16, **_SRP_OPTIONS)
+            _check(1 <= len(salt) <= 16, "AUTH")
+            self._pake = srp.Verifier(_SRP_IDENTITY, salt, verifier, **_SRP_OPTIONS)
+            self._pairing_code = None
+            _, public = self._pake.get_challenge()
+            welcome = {**self._identity("welcome"), "salt": _b64(salt), "B": _srp_wire(public)}
+            self._transcript.append(_canonical(welcome))
+            self._step = "SRP_CLIENT"
+            self.phase = "PAIRING"
+            result.outbound.append(_handshake(welcome))
             result.events.append(DirectTransferEvent("peer", {"deviceId": self.peer_id, "name": self.peer_name}))
             return
         _check(value.get("session") == self._session, "SEQUENCE")
         if self._step == "WELCOME":
             self._take_identity(value, "welcome")
-            start = self._start_message()
-            self._start = _canonical(start)
-            self._step = "ACCEPT"
-            result.outbound.append(_handshake(start))
+            salt_text = value["salt"]
+            _check(type(salt_text) is str and 2 <= len(salt_text) <= 22)
+            salt = _unb64(salt_text, len(salt_text) * 6 // 8)
+            public = _srp_public(value["B"])
+            self._pake = srp.User(_SRP_IDENTITY, self._pairing_code.encode("ascii"), **_SRP_OPTIONS)
+            self._pairing_code = None
+            _, ours = self._pake.start_authentication()
+            proof = self._pake.process_challenge(salt, public)
+            _check(proof is not None, "AUTH")
+            client = {"type": "srp_client", "session": self._session, "A": _srp_wire(ours), "proof": _b64(proof)}
+            self._transcript.extend((_canonical(value), _canonical(client)))
+            self._set_binding()
+            self._step = "SRP_SERVER"
+            self.phase = "PAIRING"
+            result.outbound.append(_handshake(client))
             result.events.append(DirectTransferEvent("peer", {"deviceId": self.peer_id, "name": self.peer_name}))
-        elif self._step == "START":
-            _check(value == self._start_message() and type(value.get("version")) is int)
-            self._start = _canonical(value)
-            self._sas_key = ECC.generate(curve="Curve25519")
-            public = _b64(self._sas_key.public_key().export_key(format="raw"))
-            commitment = hashlib.sha256(public.encode("ascii") + self._start).digest()
-            self._step = "SENDER_KEY"
-            result.outbound.append(_handshake({"type": "accept", "session": self._session, "commitment": _b64(commitment)}))
-        elif self._step == "ACCEPT":
-            _fields(value, "type", "session", "commitment")
-            _check(value["type"] == "accept", "SEQUENCE")
-            self._commitment = _unb64(value["commitment"])
-            self._sas_key = ECC.generate(curve="Curve25519")
-            self._step = "RECEIVER_KEY"
-            result.outbound.append(self._key_frame())
-        elif self._step in ("SENDER_KEY", "RECEIVER_KEY"):
-            _fields(value, "type", "session", "key")
-            _check(value["type"] == "key", "SEQUENCE")
-            public = _unb64(value["key"])
-            try:
-                peer_key = DH.import_x25519_public_key(public)
-            except ValueError:
-                raise DirectTransferError("AUTH") from None
-            if self.role == "SENDER":
-                expected = hashlib.sha256(value["key"].encode("ascii") + self._start).digest()
-                _check(hmac.compare_digest(expected, self._commitment), "AUTH")
-            self._peer_sas_text = value["key"]
-            try:
-                self._shared = bytes(DH.key_agreement(eph_priv=self._sas_key, eph_pub=peer_key, kdf=lambda raw: raw))
-            except ValueError:
-                raise DirectTransferError("AUTH") from None
-            _check(len(self._shared) == 32 and any(self._shared), "AUTH")
-            if self.role == "RECEIVER":
-                result.outbound.append(self._key_frame())
-            self._set_sas()
-            self._step = "MAC"
-            self.phase = "SAS"
-            result.events.append(DirectTransferEvent("sas", {"numbers": list(self.sas)}))
-        elif self._step == "MAC":
-            _fields(value, "type", "session", "keys", "mac")
-            _check(value["type"] == "mac" and not self._peer_confirmed, "SEQUENCE")
-            key_id = "hpke:" + self.peer_id
-            _fields(value["mac"], key_id)
-            expected = self._mac(self.peer_id, self.device_id, key_id, self._peer_hpke_text)
-            expected_ids = self._mac(self.peer_id, self.device_id, "KEY_IDS", key_id)
-            _check(hmac.compare_digest(_unb64(value["mac"][key_id]), expected)
-                   and hmac.compare_digest(_unb64(value["keys"]), expected_ids), "AUTH")
-            self._peer_confirmed = True
+        elif self._step == "SRP_CLIENT":
+            _check(value.get("type") == "srp_client", "SEQUENCE")
+            _fields(value, "type", "session", "A", "proof")
+            public = _srp_public(value["A"])
+            proof = self._pake.verify_session(_unb64(value["proof"]), public)
+            _check(proof is not None and self._pake.authenticated(), "AUTH")
+            self._shared = self._pake.get_session_key()
+            self._pake = None
+            self._transcript.append(_canonical(value))
+            self._set_binding()
+            self._step = "BIND"
+            result.outbound.append(_handshake({"type": "srp_server", "session": self._session,
+                "proof": _b64(proof), "mac": _b64(self._binding_mac("RECEIVER"))}))
+        elif self._step == "SRP_SERVER":
+            _check(value.get("type") == "srp_server", "SEQUENCE")
+            _fields(value, "type", "session", "proof", "mac")
+            self._pake.verify_session(_unb64(value["proof"]))
+            _check(self._pake.authenticated(), "AUTH")
+            self._shared = self._pake.get_session_key()
+            self._pake = None
+            _check(hmac.compare_digest(_unb64(value["mac"]), self._binding_mac("RECEIVER")), "AUTH")
+            result.outbound.append(_handshake({"type": "bind", "session": self._session,
+                "mac": _b64(self._binding_mac("SENDER"))}))
+            self._activate(result)
+        elif self._step == "BIND":
+            _check(value.get("type") == "bind", "SEQUENCE")
+            _fields(value, "type", "session", "mac")
+            _check(hmac.compare_digest(_unb64(value["mac"]), self._binding_mac("SENDER")), "AUTH")
             self._activate(result)
         else:
             raise DirectTransferError("SEQUENCE")
 
-    def _key_frame(self) -> bytes:
-        return _handshake({"type": "key", "session": self._session,
-                           "key": _b64(self._sas_key.public_key().export_key(format="raw"))})
+    def _set_binding(self) -> None:
+        self._binding = hashlib.sha256(b"".join(len(item).to_bytes(4, "big") + item for item in self._transcript)).digest()
+        self._transcript.clear()
 
-    def _set_sas(self) -> None:
-        sender, receiver = self._participants()
-        public = _b64(self._sas_key.public_key().export_key(format="raw"))
-        keys = (public, self._peer_sas_text) if self.role == "SENDER" else (self._peer_sas_text, public)
-        info = "|".join(("CANGOO_DIRECT_SAS_V1", sender, keys[0], receiver, keys[1], self._session))
-        b = HKDF(self._shared, 5, b"", SHA256, context=info.encode("ascii"))
-        self.sas = [(b[0] << 5 | b[1] >> 3) + 1000,
-                    ((b[1] & 7) << 10 | b[2] << 2 | b[3] >> 6) + 1000,
-                    ((b[3] & 63) << 7 | b[4] >> 1) + 1000]
-
-    def _mac(self, origin: str, target: str, key_id: str, value: str) -> bytes:
-        info = "|".join(("CANGOO_DIRECT_MAC_V1", origin, target, self._session, key_id))
-        key = HKDF(self._shared, 32, b"", SHA256, context=info.encode("ascii"))
-        return hmac.new(key, value.encode("ascii"), hashlib.sha256).digest()
+    def _binding_mac(self, role: str) -> bytes:
+        key = HKDF(self._shared, 32, self._binding, SHA256,
+                   context=("CANGOO_DIRECT_BIND_V2|" + role).encode("ascii"))
+        return hmac.new(key, self._binding, hashlib.sha256).digest()
 
     @_operation
-    def confirm_sas(self) -> DirectTransferResult:
-        if self._confirmed:
+    def approve_peer(self) -> DirectTransferResult:
+        _check(self.role == "RECEIVER" and self.authenticated, "SEQUENCE")
+        if self.approved:
             return DirectTransferResult()
-        _check(self.phase == "SAS" and self.sas is not None, "SEQUENCE")
-        self._confirmed = True
-        key_id = "hpke:" + self.device_id
-        public = _b64(self._hpke.public_key().export_key(format="raw"))
-        message = {"type": "mac", "session": self._session,
-                   "keys": _b64(self._mac(self.device_id, self.peer_id, "KEY_IDS", key_id)),
-                   "mac": {key_id: _b64(self._mac(self.device_id, self.peer_id, key_id, public))}}
-        result = DirectTransferResult([_handshake(message)])
-        self._activate(result)
+        _check(self.phase == "WAIT_APPROVAL", "SEQUENCE")
+        result = DirectTransferResult()
+        self._control({"type": "approved"}, outgoing=True, result=result)
         return result
 
     def _direction(self, outgoing: bool) -> tuple[str, str, str, int]:
@@ -406,22 +425,21 @@ class DirectTransferSession:
 
     def _info(self, outgoing: bool) -> bytes:
         origin, target, direction, _ = self._direction(outgoing)
-        return "|".join(("CANGOO_DIRECT_HPKE_V1", self._session, origin, target, direction)).encode("ascii")
+        return "|".join(("CANGOO_DIRECT_HPKE_V2", self._session, origin, target, direction, self._binding.hex())).encode("ascii")
 
     def _aad(self, outgoing: bool, seq: int, enc: bytes) -> bytes:
         direction = self._direction(outgoing)[3]
-        return (b"CANGOO_DIRECT_FRAME_V1|" + bytes.fromhex(self._session) + bytes([direction])
+        return (b"CANGOO_DIRECT_FRAME_V2|" + bytes.fromhex(self._session) + bytes([direction])
                 + seq.to_bytes(8, "big") + enc)
 
     def _activate(self, result: DirectTransferResult) -> None:
-        if not (self._confirmed and self._peer_confirmed) or self._tx is not None:
-            return
+        _check(self._tx is None, "SEQUENCE")
         self._tx = HPKE.new(receiver_key=self._peer_hpke, sender_key=self._hpke,
                             aead_id=HPKE.AEAD.AES256_GCM, info=self._info(True))
         self._step = "READY"
         self.phase = "WAIT_READY"
         result.outbound.append(self._seal_control({"type": "ready"}))
-        self._shared = self._sas_key = self._start = self._commitment = None
+        self._shared = self._pake = None
 
     def _seal(self, plaintext: bytes) -> bytes:
         _check(self._tx is not None and self._tx_seq < 2 ** 64, "SEQUENCE")
@@ -459,7 +477,7 @@ class DirectTransferSession:
                 _fields(value, "type")
                 _check(value["type"] == "ready" and self.phase == "WAIT_READY", "SEQUENCE")
                 self._ready_received = True
-                self.phase = "AUTHENTICATED"
+                self.phase = "WAIT_APPROVAL"
                 result.events.append(DirectTransferEvent("authenticated"))
             else:
                 self._control(value, outgoing=False, result=result)
@@ -479,7 +497,7 @@ class DirectTransferSession:
 
     @_operation
     def send_message(self, message: dict) -> DirectTransferResult:
-        _check(self.authenticated, "SEQUENCE")
+        _check(self.approved, "SEQUENCE")
         _check(type(message) is dict and message.get("type") in ("metadata", "offer", "accept", "start", "finish"))
         result = DirectTransferResult()
         self._control(message, outgoing=True, result=result)
@@ -498,10 +516,20 @@ class DirectTransferSession:
                 result.events.append(DirectTransferEvent("cancelled"))
             self.close()
             return
+        if kind == "approved":
+            _fields(value, "type")
+            _check(self.authenticated and origin == "RECEIVER" and self.phase == "WAIT_APPROVAL", "SEQUENCE")
+            self.approved = True
+            self.phase = "READY"
+            if outgoing:
+                result.outbound.append(self._seal_control(value))
+            result.events.append(DirectTransferEvent("approved"))
+            return
+        _check(self.approved, "SEQUENCE")
         if kind == "metadata":
             _fields(value, "type", "vaultName")
             _name(value["vaultName"], 256, 1024)
-            _check(self.phase == "AUTHENTICATED", "SEQUENCE")
+            _check(self.phase == "READY", "SEQUENCE")
             _check(not (self._metadata_sent if outgoing else self._metadata_received), "SEQUENCE")
             if outgoing:
                 self._metadata_sent = True
@@ -509,7 +537,7 @@ class DirectTransferSession:
                 self._metadata_received = True
         elif kind == "offer":
             _fields(value, "type", "scope", "byteCount", "passwordCount", "noteCount", "sha256")
-            _check(origin == "SENDER" and self.phase == "AUTHENTICATED"
+            _check(origin == "SENDER" and self.phase == "READY"
                    and self._metadata_sent and self._metadata_received, "SEQUENCE")
             _check(value["scope"] in ("ALL", "PASSWORDS", "NOTES"))
             _integer(value["byteCount"], 1, MAX_PAYLOAD, "LIMIT")

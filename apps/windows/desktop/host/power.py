@@ -363,14 +363,27 @@ class PowerLifecycle(QObject):
         self.unregistration_count = 0
         self._registration_handle = 0
         self._registration_hwnd = 0
+        self._registration_available = False
+
+    def is_registered_for(self, hwnd: int) -> bool:
+        return bool(
+            self._registration_available
+            and self.registration_active
+            and hwnd == self._registration_hwnd
+        )
 
     def register_window(self, hwnd: int) -> bool:
         """Opt an HWND into suspend/resume delivery, including Modern Standby."""
 
-        hwnd = int(hwnd)
-        if not self.registration_supported or hwnd <= 0:
+        if not self.registration_supported:
+            self._registration_available = False
+            self.registration_error = 50
             return False
-        if self.registration_active and self._registration_hwnd == hwnd:
+        if type(hwnd) is not int or not 0 < hwnd < 1 << (ctypes.sizeof(ctypes.c_void_p) * 8):
+            self._registration_available = False
+            self.registration_error = 87
+            return False
+        if self.is_registered_for(hwnd):
             return True
         if self.registration_active and not self.unregister_window():
             return False
@@ -389,23 +402,25 @@ class PowerLifecycle(QObject):
                 wintypes.DWORD(DEVICE_NOTIFY_WINDOW_HANDLE),
             )
         except (AttributeError, OSError):
-            self.registration_error = int(ctypes.get_last_error())
+            self.registration_error = int(ctypes.get_last_error()) or 31
             return False
 
         self._registration_handle = int(handle or 0)
         if not self._registration_handle:
-            self.registration_error = int(ctypes.get_last_error())
+            self.registration_error = int(ctypes.get_last_error()) or 31
             return False
 
         self._registration_hwnd = hwnd
         self.registration_error = 0
         self.registration_active = True
+        self._registration_available = True
         self.registration_count += 1
         return True
 
     def unregister_window(self) -> bool:
         """Cancel the HWND subscription during the explicit exit path."""
 
+        self._registration_available = False
         if not self.registration_active:
             return True
         try:
@@ -423,7 +438,7 @@ class PowerLifecycle(QObject):
             succeeded = False
 
         if not succeeded:
-            self.registration_error = int(ctypes.get_last_error())
+            self.registration_error = int(ctypes.get_last_error()) or 31
             return False
 
         self._registration_handle = 0

@@ -53,14 +53,17 @@ internal class DirectTransferPeer internal constructor(
     val channel: DirectTransferChannel,
     internal val address: InetSocketAddress? = null,
     internal val bluetoothDevice: BluetoothDevice? = null,
+    val legacy: Boolean = false,
 ) {
-    val key: String get() = "$channel/$id/${address?.address?.hostAddress.orEmpty()}/${address?.port ?: 0}"
+    val key: String get() = "$channel/$id"
 }
 
 internal class DirectTransferConnection internal constructor(
     val input: InputStream,
     val output: OutputStream,
     private val closeOwner: () -> Unit,
+    val source: String = "",
+    val openedAtNanos: Long = System.nanoTime(),
 ) : Closeable {
     override fun close() = closeOwner()
 }
@@ -81,6 +84,9 @@ internal class DirectTransferTransport(context: Context, private val channel: Di
     private var discoveryStopped = false
     private var discoverySocket: DatagramSocket? = null
     private var discoveryFinished: CompletableDeferred<Unit>? = null
+    private val listeners = mutableListOf<Closeable>()
+    private var listeningStopped = false
+    private val admission = DirectTransferAdmission()
 
     // 发现和就绪回调在 IO 线程执行，调用方切回主线程后仍须核本次任务资格。
     suspend fun discover(onPeers: (List<DirectTransferPeer>) -> Unit = {}): List<DirectTransferPeer> =
@@ -101,7 +107,7 @@ internal class DirectTransferTransport(context: Context, private val channel: Di
     suspend fun connect(peer: DirectTransferPeer, timeoutMillis: Long): DirectTransferConnection {
         try { stopDiscovery() } catch (error: CancellationException) { close(); throw error }
         return runOperation(timeoutMillis, connectionResult = true) {
-            check(synchronized(lock) { peers.values.any { it === peer } } && peer.channel == channel)
+            check(peer.channel == channel && !peer.legacy)
             when (channel) {
                 DirectTransferChannel.LAN -> {
                     if (!DirectTransferDiscovery.isLocalPeer(requireNotNull(peer.address).address as Inet4Address,
@@ -110,24 +116,29 @@ internal class DirectTransferTransport(context: Context, private val channel: Di
                     val socket = own(Socket())
                     socket.connect(requireNotNull(peer.address), timeoutMillis.coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
                     socket.tcpNoDelay = true
-                    connection(socket.getInputStream(), socket.getOutputStream())
+                    connection(socket.getInputStream(), socket.getOutputStream(), socket)
                 }
                 DirectTransferChannel.BLUETOOTH -> connectBluetooth(peer)
             }
         }
     }
 
-    suspend fun accept(
+    suspend fun listen(
         deviceId: String,
         displayName: String,
-        timeoutMillis: Long,
         onListening: (List<String>) -> Unit = {},
-    ): DirectTransferConnection = runOperation(timeoutMillis, connectionResult = true) {
+        onCandidate: (DirectTransferConnection) -> Unit,
+    ): Unit = runOperation(null, connectionResult = false) {
         require(DirectTransferDiscovery.validId(deviceId) && DirectTransferDiscovery.validName(displayName))
         when (channel) {
-            DirectTransferChannel.LAN -> acceptLan(deviceId, displayName, onListening)
-            DirectTransferChannel.BLUETOOTH -> acceptBluetooth { onListening(emptyList()) }
+            DirectTransferChannel.LAN -> acceptLan(deviceId, displayName, onListening, onCandidate)
+            DirectTransferChannel.BLUETOOTH -> acceptBluetooth({ onListening(emptyList()) }, onCandidate)
         }
+    }
+
+    fun stopListening() {
+        val closing = synchronized(lock) { listeningStopped = true; listeners.toList().also { resources.removeAll(it.toSet()); listeners.clear() } }
+        closing.asReversed().forEach { runCatching { it.close() } }
     }
 
     override fun close() {
@@ -215,8 +226,7 @@ internal class DirectTransferTransport(context: Context, private val channel: Di
     }
 
     private fun release(value: Closeable) {
-        synchronized(lock) { resources.remove(value) }
-        value.close()
+        if (synchronized(lock) { resources.remove(value) }) value.close()
     }
 
     private fun checkActive() = synchronized(lock) {
@@ -224,7 +234,7 @@ internal class DirectTransferTransport(context: Context, private val channel: Di
         if (closed) throw CancellationException("设备连接已关闭")
     }
 
-    private fun connection(input: InputStream, output: OutputStream): DirectTransferConnection = DirectTransferConnection(
+    private fun connection(input: InputStream, output: OutputStream, resource: Closeable, source: String = ""): DirectTransferConnection = DirectTransferConnection(
         object : FilterInputStream(input) {
             override fun read(): Int { checkActive(); return `in`.read().also { checkActive() } }
             override fun read(bytes: ByteArray, offset: Int, length: Int): Int {
@@ -232,7 +242,7 @@ internal class DirectTransferTransport(context: Context, private val channel: Di
                 checkActive()
                 return `in`.read(bytes, offset, minOf(length, IO_CHUNK_BYTES)).also { checkActive() }
             }
-            override fun close() = this@DirectTransferTransport.close()
+            override fun close() = releaseConnection(resource, source)
         },
         object : FilterOutputStream(output) {
             override fun write(value: Int) { checkActive(); out.write(value); checkActive() }
@@ -248,16 +258,31 @@ internal class DirectTransferTransport(context: Context, private val channel: Di
                 checkActive()
             }
             override fun flush() { checkActive(); out.flush(); checkActive() }
-            override fun close() = this@DirectTransferTransport.close()
+            override fun close() = releaseConnection(resource, source)
         },
-        ::close,
+        { releaseConnection(resource, source) }, source,
     )
+
+    private fun releaseConnection(resource: Closeable, source: String) {
+        val owned = synchronized(lock) {
+            if (!resources.remove(resource)) false
+            else { if (source.isNotEmpty()) admission.finish(source, System.nanoTime()); true }
+        }
+        if (owned) runCatching { resource.close() }
+    }
+
+    private fun <T : Closeable> listener(resource: T): T = own(resource).also { synchronized(lock) { listeners += it } }
+
 
     private fun publish(key: String, peer: DirectTransferPeer, onPeers: (List<DirectTransferPeer>) -> Unit) {
         val snapshot = synchronized(lock) {
             checkActive()
-            if (discoveryStopped || key in peers || peers.size >= MAX_PEERS) null
-            else { peers[key] = peer; peers.values.toList() }
+            if (discoveryStopped || key !in peers && peers.size >= MAX_PEERS) null
+            else {
+                val previous = peers[key]
+                val preferred = DirectTransferDiscovery.preferredPeer(previous, peer)
+                if (preferred === previous) null else { peers[key] = preferred; peers.values.toList() }
+            }
         }
         if (snapshot != null) onPeers(snapshot)
     }
@@ -278,32 +303,32 @@ internal class DirectTransferTransport(context: Context, private val channel: Di
                 (listOf(InetAddress.getByAddress(byteArrayOf(-1, -1, -1, -1))) + local.mapNotNull { it.broadcast }).distinct()
             val directed = if (manualAddress == null) DirectTransferDiscovery.directedTargets(local) else emptyList()
             var directedIndex = 0
-            var nextSend = System.nanoTime()
-            var nextDirected = nextSend
-            val finish = nextSend + DISCOVERY_MILLIS * 1_000_000
+            val sentAddresses = mutableSetOf<InetAddress>()
+            val began = System.nanoTime()
+            val broadcastTiming = DirectTransferDiscoveryTiming(began, repeated = manualAddress == null)
+            var nextDirected = began
+            val finish = began + DISCOVERY_MILLIS * 1_000_000
             val buffer = ByteArray(DirectTransferDiscovery.MAX_PACKET_BYTES + 1)
             var sent = false
             var failure: IOException? = null
-            fun send(address: InetAddress) {
+            fun send(address: InetAddress, directedOnce: Boolean = true) {
                 checkActive()
                 if (synchronized(lock) { discoveryStopped }) return
+                if (directedOnce && !sentAddresses.add(address)) return
                 try { socket.send(DatagramPacket(query, query.size, address, DISCOVERY_PORT)); sent = true }
                 catch (error: IOException) { checkActive(); failure = error }
             }
             while (System.nanoTime() - finish < 0 && !synchronized(lock) { discoveryStopped }) {
                 checkActive()
                 val now = System.nanoTime()
-                if (now - nextSend >= 0) {
-                    broadcasts.forEach(::send)
-                    nextSend = now + 2_000_000_000L
-                }
+                if (broadcastTiming.due(now)) broadcasts.forEach { send(it, directedOnce = false) }
                 if (directedIndex < directed.size && now - nextDirected >= 0) {
                     val end = minOf(directedIndex + 16, directed.size)
                     while (directedIndex < end) send(directed[directedIndex++])
                     nextDirected = now + 200_000_000L
                 }
                 if (!sent) throw failure ?: IOException("无法发送设备发现请求")
-                val next = minOf(nextSend, if (directedIndex < directed.size) nextDirected else finish, finish)
+                val next = minOf(broadcastTiming.next, if (directedIndex < directed.size) nextDirected else finish, finish)
                 socket.soTimeout = ((next - System.nanoTime()) / 1_000_000L).coerceIn(1, 2000).toInt()
                 val packet = DatagramPacket(buffer, buffer.size)
                 try { socket.receive(packet) } catch (_: SocketTimeoutException) { continue }
@@ -311,7 +336,7 @@ internal class DirectTransferTransport(context: Context, private val channel: Di
                 if (!DirectTransferDiscovery.acceptsSource(source, packet.port, manualAddress, local)) continue
                 val offer = DirectTransferDiscovery.offer(buffer, packet.length, request) ?: continue
                 val address = InetSocketAddress(source, offer.port)
-                val peer = DirectTransferPeer(offer.id, offer.name, channel, address = address)
+                val peer = DirectTransferPeer(offer.id, offer.name, channel, address = address, legacy = offer.legacy)
                 publish(peer.key, peer, onPeers)
                 if (manualAddress != null) return synchronized(lock) { peers.values.toList() }
             }
@@ -325,25 +350,26 @@ internal class DirectTransferTransport(context: Context, private val channel: Di
         }
     }
 
-    private fun acceptLan(deviceId: String, displayName: String, onListening: (List<String>) -> Unit): DirectTransferConnection {
-        val server = own(ServerSocket())
-        val discovery = own(DatagramSocket(null))
+    private fun acceptLan(deviceId: String, displayName: String, onListening: (List<String>) -> Unit,
+                          onCandidate: (DirectTransferConnection) -> Unit) {
+        val server = listener(ServerSocket())
+        val discovery = listener(DatagramSocket(null))
         var multicast: Closeable? = null
         try {
-            server.bind(InetSocketAddress(InetAddress.getByAddress(ByteArray(4)), 0), 1)
+            server.bind(InetSocketAddress(InetAddress.getByAddress(ByteArray(4)), 0), 4)
             server.soTimeout = 100
             discovery.bind(InetSocketAddress(InetAddress.getByAddress(ByteArray(4)), DISCOVERY_PORT))
             discovery.soTimeout = 100
-            // Wi-Fi 可能过滤发现广播；只在等待连接时接收，接入 TCP 后立即释放。
+            // Wi-Fi 可能过滤发现广播；候选认证成功后才关闭发现监听。
             context.getSystemService(WifiManager::class.java)?.createMulticastLock("cangoo_transfer_discovery")?.let {
                 it.setReferenceCounted(false)
                 it.acquire()
-                multicast = own(Closeable { it.release() })
+                multicast = listener(Closeable { it.release() })
             }
             onListening(DirectTransferDiscovery.localAddresses().filter { it.broadcast != null }
                 .mapNotNull { it.address.hostAddress }.distinct())
             val buffer = ByteArray(DirectTransferDiscovery.MAX_PACKET_BYTES + 1)
-            while (true) {
+            while (!synchronized(lock) { listeningStopped }) {
                 checkActive()
                 val packet = DatagramPacket(buffer, buffer.size)
                 try {
@@ -363,9 +389,15 @@ internal class DirectTransferTransport(context: Context, private val channel: Di
                 } catch (_: SocketTimeoutException) { }
                 val socket = try { server.accept() } catch (_: SocketTimeoutException) { continue }
                 own(socket)
-                socket.tcpNoDelay = true
-                return connection(socket.getInputStream(), socket.getOutputStream())
+                val source = socket.inetAddress.hostAddress.orEmpty()
+                if (!synchronized(lock) { admission.begin(source, System.nanoTime()) }) { releaseConnection(socket, ""); continue }
+                try {
+                    socket.tcpNoDelay = true
+                    onCandidate(connection(socket.getInputStream(), socket.getOutputStream(), socket, source))
+                } catch (_: IOException) { releaseConnection(socket, source) }
             }
+        } catch (error: IOException) {
+            if (!synchronized(lock) { listeningStopped }) throw error
         } finally {
             try { release(discovery) }
             finally { try { release(server) } finally { multicast?.let(::release) } }
@@ -400,17 +432,24 @@ internal class DirectTransferTransport(context: Context, private val channel: Di
         if (device.bondState != BluetoothDevice.BOND_BONDED) throw DirectTransferTransportException(DirectTransferTransportProblem.NOT_PAIRED)
         val socket = own(device.createRfcommSocketToServiceRecord(BLUETOOTH_UUID))
         socket.connect()
-        return connection(socket.inputStream, socket.outputStream)
+        return connection(socket.inputStream, socket.outputStream, socket)
     }
 
     @SuppressLint("MissingPermission")
-    private fun acceptBluetooth(onListening: () -> Unit): DirectTransferConnection {
-        val server = own(bluetoothAdapter().listenUsingRfcommWithServiceRecord("Cangoo Transfer", BLUETOOTH_UUID))
+    private fun acceptBluetooth(onListening: () -> Unit, onCandidate: (DirectTransferConnection) -> Unit) {
+        val server = listener(bluetoothAdapter().listenUsingRfcommWithServiceRecord("Cangoo Transfer", BLUETOOTH_UUID))
         try {
             onListening()
-            val socket = own(server.accept())
-            if (socket.remoteDevice.bondState != BluetoothDevice.BOND_BONDED) throw DirectTransferTransportException(DirectTransferTransportProblem.NOT_PAIRED)
-            return connection(socket.inputStream, socket.outputStream)
+            while (!synchronized(lock) { listeningStopped }) {
+                val socket = own(server.accept())
+                val source = socket.remoteDevice.address
+                if (socket.remoteDevice.bondState != BluetoothDevice.BOND_BONDED ||
+                    !synchronized(lock) { admission.begin(source, System.nanoTime()) }) { releaseConnection(socket, ""); continue }
+                try { onCandidate(connection(socket.inputStream, socket.outputStream, socket, source)) }
+                catch (_: IOException) { releaseConnection(socket, source) }
+            }
+        } catch (error: IOException) {
+            if (!synchronized(lock) { listeningStopped }) throw error
         } finally { release(server) }
     }
 
@@ -428,7 +467,10 @@ internal object DirectTransferDiscovery {
     private val idPattern = Regex("[0-9a-f]{32}")
     private val portPattern = Regex("[1-9][0-9]{0,4}")
     private val addressPartPattern = Regex("0|[1-9][0-9]{0,2}")
-    internal data class Offer(val id: String, val name: String, val port: Int)
+    internal data class Offer(val id: String, val name: String, val port: Int, val legacy: Boolean = false)
+
+    fun preferredPeer(current: DirectTransferPeer?, offered: DirectTransferPeer): DirectTransferPeer =
+        if (current == null || current.legacy && !offered.legacy) offered else current
 
     fun localAddresses(): List<DirectTransferLanAddress> = NetworkInterface.getNetworkInterfaces()?.toList().orEmpty()
         .filter { it.isUp && !it.isLoopback }.flatMap { network ->
@@ -496,17 +538,17 @@ internal object DirectTransferDiscovery {
 
     fun offer(bytes: ByteArray, length: Int, request: String): Offer? {
         val fields = parse(bytes, length, setOf("v", "kind", "request", "id", "name", "port")) ?: return null
-        if (fields["v"] != "1" || fields["kind"] != "offer" || fields["request"] != request || !validId(request)) return null
+        if (fields["v"] !in setOf("1", "2") || fields["kind"] != "offer" || fields["request"] != request || !validId(request)) return null
         val id = fields.getValue("id")
         val name = fields.getValue("name")
         val port = fields.getValue("port").takeIf(portPattern::matches)?.toIntOrNull() ?: return null
-        return if (validId(id) && validName(name) && port in 1..65535) Offer(id, name, port) else null
+        return if (validId(id) && validName(name) && port in 1..65535) Offer(id, name, port, fields["v"] == "1") else null
     }
 
     private fun write(kind: String, request: String, offer: Offer? = null): ByteArray {
         val text = StringWriter()
         JsonWriter(text).use { writer ->
-            writer.beginObject().name("v").value(1).name("kind").value(kind).name("request").value(request)
+            writer.beginObject().name("v").value(if (offer == null) 1 else 2).name("kind").value(kind).name("request").value(request)
             if (offer != null) writer.name("id").value(offer.id).name("name").value(offer.name).name("port").value(offer.port)
             writer.endObject()
         }
@@ -533,5 +575,43 @@ internal object DirectTransferDiscovery {
                 if (reader.peek() != JsonToken.END_DOCUMENT || fields.keys != keys) null else fields
             }
         } catch (_: Exception) { null }
+    }
+}
+
+// 接入预算使用单调时间；失败只冷却来源，不消耗接收页的一次配对资格。
+internal class DirectTransferAdmission {
+    private data class Source(var touched: Long, var active: Boolean = false, var blockedUntil: Long = 0)
+    private val sources = linkedMapOf<String, Source>()
+    private var tokens = 4.0
+    private var updated: Long? = null
+
+    fun begin(source: String, now: Long): Boolean {
+        sources.entries.removeAll { !it.value.active && now - it.value.touched >= 60_000_000_000L }
+        val previous = updated
+        if (previous != null) tokens = (tokens + (now - previous).coerceAtLeast(0) / 1_000_000_000.0).coerceAtMost(4.0)
+        updated = now
+        val entry = sources[source]
+        if (entry?.active == true || entry != null && now < entry.blockedUntil || sources.values.count { it.active } >= 4 || tokens < 1) return false
+        if (entry == null && sources.size >= 64) return false
+        val accepted = entry ?: Source(now).also { sources[source] = it }
+        accepted.touched = now
+        accepted.active = true
+        tokens -= 1
+        return true
+    }
+
+    fun finish(source: String, now: Long) {
+        sources[source]?.let { it.active = false; it.touched = now; it.blockedUntil = now + 2_000_000_000L }
+    }
+}
+
+internal class DirectTransferDiscoveryTiming(startNanos: Long, private val repeated: Boolean) {
+    var next = startNanos
+        private set
+
+    fun due(now: Long): Boolean {
+        if (now < next) return false
+        next = if (repeated) now + 2_000_000_000L else Long.MAX_VALUE
+        return true
     }
 }

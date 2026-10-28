@@ -31,12 +31,13 @@ import kotlinx.coroutines.withContext
 import java.io.EOFException
 import java.io.IOException
 import java.security.MessageDigest
+import java.security.SecureRandom
 import java.util.UUID
 
 internal enum class DirectTransferRole { SENDER, RECEIVER }
 internal enum class DirectTransferSettings { APPLICATION, BLUETOOTH }
 internal enum class DirectTransferPhase {
-    CONFIG, DISCOVERING, WAITING, CONNECTING, SAS, PREPARING, REVIEW, TRANSFERRING, VERIFYING, RECEIVED, SENT, FAILED,
+    CONFIG, DISCOVERING, WAITING, PAIRING_CODE, CONNECTING, WAIT_APPROVAL, PREPARING, REVIEW, TRANSFERRING, VERIFYING, RECEIVED, SENT, FAILED,
 }
 
 internal data class DirectTransferUiState(
@@ -49,8 +50,7 @@ internal data class DirectTransferUiState(
     val peersSelectable: Boolean = false,
     val peerName: String? = null,
     val peerVaultName: String? = null,
-    val sas: List<Int> = emptyList(),
-    val sasConfirmed: Boolean = false,
+    val pairingCode: String = "",
     val accepted: Boolean = false,
     val offerPrepared: Boolean = false,
     val totalBytes: Long? = null,
@@ -91,7 +91,13 @@ internal class DirectTransferController(
         @Volatile var revoked = false
         var connection: DirectTransferConnection? = null
         var protocol: DirectTransferSession? = null
-        val serial = Mutex()
+        var serial = Mutex()
+        var pairingCode = ""
+        var selectedPeer: DirectTransferPeer? = null
+        var pairingDeadline = 0L
+        var authDeadline = 0L
+        var authenticatedOnce = false
+        val candidates = mutableSetOf<Candidate>()
         val jobs = mutableSetOf<Job>()
         var snapshot: BackupTransferSnapshot? = null
         var hold = false
@@ -108,6 +114,13 @@ internal class DirectTransferController(
         var displayedPercent = -1
     }
 
+    private class Candidate(val connection: DirectTransferConnection, val protocol: DirectTransferSession) {
+        val serial = Mutex()
+        var helloReceived = false
+        var job: Job? = null
+        var timeout: Job? = null
+    }
+
     fun configure(role: DirectTransferRole? = null, channel: DirectTransferChannel? = null, scope: BackupScope? = null) {
         if (!interact() || closed || state.manualSearching) return
         if (state.phase == DirectTransferPhase.CONFIG) state = state.copy(role = role ?: state.role, channel = channel ?: state.channel)
@@ -120,7 +133,15 @@ internal class DirectTransferController(
         releaseOwner()
         val owner = Owner(state.role, state.channel, UUID.randomUUID().toString().replace("-", ""), DirectTransferTransport(context, state.channel))
         active = owner
-        state = state.copy(phase = if (owner.role == DirectTransferRole.SENDER) DirectTransferPhase.DISCOVERING else DirectTransferPhase.WAITING,
+        if (owner.role == DirectTransferRole.RECEIVER) {
+            owner.pairingCode = SecureRandom().nextInt(100_000_000).toString().padStart(8, '0')
+            owner.pairingDeadline = SystemClock.elapsedRealtime() + PAIRING_TIMEOUT
+            work(owner) {
+                delay(PAIRING_TIMEOUT)
+                if (current(owner) && owner.protocol == null) finish(owner, DirectTransferPhase.FAILED, UiText(R.string.transfer_error_timeout))
+            }
+        }
+        state = state.copy(pairingCode = owner.pairingCode, phase = if (owner.role == DirectTransferRole.SENDER) DirectTransferPhase.DISCOVERING else DirectTransferPhase.WAITING,
             peers = emptyList(), peersSelectable = owner.role == DirectTransferRole.SENDER, localAddresses = emptyList(),
             error = UiText.Empty, settings = null, manualError = UiText.Empty)
         work(owner) {
@@ -130,10 +151,11 @@ internal class DirectTransferController(
                 }
                 if (current(owner) && state.phase == DirectTransferPhase.DISCOVERING) state = state.copy(peers = peers)
             } else {
-                val connection = owner.transport.accept(owner.deviceId, deviceName(), AUTH_TIMEOUT) { addresses ->
+                owner.transport.listen(owner.deviceId, deviceName(), onListening = { addresses ->
                     scope.launch { if (current(owner) && state.phase == DirectTransferPhase.WAITING) state = state.copy(localAddresses = addresses) }
-                }
-                connected(owner, connection)
+                }, onCandidate = { connection ->
+                    scope.launch { acceptCandidate(owner, connection) }
+                })
             }
         }
     }
@@ -171,9 +193,8 @@ internal class DirectTransferController(
                 releaseOwner()
                 state = state.copy(manualSearching = false, manualError = UiText(R.string.transfer_manual_not_found))
             } else {
-                owner.expectedPeerId = peer.id
-                state = state.copy(manualSearching = false, phase = DirectTransferPhase.CONNECTING, peerName = peer.displayName)
-                connected(owner, owner.transport.connect(peer, CONNECT_TIMEOUT))
+                state = state.copy(manualSearching = false)
+                choosePeer(owner, peer)
             }
         }
     }
@@ -182,21 +203,54 @@ internal class DirectTransferController(
         val owner = active ?: return
         if (!interact() || !current(owner) || !state.peersSelectable || state.manualSearching ||
             state.phase != DirectTransferPhase.DISCOVERING || state.peers.none { it === peer }) return
+        choosePeer(owner, peer)
+    }
+
+    private fun choosePeer(owner: Owner, peer: DirectTransferPeer) {
+        if (peer.legacy) { finish(owner, DirectTransferPhase.FAILED, UiText(R.string.transfer_upgrade_required)); return }
+        owner.selectedPeer = peer
         owner.expectedPeerId = peer.id.takeIf { owner.channel == DirectTransferChannel.LAN }
-        state = state.copy(phase = DirectTransferPhase.CONNECTING, peerName = peer.displayName)
-        work(owner) { connected(owner, owner.transport.connect(peer, CONNECT_TIMEOUT)) }
+        state = state.copy(phase = DirectTransferPhase.PAIRING_CODE, peerName = peer.displayName, peersSelectable = false,
+            peers = emptyList(), pairingCode = "", error = UiText.Empty)
     }
 
-    fun confirmSas() {
-        val owner = active ?: return
-        if (!interact() || !current(owner) || state.phase != DirectTransferPhase.SAS || state.sasConfirmed) return
-        state = state.copy(sasConfirmed = true)
-        work(owner) { owner.serial.withLock { result(owner, requireNotNull(owner.protocol).confirmSas()) } }
+    fun updatePairingCode(value: String) {
+        if (!interact() || closed || state.phase != DirectTransferPhase.PAIRING_CODE) return
+        val digits = value.replace(" ", "")
+        if (digits.length <= 8 && digits.all { it in '0'..'9' }) state = state.copy(pairingCode = digits, error = UiText.Empty)
     }
 
-    fun rejectSas() {
+    fun copyPairingCode(publish: (String, () -> Boolean) -> Unit) {
         if (!interact()) return
-        active?.let { finish(it, DirectTransferPhase.FAILED, UiText(R.string.transfer_code_mismatch)) }
+        recheckDeadline()
+        val owner = active ?: return
+        fun allowed() = current(owner) && owner.role == DirectTransferRole.RECEIVER &&
+            state.phase == DirectTransferPhase.WAITING && owner.protocol == null &&
+            SystemClock.elapsedRealtime() < owner.pairingDeadline &&
+            owner.pairingCode.length == 8 && owner.pairingCode.all { it in '0'..'9' }
+        if (allowed()) publish(owner.pairingCode, ::allowed)
+    }
+
+    fun connectWithCode() {
+        val owner = active ?: return
+        if (!interact() || !current(owner) || state.phase != DirectTransferPhase.PAIRING_CODE ||
+            state.pairingCode.length != 8 || state.pairingCode.any { it !in '0'..'9' }) return
+        owner.pairingCode = state.pairingCode
+        state = state.copy(phase = DirectTransferPhase.CONNECTING, pairingCode = "", error = UiText.Empty)
+        work(owner) { connected(owner, owner.transport.connect(requireNotNull(owner.selectedPeer), CONNECT_TIMEOUT)) }
+    }
+
+    fun approvePeer() {
+        val owner = active ?: return
+        if (!interact() || !current(owner) || owner.role != DirectTransferRole.RECEIVER || state.phase != DirectTransferPhase.WAIT_APPROVAL) return
+        work(owner) { owner.serial.withLock {
+            if (current(owner) && owner.protocol?.approved == false) result(owner, requireNotNull(owner.protocol).approvePeer())
+        } }
+    }
+
+    fun rejectPeer() {
+        if (!interact()) return
+        active?.let { finish(it, DirectTransferPhase.FAILED, UiText(R.string.transfer_error_cancelled)) }
     }
 
     fun prepareOffer() {
@@ -216,26 +270,17 @@ internal class DirectTransferController(
             owner.passwordCount = snapshot.passwordCount
             owner.noteCount = snapshot.noteCount
             owner.totalBytes = snapshot.bytes.size.toLong()
+            state = state.copy(phase = DirectTransferPhase.REVIEW, offerPrepared = true,
+                totalBytes = owner.totalBytes, passwordCount = owner.passwordCount, noteCount = owner.noteCount)
             owner.serial.withLock {
                 result(owner, requireNotNull(owner.protocol).sendMessage(mapOf("type" to "offer", "scope" to owner.offerScope.name,
                     "byteCount" to owner.totalBytes, "passwordCount" to owner.passwordCount, "noteCount" to owner.noteCount, "sha256" to digest)))
             }
-            if (current(owner)) state = state.copy(phase = DirectTransferPhase.REVIEW, offerPrepared = true,
-                totalBytes = owner.totalBytes, passwordCount = owner.passwordCount, noteCount = owner.noteCount)
         }
     }
 
-    fun acceptTransfer() {
-        val owner = active ?: return
-        if (!interact() || !current(owner) || owner.role != DirectTransferRole.RECEIVER || state.phase != DirectTransferPhase.REVIEW ||
-            !state.offerPrepared || state.accepted) return
-        state = state.copy(accepted = true)
-        work(owner) { owner.serial.withLock { result(owner, requireNotNull(owner.protocol).sendMessage(mapOf("type" to "accept", "sha256" to owner.offerHash))) } }
-    }
-
-    fun startTransfer() {
-        val owner = active ?: return
-        if (!interact() || !current(owner) || owner.role != DirectTransferRole.SENDER || state.phase != DirectTransferPhase.REVIEW ||
+    private fun startTransfer(owner: Owner) {
+        if (!current(owner) || owner.role != DirectTransferRole.SENDER || state.phase != DirectTransferPhase.REVIEW ||
             !state.offerPrepared || !state.accepted) return
         if (!beginHold(owner)) return
         work(owner) {
@@ -259,10 +304,16 @@ internal class DirectTransferController(
         }
     }
 
+    fun recheckDeadline() {
+        val owner = active ?: return
+        if (current(owner) && owner.role == DirectTransferRole.RECEIVER && owner.protocol == null &&
+            SystemClock.elapsedRealtime() >= owner.pairingDeadline) finish(owner, DirectTransferPhase.FAILED, UiText(R.string.transfer_error_timeout))
+    }
+
     fun permissionDenied() {
         if (closed || !qualified()) return
         releaseOwner()
-        state = state.copy(phase = DirectTransferPhase.FAILED, peersSelectable = false, error = UiText(R.string.transfer_error_permissions),
+        state = state.copy(phase = DirectTransferPhase.FAILED, pairingCode = "", peersSelectable = false, error = UiText(R.string.transfer_error_permissions),
             settings = DirectTransferSettings.APPLICATION)
     }
 
@@ -288,13 +339,94 @@ internal class DirectTransferController(
     private suspend fun connected(owner: Owner, connection: DirectTransferConnection) {
         if (!current(owner)) { connection.close(); return }
         owner.connection = connection
-        owner.protocol = DirectTransferSession(owner.role.name, owner.deviceId, deviceName())
+        owner.authDeadline = SystemClock.elapsedRealtime() + AUTH_TIMEOUT
+        owner.protocol = DirectTransferSession(owner.role.name, owner.deviceId, deviceName(), owner.pairingCode)
+        owner.pairingCode = ""
         state = state.copy(phase = DirectTransferPhase.CONNECTING, peers = emptyList(), peersSelectable = false)
-        work(owner) {
+        val timeout = scope.launch {
             delay(AUTH_TIMEOUT)
-            if (current(owner) && owner.protocol?.authenticated != true) finish(owner, DirectTransferPhase.FAILED, UiText(R.string.transfer_error_timeout))
+            if (current(owner) && !owner.authenticatedOnce) finish(owner, DirectTransferPhase.FAILED, UiText(R.string.transfer_error_timeout))
         }
+        owner.jobs += timeout
         owner.serial.withLock { result(owner, requireNotNull(owner.protocol).begin()) }
+        readFrames(owner, connection) { frame -> owner.serial.withLock {
+            if (current(owner)) result(owner, requireNotNull(owner.protocol).receive(frame))
+        } }
+    }
+
+    private fun acceptCandidate(owner: Owner, connection: DirectTransferConnection) {
+        recheckDeadline()
+        if (!current(owner) || owner.protocol != null || SystemClock.elapsedRealtime() >= owner.pairingDeadline) { connection.close(); return }
+        val candidate = Candidate(connection, DirectTransferSession(owner.role.name, owner.deviceId, deviceName(), owner.pairingCode))
+        owner.candidates += candidate
+        candidate.timeout = scope.launch {
+            delay((HELLO_TIMEOUT - (System.nanoTime() - connection.openedAtNanos) / 1_000_000L).coerceAtLeast(0))
+            if (!candidate.helloReceived) closeCandidate(owner, candidate)
+            else {
+                delay((AUTH_TIMEOUT - (System.nanoTime() - connection.openedAtNanos) / 1_000_000L).coerceAtLeast(0))
+                if (owner.protocol !== candidate.protocol) closeCandidate(owner, candidate)
+            }
+        }
+        candidate.job = scope.launch {
+            try {
+                candidate.serial.withLock { candidateResult(owner, candidate, candidate.protocol.begin()) }
+                readFrames(owner, connection) { frame -> candidate.serial.withLock {
+                    if (current(owner) && candidate in owner.candidates) {
+                        val value = candidate.protocol.receive(frame)
+                        if (owner.protocol === candidate.protocol) result(owner, value) else candidateResult(owner, candidate, value)
+                    }
+                } }
+            } catch (error: Exception) {
+                if (error is CancellationException) throw error
+                if (current(owner) && owner.protocol === candidate.protocol) handleFailure(owner, error)
+            } finally {
+                if (owner.protocol !== candidate.protocol) closeCandidate(owner, candidate)
+            }
+        }
+        val job = requireNotNull(candidate.job)
+        owner.jobs += job
+        job.invokeOnCompletion { scope.launch { owner.jobs.remove(job) } }
+    }
+
+    private suspend fun candidateResult(owner: Owner, candidate: Candidate, value: DirectTransferResult) {
+        try {
+            if (value.events.any { it.type == "peer" }) {
+                if (System.nanoTime() - candidate.connection.openedAtNanos >= HELLO_TIMEOUT * 1_000_000L) { closeCandidate(owner, candidate); return }
+                candidate.helloReceived = true
+            }
+            for (frame in value.outbound) {
+                if (!current(owner) || candidate !in owner.candidates) return
+                withContext(Dispatchers.IO) { candidate.connection.output.write(frame); candidate.connection.output.flush() }
+            }
+            for (event in value.events) when (event.type) {
+                "authenticated" -> {
+                    if (!current(owner) || owner.protocol != null || SystemClock.elapsedRealtime() >= owner.pairingDeadline ||
+                        System.nanoTime() - candidate.connection.openedAtNanos >= AUTH_TIMEOUT * 1_000_000L) { closeCandidate(owner, candidate); return }
+                    owner.protocol = candidate.protocol
+                    owner.authenticatedOnce = true
+                    owner.connection = candidate.connection
+                    owner.serial = candidate.serial
+                    owner.pairingCode = ""
+                    candidate.timeout?.cancel()
+                    owner.transport.stopListening()
+                    owner.candidates.filter { it !== candidate }.toList().forEach { closeCandidate(owner, it) }
+                    state = state.copy(phase = DirectTransferPhase.WAIT_APPROVAL, pairingCode = "", peerName = candidate.protocol.peerName,
+                        peers = emptyList(), peersSelectable = false, localAddresses = emptyList())
+                }
+                "cancelled" -> closeCandidate(owner, candidate)
+            }
+        } finally { value.outbound.forEach { it.fill(0) } }
+    }
+
+    private fun closeCandidate(owner: Owner, candidate: Candidate) {
+        if (!owner.candidates.remove(candidate)) return
+        candidate.connection.close()
+        candidate.protocol.close()
+        candidate.timeout?.cancel()
+        candidate.job?.cancel()
+    }
+
+    private suspend fun readFrames(owner: Owner, connection: DirectTransferConnection, consume: suspend (ByteArray) -> Unit) {
         val buffer = ByteArray(CHUNK_SIZE)
         try {
             while (current(owner)) {
@@ -302,8 +434,7 @@ internal class DirectTransferController(
                 if (count < 0) throw EOFException()
                 if (count == 0) continue
                 val frame = buffer.copyOf(count)
-                try { owner.serial.withLock { if (current(owner)) result(owner, requireNotNull(owner.protocol).receive(frame)) } }
-                finally { frame.fill(0) }
+                try { consume(frame) } finally { frame.fill(0) }
             }
         } finally { buffer.fill(0) }
     }
@@ -332,9 +463,15 @@ internal class DirectTransferController(
                         }
                         state = state.copy(peerName = owner.protocol?.peerName)
                     }
-                    "sas" -> state = state.copy(phase = DirectTransferPhase.SAS, sas = owner.protocol?.sas.orEmpty())
                     "authenticated" -> {
-                        state = state.copy(phase = DirectTransferPhase.REVIEW, sas = emptyList())
+                        if (SystemClock.elapsedRealtime() >= owner.authDeadline) {
+                            finish(owner, DirectTransferPhase.FAILED, UiText(R.string.transfer_error_timeout)); return
+                        }
+                        owner.authenticatedOnce = true
+                        state = state.copy(phase = DirectTransferPhase.WAIT_APPROVAL, pairingCode = "")
+                    }
+                    "approved" -> {
+                        state = state.copy(phase = DirectTransferPhase.REVIEW)
                         result(owner, requireNotNull(owner.protocol).sendMessage(mapOf("type" to "metadata", "vaultName" to state.localVaultName)))
                     }
                     "metadata" -> state = state.copy(peerVaultName = event.fields["vaultName"] as String)
@@ -345,9 +482,13 @@ internal class DirectTransferController(
                         owner.passwordCount = (event.fields["passwordCount"] as Number).toInt()
                         owner.noteCount = (event.fields["noteCount"] as Number).toInt()
                         state = state.copy(phase = DirectTransferPhase.REVIEW, offerPrepared = true, scope = owner.offerScope,
-                            totalBytes = owner.totalBytes, passwordCount = owner.passwordCount, noteCount = owner.noteCount)
+                            totalBytes = owner.totalBytes, passwordCount = owner.passwordCount, noteCount = owner.noteCount, accepted = true)
+                        result(owner, requireNotNull(owner.protocol).sendMessage(mapOf("type" to "accept", "sha256" to owner.offerHash)))
                     }
-                    "accept" -> state = state.copy(accepted = true)
+                    "accept" -> {
+                        state = state.copy(accepted = true)
+                        startTransfer(owner)
+                    }
                     "start" -> if (!beginHold(owner)) return
                     "progress" -> progress(owner, (event.fields["bytes"] as Number).toLong())
                     "complete" -> {
@@ -409,49 +550,67 @@ internal class DirectTransferController(
         val job = scope.launch {
             try { if (current(owner)) operation() }
             catch (cancelled: CancellationException) { throw cancelled }
-            catch (error: Exception) {
-                if (current(owner)) {
-                    val message = when (error) {
-                        is BackupProtocolException -> when (error.problem) {
-                            BackupProblem.LIMIT -> R.string.transfer_error_limit
-                            BackupProblem.AUTHENTICATION -> R.string.transfer_error_authentication
-                            BackupProblem.IO -> R.string.transfer_error_io
-                            else -> R.string.transfer_error_format
-                        }
-                        is BackupStoreException -> if (error.problem == BackupStoreProblem.LIMIT) R.string.transfer_error_limit
-                            else R.string.transfer_error_session
-                        is VaultException -> if (error.code == VaultError.SESSION_CLOSED) R.string.transfer_error_session else R.string.transfer_error_io
-                        is DirectTransferException -> when (error.code) {
-                            "AUTH" -> R.string.transfer_error_authentication
-                            "LIMIT" -> R.string.transfer_error_limit
-                            else -> R.string.transfer_error_format
-                        }
-                        is DirectTransferTransportException -> when (error.problem) {
-                            DirectTransferTransportProblem.TIMEOUT -> R.string.transfer_error_timeout
-                            DirectTransferTransportProblem.PERMISSION -> R.string.transfer_error_permissions
-                            DirectTransferTransportProblem.ADDRESS_NOT_LOCAL -> R.string.transfer_manual_not_local
-                            DirectTransferTransportProblem.BLUETOOTH_UNAVAILABLE, DirectTransferTransportProblem.BLUETOOTH_DISABLED,
-                            DirectTransferTransportProblem.NOT_PAIRED -> R.string.transfer_error_bluetooth
-                            else -> R.string.transfer_error_connection
-                        }
-                        is IOException -> if (owner.waitingForValidation && owner.role == DirectTransferRole.SENDER) R.string.transfer_error_receipt
-                            else R.string.transfer_error_connection
-                        else -> R.string.transfer_error_io
-                    }
-                    val settings = when (message) {
-                        R.string.transfer_error_permissions -> DirectTransferSettings.APPLICATION
-                        R.string.transfer_error_bluetooth -> DirectTransferSettings.BLUETOOTH
-                        else -> null
-                    }
-                    if (state.manualSearching) {
-                        releaseOwner()
-                        state = state.copy(manualSearching = false, manualError = UiText(message))
-                    } else finish(owner, DirectTransferPhase.FAILED, UiText(message), settings)
-                }
-            }
+            catch (error: Exception) { if (current(owner)) handleFailure(owner, error) }
         }
         owner.jobs.add(job)
         job.invokeOnCompletion { scope.launch { owner.jobs.remove(job) } }
+    }
+
+    private fun handleFailure(owner: Owner, error: Exception) {
+        if (owner.role == DirectTransferRole.SENDER && !owner.authenticatedOnce &&
+            (error is DirectTransferException && error.code == "AUTH" || error is IOException && error !is DirectTransferTransportException)) {
+            retryPairing(owner)
+            return
+        }
+        val message = when (error) {
+            is BackupProtocolException -> when (error.problem) {
+                BackupProblem.LIMIT -> R.string.transfer_error_limit
+                BackupProblem.MEMORY -> R.string.backup_error_memory
+                BackupProblem.AUTHENTICATION -> R.string.transfer_error_authentication
+                BackupProblem.IO -> R.string.transfer_error_io
+                else -> R.string.transfer_error_format
+            }
+            is BackupStoreException -> if (error.problem == BackupStoreProblem.LIMIT) R.string.transfer_error_limit
+                else R.string.transfer_error_session
+            is VaultException -> if (error.code == VaultError.SESSION_CLOSED) R.string.transfer_error_session else R.string.transfer_error_io
+            is DirectTransferException -> when (error.code) {
+                "AUTH" -> R.string.transfer_error_authentication
+                "UPGRADE_REQUIRED" -> R.string.transfer_upgrade_required
+                "LIMIT" -> R.string.transfer_error_limit
+                "MEMORY" -> R.string.backup_error_memory
+                else -> R.string.transfer_error_format
+            }
+            is DirectTransferTransportException -> when (error.problem) {
+                DirectTransferTransportProblem.TIMEOUT -> R.string.transfer_error_timeout
+                DirectTransferTransportProblem.PERMISSION -> R.string.transfer_error_permissions
+                DirectTransferTransportProblem.ADDRESS_NOT_LOCAL -> R.string.transfer_manual_not_local
+                DirectTransferTransportProblem.BLUETOOTH_UNAVAILABLE, DirectTransferTransportProblem.BLUETOOTH_DISABLED,
+                DirectTransferTransportProblem.NOT_PAIRED -> R.string.transfer_error_bluetooth
+                else -> R.string.transfer_error_connection
+            }
+            is IOException -> if (owner.waitingForValidation && owner.role == DirectTransferRole.SENDER) R.string.transfer_error_receipt
+                else R.string.transfer_error_connection
+            else -> R.string.transfer_error_io
+        }
+        val settings = when (message) {
+            R.string.transfer_error_permissions -> DirectTransferSettings.APPLICATION
+            R.string.transfer_error_bluetooth -> DirectTransferSettings.BLUETOOTH
+            else -> null
+        }
+        if (state.manualSearching) {
+            releaseOwner()
+            state = state.copy(manualSearching = false, manualError = UiText(message))
+        } else finish(owner, DirectTransferPhase.FAILED, UiText(message), settings)
+    }
+
+    private fun retryPairing(owner: Owner) {
+        val peer = owner.selectedPeer ?: return
+        releaseOwner()
+        val retry = Owner(owner.role, owner.channel, UUID.randomUUID().toString().replace("-", ""), DirectTransferTransport(context, owner.channel))
+        retry.selectedPeer = peer
+        retry.expectedPeerId = owner.expectedPeerId
+        active = retry
+        state = state.copy(phase = DirectTransferPhase.PAIRING_CODE, pairingCode = "", error = UiText(R.string.transfer_pairing_retry))
     }
 
     private fun current(owner: Owner): Boolean = !closed && active === owner && !owner.revoked && qualified()
@@ -460,7 +619,7 @@ internal class DirectTransferController(
         if (!current(owner)) return
         val completed = owner.localVerified || phase == DirectTransferPhase.RECEIVED
         state = state.copy(phase = if (completed) DirectTransferPhase.RECEIVED else phase,
-            error = if (completed) UiText.Empty else error, peers = emptyList(), peersSelectable = false, sas = emptyList(),
+            error = if (completed) UiText.Empty else error, peers = emptyList(), peersSelectable = false, pairingCode = "",
             settings = if (completed) null else settings)
         releaseOwner()
         if (completed && !closed && qualified()) received()
@@ -470,6 +629,8 @@ internal class DirectTransferController(
         val owner = active ?: return
         active = null
         owner.revoked = true
+        owner.pairingCode = ""
+        owner.candidates.toList().forEach { closeCandidate(owner, it) }
         owner.connection?.close()
         owner.transport.close()
         owner.protocol?.close()
@@ -487,7 +648,9 @@ internal class DirectTransferController(
     private companion object {
         const val CHUNK_SIZE = 65_536
         const val CONNECT_TIMEOUT = 20_000L
-        const val AUTH_TIMEOUT = 180_000L
+        const val AUTH_TIMEOUT = 10_000L
+        const val HELLO_TIMEOUT = 3_000L
+        const val PAIRING_TIMEOUT = 600_000L
         const val PROGRESS_TIMEOUT = 30_000L
         const val TRANSFER_TIMEOUT = 1_800_000L
     }

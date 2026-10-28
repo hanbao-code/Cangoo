@@ -8,26 +8,26 @@
 
 ## 主要功能
 
-- **整理密码与记事：**新建、编辑、搜索、收藏和排序；电脑版还支持中文拼音查找。
-- **更方便地登录：**按需查看、复制密码和动态验证码；保存恢复码并手动标记已用。
-- **生成与检查密码：**生成随机密码，在本机估算密码强度、查找重复使用的密码；电脑版还可按记录的更换时间提醒长期未更换的密码。
-- **备份与恢复：**导出加密备份，恢复前逐项对照备份与当前资料；相同内容自动跳过，有差异时由你决定如何处理。
-- **在设备间传资料：**通过局域网或蓝牙选择附近设备。核对两端显示的数字，确认一致后发送；接收端收齐资料后，再比较并确认导入。可选全部、仅密码或仅记事。
-- **按习惯使用：**中英文界面与离线手册、主题和字号设置、自动锁定及剪贴板清理。电脑版提供快捷搜索条；安卓版可在设备支持时为每个库单独开启生物识别快捷解锁。
-- **自己决定更新：**启动时按设定间隔检查，也可随时手动检查；下载和安装由你决定。
+- **密码与加密记事：**集中管理账号资料，支持搜索、收藏和排序；电脑版支持中文拼音查找。
+- **动态验证码与恢复码：**提供动态验证码，保存恢复码及其使用状态。
+- **密码生成与检查：**随机密码生成、本机强度评估和重复密码检查；电脑版支持长期未更换密码提醒。
+- **加密备份：**支持备份恢复、记录差异对比和批量处理。
+- **设备间传输：**通过局域网或蓝牙，在 Windows 和 Android 设备之间加密传输密码与记事。
+- **隐私保护：**本地存储、自动锁定和剪贴板清理；安卓版支持设备可用的生物识别快捷解锁。
+- **使用体验：**中英文界面与离线手册、主题和字号设置、版本检查；电脑版提供快捷搜索条。
 
 ## 下载与安装
 
-在[发行页面](https://github.com/hanbao-code/Cangoo/releases)按平台查看版本说明和文件。电脑版与安卓版各有自己的版本号。设备传输从 Windows 1.1.0 和 Android 1.0.0 开始提供。
+在[发行页面](https://github.com/hanbao-code/Cangoo/releases)按平台查看版本说明和文件。电脑版与安卓版各有自己的版本号。新的配对码方式需要 Windows 1.1.1、Android 1.0.1 或更新的兼容版本；与旧版直传不互通。
 
 | 平台 | 系统要求 | 文件与使用方式 | 手册 |
 |---|---|---|---|
 | Windows | Windows 10（1809及以上）或 Windows 11，x64（Intel/AMD 64位） | 安装版运行 `setup.exe`，按向导安装；便携版完整解压后运行 | [中文](docs/user_guide_zh.md) / [English](docs/user_guide_en.md) |
 | Android | Android 10及以上，arm64（64位 ARM） | 将 APK 安装到手机，按系统提示允许本次安装 | [中文](docs/android/user_guide_zh.md) / [English](docs/android/user_guide_en.md) |
 
-Windows 安装包可设置安装位置、使用范围和桌面快捷方式；再次打开可修复或卸载。卸载默认保留资料，主动选择清理前请先备份。搬移便携版时，应保留整个目录及另存的密码库。
+Windows 安装包可设置安装位置、使用范围和桌面快捷方式；再次打开可修复或卸载。卸载默认保留资料，主动选择清理前请先备份。旧MSI版本升级时先备份并保留资料卸载旧版，再安装新版，详见电脑版手册。搬移便携版时，应保留整个目录及另存的密码库。
 
-Windows 文件未使用代码签名，系统可能提示发行者未知。请从本项目发行页面取得文件，并核对随附的 SHA-256 校验清单；校验值不能替代代码签名。
+Windows 文件未使用代码签名，系统可能提示发行者未知。请从本项目发行页面取得文件，并核对随附的 SHA-256 校验清单；校验值不能替代代码签名。下载后可在PowerShell执行 `Get-FileHash -Algorithm SHA256 -LiteralPath '<下载文件>'`，将结果与清单中的对应文件核对。
 
 ## 第一次使用
 
@@ -44,7 +44,7 @@ Windows 文件未使用代码签名，系统可能提示发行者未知。请从
 密码库保存在你的设备上，查看、编辑和密码强度分析都在本机完成。小仓不提供云端密码库。
 
 - **检查更新时：**联网读取 GitHub 上的公开发行信息，请求不包含密码库内容或主密码。自动检查可在设置中关闭。
-- **传输资料时：**由你选择接收设备和资料范围，两端核对数字并确认后加密传送。收齐并校验后，接收端还需比较资料、确认导入，才会写入密码库。传输不会自动让两库持续保持一致。
+- **传输资料时：**由你选择接收设备和资料范围，发送端输入接收端的临时配对码，接收端确认后加密传送。收齐并校验后，接收端还需比较资料、确认导入，才会写入密码库。传输不会自动让两库持续保持一致。
 
 ## 反馈与联系
 
@@ -70,26 +70,26 @@ Keep accounts, passwords, authenticator setup keys and recovery codes in your ow
 
 ### Features
 
-- **Organize passwords and notes:** create, edit, search, favorite and sort records. Windows also supports pinyin search for Chinese text.
-- **Use your login details:** reveal and copy passwords or one-time codes when needed; save recovery codes and mark them used yourself.
-- **Generate and check passwords:** generate random passwords, estimate their strength and find reused passwords on your device. Windows also flags long-unchanged passwords using their recorded change dates.
-- **Back up and restore:** export encrypted backups and compare their records with the current vault before restoring. Identical content is skipped; you choose how to handle differences.
-- **Transfer between devices:** find a nearby device over a local network or Bluetooth. Check that both screens show the same numbers, then send everything, passwords only or notes only. After receiving all the data, the receiver compares it with the current vault and confirms the import.
-- **Make the app comfortable to use:** Chinese and English interface and offline guides, themes, text sizes, auto-lock and clipboard cleanup. Windows includes Quick Bar; Android supports per-vault biometric quick unlock when the device supports it.
-- **Choose when to update:** check at startup after your selected interval or check manually anytime. You decide whether to download and install.
+- **Passwords and encrypted notes:** organize account details with search, favorites and sorting; Windows also supports Chinese pinyin search.
+- **One-time codes and recovery codes:** generate one-time codes and store recovery codes with their usage status.
+- **Password generation and checks:** random password generation, local strength estimates and duplicate-password checks; Windows also flags long-unchanged passwords.
+- **Encrypted backups:** backup and restore with record comparisons and bulk handling.
+- **Device transfers:** encrypted password and note transfers between Windows and Android devices over a local network or Bluetooth.
+- **Privacy controls:** local storage, auto-lock and clipboard cleanup; Android supports biometric quick unlock on compatible devices.
+- **Everyday use:** Chinese and English interface and offline guides, themes, text sizes and update checks; Windows includes Quick Bar.
 
 ### Download and install
 
-Use the [releases page](https://github.com/hanbao-code/Cangoo/releases) to view files and notes for your platform. Windows and Android have separate version numbers. Device transfer is available starting with Windows 1.1.0 and Android 1.0.0.
+Use the [releases page](https://github.com/hanbao-code/Cangoo/releases) to view files and notes for your platform. Windows and Android have separate version numbers. The new pairing-code method requires Windows 1.1.1, Android 1.0.1 or later compatible versions; it cannot transfer directly to older versions.
 
 | Platform | System requirements | Package and first step | Guide |
 |---|---|---|---|
 | Windows | Windows 10 version 1809 or later, or Windows 11; x64 (Intel/AMD 64-bit) | Run the installer's `setup.exe` and follow the wizard, or fully extract the portable archive before running it | [English](docs/user_guide_en.md) / [中文](docs/user_guide_zh.md) |
 | Android | Android 10 or later; arm64 (64-bit ARM) | Install the APK on your phone, allowing that installation when the system asks | [English](docs/android/user_guide_en.md) / [中文](docs/android/user_guide_zh.md) |
 
-Windows setup lets you choose the location, installation scope and desktop shortcut. Open it again to repair or uninstall. Uninstall keeps data by default; back up before selecting cleanup. When moving the portable edition, preserve its entire folder and any vaults stored elsewhere.
+Windows setup lets you choose the location, installation scope and desktop shortcut. Open it again to repair or uninstall. Uninstall keeps data by default; back up before selecting cleanup. When moving from the previous MSI installer, back up and uninstall it with data cleanup unchecked before installing the new version. See the Windows guide. When moving the portable edition, preserve its entire folder and any vaults stored elsewhere.
 
-Windows files are not code-signed, so the system may show an unknown-publisher warning. Obtain files from this project's releases page and check the accompanying SHA-256 list. Checksums do not replace code signing.
+Windows files are not code-signed, so the system may show an unknown-publisher warning. Obtain files from this project's releases page and check the accompanying SHA-256 list. Checksums do not replace code signing. In PowerShell, run `Get-FileHash -Algorithm SHA256 -LiteralPath '<downloaded file>'` and compare the result with the matching file in the checksum list.
 
 ### First use
 
@@ -106,7 +106,7 @@ Follow your platform guide to create a vault, save records and back up or restor
 Vaults are stored on your devices. Viewing, editing and password-strength analysis take place locally. Cangoo does not provide cloud vault storage.
 
 - **Update checks:** the app connects to GitHub to read public release information. The requests contain no vault contents or master password. You can turn off automatic checks in Settings.
-- **Device transfers:** you choose the receiver and the data to send. After both sides check the verification numbers and confirm, the selected data is sent encrypted. The receiver must receive and validate it, compare records and confirm the import before it is written to the vault. A transfer does not keep the two vaults synchronized afterwards.
+- **Device transfers:** you choose the receiver and the data to send. After the sender enters the receiver’s temporary pairing code and the receiver confirms, the selected data is sent encrypted. The receiver must receive and validate it, compare records and confirm the import before it is written to the vault. A transfer does not keep the two vaults synchronized afterwards.
 
 ### Feedback and contact
 

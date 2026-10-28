@@ -20,13 +20,15 @@ class DirectTransferController(QObject):
     _snapshotFinished = Signal(int, str, object)
 
     def __init__(self, adapter, *, authority, lock_monitor_ready, busy, hold,
-                 adopt_received, parent=None, transport_factory=None, clock=time.monotonic, lan_access=None):
+                 adopt_received, parent=None, transport_factory=None, clock=time.monotonic, lan_access=None,
+                 clipboard=None):
         super().__init__(parent)
         self.adapter = adapter
         self._authority, self._lock_monitor_ready, self._busy = authority, lock_monitor_ready, busy
         self._hold, self._adopt_received = hold, adopt_received
         self._transport_factory = transport_factory
         self._clock = clock
+        self._clipboard = clipboard
         if lan_access is None:
             from desktop.host.lan_access import LanAccess
             lan_access = LanAccess(self)
@@ -45,6 +47,9 @@ class DirectTransferController(QObject):
         self._auth_deadline = self._transfer_started = None
         self._last_progress = 0.0
         self._selected_peer = ""
+        self._selected_target = None
+        self._pairing_code = ""
+        self._candidates = {}
         self._offer = None
         self._device_id = ""
         self._state = {}
@@ -82,7 +87,7 @@ class DirectTransferController(QObject):
             return False
         self._state = {
             "flowId": secrets.token_hex(16), "phase": "IDLE", "role": role, "transport": transport,
-            "scope": "ALL", "peers": [], "sas": "", "localConfirmed": False, "peerConfirmed": False,
+            "scope": "ALL", "peers": [], "pairingCode": "",
             "receiverAccepted": False, "offerReady": False, "preparing": False,
             "peerDeviceName": "", "localVaultName": vault, "peerVaultName": "",
             "transferredBytes": 0, "totalBytes": 0, "errorCode": "NONE",
@@ -124,6 +129,22 @@ class DirectTransferController(QObject):
             return self._ack("SESSION_REQUIRED")
         if type(flow_id) is not str or flow_id != self._state["flowId"]:
             return self._ack("STALE_FLOW")
+        if action == "copyPairingCode":
+            if arguments:
+                return self._ack("COPY_FAILED")
+            if (self._clipboard is None or not self._lock_monitor_ready()
+                    or self._state["role"] != "RECEIVE" or self._state["phase"] != "WAITING"
+                    or self._transport is None or self._protocol is not None
+                    or self._auth_deadline is None or self._clock() >= self._auth_deadline
+                    or len(self._pairing_code) != 8 or not all("0" <= digit <= "9" for digit in self._pairing_code)):
+                return self._ack("COPY_FAILED")
+            try:
+                token = self._clipboard.publication_token(page_epoch=self._page, session_epoch=self._session)
+                if token and self._clipboard.copy(self._pairing_code, "PASSWORD", publication_token=token) is not None:
+                    return self._ack()
+            except Exception:
+                pass
+            return self._ack("COPY_FAILED")
         if action == "cancel":
             self.cancel()
             return self._ack()
@@ -171,20 +192,33 @@ class DirectTransferController(QObject):
                     return self._ack("INVALID_ARGUMENT")
                 self._choose_peer(peer_id)
                 return self._ack()
-            if action == "confirm":
-                matches, = arguments
-                if type(matches) is not bool:
-                    return self._ack("INVALID_ARGUMENT")
-                if self._state["phase"] != "VERIFYING" or self._state["localConfirmed"]:
+            if action == "pairingCode":
+                code, = arguments
+                if type(code) is not str or len(code) != 8 or not all("0" <= digit <= "9" for digit in code):
+                    return self._ack("INVALID_PAIRING_CODE")
+                if self._state["role"] != "SEND" or self._state["phase"] != "PAIRING_CODE":
                     return self._ack("REQUEST_BUSY")
-                if not matches:
-                    self.cancel()
-                    return self._ack()
-                self._state["localConfirmed"] = True
-                self._consume(self._protocol.confirm_sas())
+                self._pairing_code = code
+                self._state.update(phase="CONNECTING", errorCode="NONE")
+                self._auth_deadline = self._clock() + 20
+                self._timeout.start()
                 self._publish()
+                if self._transport is None:
+                    transport = self._new_transport()
+                    started = transport.connect_target(self._selected_peer, self._selected_target, self._state["transport"], self._state["manualAddress"])
+                else:
+                    started = self._transport.choose_peer(self._selected_peer)
+                if not started:
+                    self._retry_sender("CONNECT_FAILED")
                 return self._ack()
-            if action == "prepare":
+            if action == "approve":
+                if arguments:
+                    return self._ack("INVALID_ARGUMENT")
+                if self._state["role"] != "RECEIVE" or self._state["phase"] != "WAIT_APPROVAL":
+                    return self._ack("REQUEST_BUSY")
+                self._consume(self._protocol.approve_peer())
+                return self._ack()
+            if action == "send":
                 scope, = arguments
                 if scope not in ("ALL", "PASSWORDS", "NOTES") or type(scope) is not str:
                     return self._ack("INVALID_ARGUMENT")
@@ -196,20 +230,6 @@ class DirectTransferController(QObject):
                 self._job = self.adapter.export_transfer_snapshot(self._page, self._session, scope,
                     lambda completion: self._deliver_snapshot(run, "send", completion))
                 self._publish()
-                return self._ack()
-            if action == "accept":
-                if (self._state["role"] != "RECEIVE" or self._state["phase"] != "REVIEW"
-                        or not self._state["offerReady"] or self._state["receiverAccepted"]):
-                    return self._ack("REQUEST_BUSY")
-                self._consume(self._protocol.send_message({"type": "accept", "sha256": self._offer["sha256"]}))
-                self._state["receiverAccepted"] = True
-                self._publish()
-                return self._ack()
-            if action == "send":
-                if self._state["role"] != "SEND" or self._state["phase"] != "REVIEW" or not self._state["receiverAccepted"]:
-                    return self._ack("REQUEST_BUSY")
-                self._start_transfer()
-                self._consume(self._protocol.send_message({"type": "start", "sha256": self._offer["sha256"]}))
                 return self._ack()
         except DirectTransferError as error:
             self._protocol_error(error)
@@ -239,22 +259,30 @@ class DirectTransferController(QObject):
             self._fail("UNAVAILABLE")
             return self._ack("INTERNAL_FAILURE")
         self._state.update(flowId=secrets.token_hex(16), role=role, transport=kind, scope="ALL",
-            phase=phase, peers=peers, sas="", localConfirmed=False,
-            peerConfirmed=False, receiverAccepted=False, offerReady=False, preparing=False,
+            phase=phase, peers=peers, pairingCode="", receiverAccepted=False, offerReady=False, preparing=False,
             peerDeviceName="", localVaultName=vault, peerVaultName="", transferredBytes=0, totalBytes=0, errorCode="NONE",
             localAddresses=self._receiving_addresses() if role == "RECEIVE" and kind == "LAN" else [],
             manualAddress=manual_address, manualSearching=bool(manual_address))
         self._device_id = secrets.token_hex(16)
         self._selected_peer = ""
+        self._selected_target = None
         if role == "RECEIVE":
-            self._auth_deadline = self._clock() + 180
+            self._pairing_code = f"{secrets.randbelow(100_000_000):08d}"
+            self._state["pairingCode"] = self._pairing_code
+            self._auth_deadline = self._clock() + 600
             self._timeout.start()
         from PySide6.QtCore import QSysInfo
         name = QSysInfo.machineHostName()
         self._device_name = name if name and len(name) <= 64 and len(name.encode("utf-8")) <= 256 and not any(ord(c) < 32 or 127 <= ord(c) <= 159 for c in name) else "Windows"
-        factory = self._transport_factory
-        if factory is None:
-            factory = DirectTransferTransport
+        transport = self._new_transport()
+        self._publish()
+        started = transport.start(role, kind, manual_address) if manual_address else transport.start(role, kind)
+        if not started:
+            self._fail("UNAVAILABLE")
+        return self._ack()
+
+    def _new_transport(self):
+        factory = self._transport_factory or DirectTransferTransport
         transport = factory(self._device_id, self._device_name, self)
         self._transport = transport
         run = self._run
@@ -264,11 +292,11 @@ class DirectTransferController(QObject):
         transport.drained.connect(lambda: self._drained(run))
         transport.failed.connect(lambda code: self._transport_failed(run, code))
         transport.discoveryFinished.connect(lambda: self._discovery_finished(run))
-        self._publish()
-        started = transport.start(role, kind, manual_address) if manual_address else transport.start(role, kind)
-        if not started:
-            self._fail("UNAVAILABLE")
-        return self._ack()
+        transport.candidateConnected.connect(lambda candidate: self._candidate_connected(run, candidate))
+        transport.candidateData.connect(lambda candidate, data: self._candidate_receive(run, candidate, data))
+        transport.candidateFailed.connect(lambda candidate, _code: self._candidate_gone(run, candidate))
+        transport.candidateDrained.connect(lambda candidate: self._candidate_drain(run, candidate))
+        return transport
 
     def _peers(self, run, peers):
         if self._current(run) and (self._state["phase"] == "DISCOVERING" or self._state["manualSearching"]):
@@ -280,13 +308,15 @@ class DirectTransferController(QObject):
                 self._publish()
 
     def _choose_peer(self, peer_id):
+        peer = next(item for item in self._state["peers"] if item["peerId"] == peer_id)
+        if peer.get("legacy"):
+            self._state.update(errorCode="UPGRADE_REQUIRED", manualSearching=False)
+            self._publish()
+            return
         self._selected_peer = peer_id
-        self._state["phase"] = "CONNECTING"
-        self._auth_deadline = self._clock() + 20
-        self._timeout.start()
+        self._selected_target = self._transport.peer_target(peer_id)
+        self._state.update(phase="PAIRING_CODE", peerDeviceName=peer["name"], errorCode="NONE", manualSearching=False)
         self._publish()
-        if not self._transport.choose_peer(peer_id):
-            self._fail("CONNECT_FAILED")
 
     def _discovery_finished(self, run):
         if self._current(run) and self._state["phase"] in {"IDLE", "DISCOVERING"} and self._state["manualSearching"]:
@@ -296,20 +326,95 @@ class DirectTransferController(QObject):
     def _connected(self, run, _peer):
         if not self._current(run):
             return
-        if self._protocol is not None:
+        if self._protocol is not None or self._state["role"] != "SEND":
             self._fail("INVALID_DATA")
             return
         try:
-            self._protocol = DirectTransferSession("SENDER" if self._state["role"] == "SEND" else "RECEIVER",
-                                                   self._device_id, self._device_name)
-            self._auth_deadline = self._clock() + 180
+            self._protocol = DirectTransferSession("SENDER", self._device_id, self._device_name, self._pairing_code)
+            self._pairing_code = ""
+            self._auth_deadline = self._clock() + 10
             self._timeout.start()
-            self._state["phase"] = "CONNECTING"
-            self._state["localAddresses"] = []
             self._consume(self._protocol.begin())
-            self._publish()
         except Exception:
             self._fail("INTERNAL_FAILURE")
+
+    def _candidate_connected(self, run, candidate):
+        if not self._current(run) or self._protocol is not None or self._state["phase"] != "WAITING":
+            return
+        if self._auth_deadline is None or self._clock() >= self._auth_deadline:
+            self._fail("TIMEOUT")
+            return
+        try:
+            protocol = DirectTransferSession("RECEIVER", self._device_id, self._device_name, self._pairing_code)
+            self._candidates[candidate] = [protocol, deque(), ""]
+            result = protocol.begin()
+            self._candidate_result(run, candidate, result)
+        except Exception:
+            self._candidate_gone(run, candidate)
+            if self._transport is not None:
+                self._transport.reject_candidate(candidate)
+
+    def _candidate_receive(self, run, candidate, data):
+        if not self._current(run) or candidate not in self._candidates:
+            return
+        try:
+            self._candidate_result(run, candidate, self._candidates[candidate][0].receive(data))
+        except Exception:
+            self._candidate_gone(run, candidate)
+            if self._transport is not None:
+                self._transport.reject_candidate(candidate)
+
+    def _candidate_result(self, run, candidate, result):
+        if not self._transport.candidate_alive(candidate):
+            return
+        protocol, queue, _name = self._candidates[candidate]
+        if any(event.type == "cancelled" for event in result.events):
+            self._candidate_gone(run, candidate)
+            self._transport.reject_candidate(candidate)
+            return
+        for event in result.events:
+            if event.type == "peer":
+                self._transport.mark_candidate_hello(candidate)
+                self._candidates[candidate][2] = event.fields["name"]
+        if protocol.authenticated:
+            if self._auth_deadline is None or self._clock() >= self._auth_deadline:
+                self._fail("TIMEOUT")
+                return
+            self._protocol = protocol
+            del self._candidates[candidate]
+            for other in list(self._candidates):
+                self._candidate_gone(run, other)
+            self._pairing_code = ""
+            self._state.update(pairingCode="", peerDeviceName=_name or next((event.fields["name"] for event in result.events if event.type == "peer"), ""))
+            self._auth_deadline = None
+            self._writing = self._transport.candidate_writing(candidate)
+            self._outbound.extend(queue)
+            if not self._transport.promote_candidate(candidate):
+                self._fail("UNAVAILABLE")
+                return
+            self._consume(result)
+            return
+        if len(queue) + len(result.outbound) > 8:
+            raise DirectTransferError("LIMIT")
+        queue.extend(result.outbound)
+        self._candidate_drain(run, candidate)
+
+    def _candidate_drain(self, run, candidate):
+        if not self._current(run) or candidate not in self._candidates:
+            return
+        queue = self._candidates[candidate][1]
+        if queue and not self._transport.candidate_writing(candidate):
+            if not self._transport.write_candidate(candidate, queue.popleft()):
+                self._candidate_gone(run, candidate)
+                self._transport.reject_candidate(candidate)
+
+    def _candidate_gone(self, run, candidate):
+        if not self._current(run):
+            return
+        entry = self._candidates.pop(candidate, None)
+        if entry is not None:
+            entry[0].close()
+            entry[1].clear()
 
     def _receive(self, run, data):
         if not self._current(run) or self._protocol is None:
@@ -332,19 +437,24 @@ class DirectTransferController(QObject):
                 if self._state["role"] == "SEND" and self._state["transport"] == "LAN" and fields["deviceId"] != self._selected_peer:
                     raise DirectTransferError("AUTH")
                 self._state["peerDeviceName"] = fields["name"]
-            elif event.type == "sas":
-                self._state.update(phase="VERIFYING", sas=" ".join(str(value) for value in fields["numbers"]))
             elif event.type == "authenticated":
                 self._auth_deadline = None
-                self._state.update(phase="REVIEW", peerConfirmed=True, sas="")
+                self._pairing_code = ""
+                self._state.update(phase="WAIT_APPROVAL", pairingCode="", localAddresses=[])
+            elif event.type == "approved":
+                self._state["phase"] = "REVIEW"
                 self._consume(self._protocol.send_message({"type": "metadata", "vaultName": self._state["localVaultName"]}))
             elif event.type == "metadata":
                 self._state["peerVaultName"] = fields["vaultName"]
             elif event.type == "offer":
                 self._offer = dict(fields)
                 self._state.update(scope=fields["scope"], totalBytes=fields["byteCount"], offerReady=True)
+                self._consume(self._protocol.send_message({"type": "accept", "sha256": self._offer["sha256"]}))
+                self._state["receiverAccepted"] = True
             elif event.type == "accept":
                 self._state["receiverAccepted"] = True
+                self._start_transfer()
+                self._consume(self._protocol.send_message({"type": "start", "sha256": self._offer["sha256"]}))
             elif event.type == "start":
                 self._start_transfer()
             elif event.type == "progress":
@@ -364,7 +474,9 @@ class DirectTransferController(QObject):
                 self._stop_activity()
                 self._clear_material()
             elif event.type == "cancelled":
-                if self._handed_over:
+                if self._state["role"] == "RECEIVE" and self._state["phase"] == "VERIFYING_PAYLOAD":
+                    self._close_channel()
+                elif self._handed_over:
                     self._stop_activity()
                     self._clear_material()
                 else:
@@ -490,8 +602,12 @@ class DirectTransferController(QObject):
                     return
                 self._handed_over = True
                 self._state["phase"] = "RECEIVED"
-                self._consume(self._protocol.send_received())
-                self._release_hold()
+                if self._transport is None:
+                    self._stop_activity()
+                    self._clear_material()
+                else:
+                    self._consume(self._protocol.send_received())
+                    self._release_hold()
             self._publish()
         except DirectTransferError as error:
             if not self._handed_over:
@@ -536,14 +652,55 @@ class DirectTransferController(QObject):
     def _transport_failed(self, run, code):
         if not self._current(run):
             return
-        if self._handed_over:
+        if code == "DISCONNECTED" and self._state.get("role") == "RECEIVE" and self._state.get("phase") == "VERIFYING_PAYLOAD":
+            self._close_channel()
+        elif self._handed_over:
             self._stop_activity()
             self._clear_material()
+        elif self._state.get("role") == "SEND" and self._state.get("phase") == "CONNECTING":
+            self._retry_sender(code if code in {"CONNECT_FAILED", "DISCONNECTED", "TIMEOUT"} else "INTERNAL_FAILURE")
         else:
             self._fail(code if code in {"UNAVAILABLE", "CONNECT_FAILED", "DISCONNECTED", "TIMEOUT", "LIMIT_EXCEEDED", "INVALID_DATA"} else "INTERNAL_FAILURE")
 
+    def _close_channel(self):
+        # 完整来源已归本地校验；关闭通道不改变原会话、任务代次或取消资格。
+        transport, self._transport = self._transport, None
+        protocol, self._protocol = self._protocol, None
+        self._pump_timer.stop()
+        self._outbound.clear()
+        self._writing = False
+        for cleanup in (
+            lambda: transport.close() if transport is not None else None,
+            lambda: transport.deleteLater() if transport is not None else None,
+            lambda: protocol.close() if protocol is not None else None,
+        ):
+            try:
+                if cleanup() is False:
+                    self._cleanup_failed = True
+            except Exception:
+                self._cleanup_failed = True
+        if self._cleanup_failed:
+            self._fail("UNAVAILABLE")
+
     def _protocol_error(self, error):
-        self._fail({"AUTH": "AUTH_FAILED", "LIMIT": "LIMIT_EXCEEDED", "CANCELLED": "CANCELLED"}.get(error.code, "INVALID_DATA"))
+        code = {"AUTH": "AUTH_FAILED", "LIMIT": "LIMIT_EXCEEDED", "CANCELLED": "CANCELLED",
+                "UPGRADE_REQUIRED": "UPGRADE_REQUIRED"}.get(error.code, "INVALID_DATA")
+        if self._state.get("role") == "SEND" and self._state.get("phase") == "CONNECTING" and code != "UPGRADE_REQUIRED":
+            self._retry_sender(code)
+        else:
+            self._fail(code)
+
+    def _retry_sender(self, code):
+        selected_peer, selected_target = self._selected_peer, self._selected_target
+        self._stop_activity()
+        self._clear_material()
+        self._selected_peer, self._selected_target = selected_peer, selected_target
+        if self._cleanup_failed:
+            self._state.update(phase="FAILED", pairingCode="", errorCode="UNAVAILABLE", preparing=False, manualSearching=False)
+        else:
+            self._state.update(phase="PAIRING_CODE", pairingCode="", errorCode=code,
+                               preparing=False, manualSearching=False)
+        self._publish()
 
     def _fail(self, code):
         handed_over = self._handed_over or self._state.get("phase") == "RECEIVED"
@@ -553,7 +710,7 @@ class DirectTransferController(QObject):
             code = "UNAVAILABLE"
         self._state.update(phase="RECEIVED" if handed_over else "CANCELLED" if code == "CANCELLED" else "FAILED",
                            errorCode="NONE" if handed_over else code,
-                           sas="", localConfirmed=False, peerConfirmed=False, preparing=False,
+                           pairingCode="", preparing=False,
                            localAddresses=[], manualSearching=False)
         self._publish()
 
@@ -593,7 +750,18 @@ class DirectTransferController(QObject):
         with self._completion_lock:
             pending, self._pending_completion = self._pending_completion, None
         protocol, self._protocol = self._protocol, None
+        candidates, self._candidates = self._candidates, {}
+        self._pairing_code = ""
+        self._selected_peer, self._selected_target = "", None
+        if self._state:
+            self._state["pairingCode"] = ""
         failed = False
+        for candidate_protocol, queue, _name in candidates.values():
+            try:
+                candidate_protocol.close()
+                queue.clear()
+            except Exception:
+                failed = True
         for cleanup in (
             lambda: self.adapter.cancel_transfer_snapshot(job) if job else None,
             lambda: self._discard_completion(pending) if pending is not None else None,

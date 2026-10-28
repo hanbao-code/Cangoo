@@ -3,6 +3,8 @@ PySide6_Addons==6.9.3
 PySide6_Essentials==6.9.3
 shiboken6==6.9.3
 pycryptodome==3.23.0
+srp==1.0.22
+six==1.17.0
 argon2-cffi==25.1.0
 argon2-cffi-bindings==25.1.0
 cffi==2.0.0

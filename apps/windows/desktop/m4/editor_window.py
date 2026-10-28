@@ -205,7 +205,10 @@ class _EditorPasswordCopyFilter(QObject):
                 != end - start
             ):
                 return
-            self._copy_password(text)
+            if not self._copy_password(text):
+                self._view.page().runJavaScript(
+                    "window.pdmEditorRuntime?.showClipboardUnavailableV1?.();"
+                )
         except Exception:
             return
         finally:

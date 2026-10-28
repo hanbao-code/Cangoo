@@ -96,6 +96,10 @@ def msi_version(version: str) -> str:
 def installer_source_paths(root: Path = ROOT) -> tuple[Path, ...]:
     """构建与源码导出共用的权威安装源码集合，返回 Windows 工程相对路径。"""
     fixed = {Path("tools/build_windows_installer.py"), Path("tools/build_windows_packages.py"),
+             Path("tools/qt_bluetooth_build.py"), Path("packaging/windows/cangoo.spec"),
+             Path("packaging/windows/qt_bluetooth_lock.json"), Path("packaging/windows/qt_bluetooth_build.md"),
+             Path("packaging/windows/qt_bluetooth_6_9_3.patch"),
+             Path("packaging/windows/third_party_sources.md"),
              Path("desktop/runtime_paths.py"),
              Path("resources/icons/cangoo/app.ico"), Path("resources/icons/cangoo/app_64.png")}
     for directory in (MSI_SOURCE, NATIVE_SOURCE):
@@ -266,6 +270,9 @@ def build_installer(payload: Path, output: Path, toolchain: Path, *, version: st
                "SourceDir": str(ROOT / MSI_SOURCE), "BuildDir": str(output)}
     if acceptance:
         defines["AcceptanceInstallDir"] = identity["install_directory"]
+        identity["component_guid_seed"] = "{" + str(uuid.uuid5(uuid.UUID(identity["msi_upgrade_code"]),
+            os.path.normcase(str(Path(identity["install_directory"]).resolve())))).upper() + "}"
+        defines["AcceptanceComponentGuidSeed"] = identity["component_guid_seed"]
     flags = [argument for key, value in defines.items() for argument in ("-d", key + "=" + value)]
     execute([*wix, "build", "-acceptEula", "wix7", "-arch", "x64", *flags,
              str(ROOT / MSI_SOURCE / "package.wxs"), "-o", str(output / "cangoo.msi")], "msi")

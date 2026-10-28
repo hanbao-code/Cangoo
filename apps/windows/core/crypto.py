@@ -106,7 +106,9 @@ class CryptoHelper:
     @staticmethod
     def decrypt_data(encrypted: str, key: bytes) -> str:
         """AES-256-GCM 解密，输入 Base64 编码字符串，返回明文"""
-        raw = base64.b64decode(encrypted)
+        raw = base64.b64decode(encrypted, validate=True)
+        if len(raw) < 28:
+            raise ValueError('invalid field ciphertext length')
         nonce, ciphertext, tag = raw[:12], raw[12:-16], raw[-16:]
         cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
         return cipher.decrypt_and_verify(ciphertext, tag).decode('utf-8')

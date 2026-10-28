@@ -66,6 +66,8 @@ def _init_user32():
     user32.EmptyClipboard.restype = ctypes.c_int
     user32.SetClipboardData.argtypes = [ctypes.c_uint, ctypes.c_void_p]
     user32.SetClipboardData.restype = ctypes.c_void_p
+    user32.RegisterClipboardFormatW.argtypes = [ctypes.c_wchar_p]
+    user32.RegisterClipboardFormatW.restype = ctypes.c_uint
     user32.GetClipboardData.argtypes = [ctypes.c_uint]
     user32.GetClipboardData.restype = ctypes.c_void_p
     user32.IsClipboardFormatAvailable.argtypes = [ctypes.c_uint]
@@ -73,6 +75,8 @@ def _init_user32():
     # GetClipboardOwner：返回当前剪贴板所有者窗口句柄（用于所有权信息查询）
     user32.GetClipboardOwner.argtypes = []
     user32.GetClipboardOwner.restype = ctypes.c_void_p
+    user32.IsWindow.argtypes = [ctypes.c_void_p]
+    user32.IsWindow.restype = ctypes.c_int
 
     # kernel32 全局内存相关函数
     kernel32.GlobalAlloc.argtypes = [ctypes.c_uint, ctypes.c_size_t]
@@ -110,6 +114,7 @@ class ClipboardManager:
 
     用法示例：
         cm = ClipboardManager()
+        cm.bind_window_handle(hwnd)  # 宿主在界面线程取得的有效窗口句柄
         cm.set_mode("countdown", 30)
         cm.copy("hello", label="示例密码")
         # ... 30 秒后自动清空剪贴板（仅当内容仍为本程序写入时）
@@ -153,12 +158,18 @@ class ClipboardManager:
         self._last_fingerprint = None
         # _last_copy_time: 上次复制的时间戳（time.monotonic，0.0 表示从未复制）
         self._last_copy_time = 0.0
+        self._owner_hwnd = 0
 
         # 初始化 Windows API
         api = _init_user32()
         if api is None:
             raise RuntimeError("ClipboardManager 仅支持 Windows 平台")
         self._user32, self._kernel32 = api
+
+    def bind_window_handle(self, hwnd):
+        """宿主只传整数句柄；与发布串行，不能从工作线程访问界面对象。"""
+        with self._lock:
+            self._owner_hwnd = hwnd if type(hwnd) is int and hwnd > 0 else 0
 
     def copy(self, text, label=""):
         """
@@ -262,12 +273,10 @@ class ClipboardManager:
         """
         获取当前剪贴板所有者窗口句柄（Win32 GetClipboardOwner）
 
-        :return: 所有者窗口句柄（int），0 表示无所有者（如系统持有或本程序
-                 以 OpenClipboard(None) 写入）
+        :return: 所有者窗口句柄（int），0 表示无所有者。
 
-        注意：本程序 copy() 时调用 OpenClipboard(None)，未关联具体窗口，
-        故 GetClipboardOwner 返回值可能为 0。判断"当前内容是否由本程序写入"
-        应优先使用 is_owned_by_us()（基于指纹匹配，更可靠）。
+        判断"当前内容是否由本程序写入"应使用 is_owned_by_us()，
+        避免同一窗口的其他复制操作被当成原有受管内容。
         本方法主要用于诊断/日志场景。
         """
         user32 = self._user32
@@ -285,7 +294,7 @@ class ClipboardManager:
                  False 表示剪贴板为空、非文本格式或内容已被替换；None 表示暂时读取失败
 
         实现：读取当前剪贴板文本，计算指纹，与 _last_fingerprint 比较。
-        此方法比 get_owner_info() 更可靠（后者依赖窗口句柄，本程序未注册窗口）。
+        窗口所有者不能区分同一窗口前后两次复制，故仍按内容指纹判断。
         """
         with self._lock:
             return self._is_current_content_owned_locked()
@@ -377,13 +386,16 @@ class ClipboardManager:
         """
         将文本写入剪贴板（Windows API 实现，需持锁调用）
 
-        流程：OpenClipboard → EmptyClipboard → GlobalAlloc → GlobalLock
-              → memmove → GlobalUnlock → SetClipboardData → CloseClipboard
+        先准备文本与排除标记，在同次 OpenClipboard 内先发布标记再发布文本，
+        防止受管复制进入 Windows 剪贴板历史与跨设备同步。
 
         SetClipboardData 成功后，全局内存所有权转移给系统，调用方不得再释放。
         """
         user32 = self._user32
         kernel32 = self._kernel32
+        # NULL owner 经 EmptyClipboard 后不能 SetClipboardData；失败前保留旧内容。
+        if not self._owner_hwnd or not user32.IsWindow(self._owner_hwnd):
+            return False
 
         # 文本编码为 UTF-16 LE（Windows UNICODETEXT 格式）
         encoded = text.encode('utf-16-le')
@@ -394,8 +406,14 @@ class ClipboardManager:
         h_global = kernel32.GlobalAlloc(_GMEM_MOVEABLE, buf_size)
         if not h_global:
             return False
+        h_exclusion = None
 
         try:
+            exclusion_format = user32.RegisterClipboardFormatW(
+                'ExcludeClipboardContentFromMonitorProcessing'
+            )
+            if not exclusion_format:
+                return False
             # 锁定内存获取指针
             ptr = kernel32.GlobalLock(h_global)
             if not ptr:
@@ -408,13 +426,27 @@ class ClipboardManager:
             finally:
                 kernel32.GlobalUnlock(h_global)
 
-            # 打开剪贴板（传入 None 表示关联当前任务窗口）
-            if not user32.OpenClipboard(None):
+            h_exclusion = kernel32.GlobalAlloc(_GMEM_MOVEABLE, 1)
+            if not h_exclusion:
+                return False
+            exclusion_ptr = kernel32.GlobalLock(h_exclusion)
+            if not exclusion_ptr:
+                return False
+            try:
+                ctypes.memset(exclusion_ptr, 0, 1)
+            finally:
+                kernel32.GlobalUnlock(h_exclusion)
+
+            if not user32.OpenClipboard(self._owner_hwnd):
                 return False
 
             try:
                 if not user32.EmptyClipboard():
                     return False
+                # 标记先于秘密；失败不降级为普通复制，空句柄不能代替标记。
+                if not user32.SetClipboardData(exclusion_format, h_exclusion):
+                    return False
+                h_exclusion = None
                 # SetClipboardData 接管 h_global 所有权
                 result = user32.SetClipboardData(_CF_UNICODETEXT, h_global)
                 if not result:
@@ -428,6 +460,8 @@ class ClipboardManager:
         except Exception:
             return False
         finally:
+            if h_exclusion:
+                kernel32.GlobalFree(h_exclusion)
             if h_global:
                 kernel32.GlobalFree(h_global)
 

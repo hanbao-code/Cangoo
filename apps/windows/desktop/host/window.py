@@ -458,6 +458,8 @@ _BASE_CURTAIN_SURFACE_MODES = {
         RendererRecoverySurfaceMode.FULL_NATIVE,
     RendererRecoveryViewState.BLOCKED:
         RendererRecoverySurfaceMode.FULL_NATIVE,
+    RendererRecoveryViewState.POWER_PROTECTION_UNAVAILABLE:
+        RendererRecoverySurfaceMode.FULL_NATIVE,
     RendererRecoveryViewState.DATABASE_RECOVERY_FAILED:
         RendererRecoverySurfaceMode.FULL_NATIVE,
     RendererRecoveryViewState.STARTUP_BLOCKED:
@@ -721,6 +723,7 @@ class HostWindow(QMainWindow):
                 )
             self._sync_standard_surface_refresh_filter()
         self.view.setUrl(QUrl(ENTRY_URL))
+        HostWindow._sync_clipboard_window_handle(self)
 
     def _prepare_candidate_page(self, _page: QWebEnginePage) -> None:
         """Extension hook run before a candidate page receives its URL."""
@@ -2672,6 +2675,44 @@ class HostWindow(QMainWindow):
             return lifecycle.unregister_window()
         return lifecycle.register_window(hwnd)
 
+    def _sync_clipboard_window_handle(self) -> None:
+        """复用当前原生句柄；首次创建前或销毁后禁用复制，不创建额外窗口。"""
+        native = getattr(self, "native", None)
+        clipboard = getattr(native, "clipboard", None)
+        if clipboard is not None:
+            hwnd = 0 if getattr(self, "_exit_cleanup_started", False) else int(self.internalWinId())
+            clipboard.bind_window_handle(hwnd)
+
+    def _on_power_registration_failed(self) -> None:
+        """产品扩展层在有效窗口失去电源保护时同步停止秘密能力。"""
+
+    def _on_power_registration_lost(self) -> None:
+        """在旧订阅解绑前同步撤销不再有电源保护的秘密权限。"""
+
+    def _on_power_registration_available(self) -> None:
+        """新句柄订阅成功后，由产品扩展层完成已有锁定呈现。"""
+
+    def _sync_power_registration(self) -> bool:
+        lifecycle = getattr(self, "power", None)
+        if lifecycle is None:
+            return False
+        if getattr(self, "_exit_cleanup_started", False):
+            return lifecycle.unregister_window()
+        hwnd = int(self.internalWinId())
+        if lifecycle.registration_active and not lifecycle.is_registered_for(hwnd):
+            self._on_power_registration_lost()
+            # 清理中的原生呈现可能重建句柄，不能随后注销新建立的订阅。
+            hwnd = int(self.internalWinId())
+        if not hwnd:
+            lifecycle.unregister_window()
+            return False
+        available = lifecycle.register_window(hwnd)
+        if available:
+            self._on_power_registration_available()
+        else:
+            self._on_power_registration_failed()
+        return available
+
     def _on_power_resumed(self, event_name: str, count: int) -> None:
         """Refresh native chrome and verify the existing renderer after wake."""
 
@@ -3088,10 +3129,12 @@ class HostWindow(QMainWindow):
 
     def showEvent(self, event: QShowEvent) -> None:  # noqa: N802
         super().showEvent(event)
+        HostWindow._sync_clipboard_window_handle(self)
         if getattr(self, "_exit_cleanup_started", False):
             self._sync_renderer_curtain_geometry()
             return
-        self.power.register_window(int(self.winId()))
+        if not self._sync_power_registration():
+            self._on_power_registration_failed()
         self._sync_session_lock_registration()
         self._remember_native_normal_rect()
         self._sync_window_screen_change_binding()
@@ -3107,6 +3150,8 @@ class HostWindow(QMainWindow):
             HostWindow._cancel_standard_scene_refresh(self)
         result = super().event(event)
         if event.type() == QEvent.Type.WinIdChange:
+            HostWindow._sync_clipboard_window_handle(self)
+            self._sync_power_registration()
             self._sync_session_lock_registration()
         if (
             hasattr(self, "_dpi_fit_generation")

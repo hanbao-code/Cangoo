@@ -418,7 +418,7 @@ html.pdm-security-lock-handoff-static .startup-card{
 .recent-info{flex:1;min-width:0}
 .recent-name{font-size:calc(12px * var(--pdm-ui-font-scale));font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .recent-path{font-size:calc(10px * var(--pdm-ui-font-scale));color:var(--text-weak);font-family:var(--font-mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.recent-time{font-size:calc(10px * var(--pdm-ui-font-scale));color:var(--text-weak);flex-shrink:0}
+.recent-time{font-size:calc(10px * var(--pdm-ui-font-scale));color:var(--text-weak);flex-shrink:0;width:8em;text-align:right;white-space:nowrap}
 
 /* ============================================================
    主界面布局 / Main Layout

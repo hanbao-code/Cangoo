@@ -10,7 +10,7 @@ from desktop.bridge.contract_catalog import ContractCatalog
 
 
 _CONTRACT_SHA256 = (
-    "341237f023a54466e40f88d801749ea7d55323424b6d662606ebb2279d36e53f"
+    "7d4e5b306790fdcc7808e3728b49a6f0ae38d646e64c4115fca3257d0d0de464"
 )
 _CONTRACT_PATH = (
     Path(__file__).resolve().parents[2]

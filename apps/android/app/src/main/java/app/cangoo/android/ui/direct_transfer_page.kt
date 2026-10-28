@@ -57,7 +57,8 @@ import app.cangoo.android.data.BackupScope
 // 只呈现当前原生任务并转发意图；认证、权限、快照和传输资格由控制器持有。
 @Composable
 internal fun BDirectTransferPage(controller: DirectTransferController, onStart: () -> Unit, onCancel: () -> Unit,
-                                 onOpenSettings: (DirectTransferSettings) -> Unit, modifier: Modifier = Modifier) {
+                                 onOpenSettings: (DirectTransferSettings) -> Unit, modifier: Modifier = Modifier,
+                                 onCopyPairingCode: () -> Unit) {
     val state = controller.state
     val colors = LocalBThemeColors.current
     val focus = LocalFocusManager.current
@@ -68,9 +69,9 @@ internal fun BDirectTransferPage(controller: DirectTransferController, onStart: 
             TransferValue(stringResource(R.string.transfer_local_vault), state.localVaultName)
             Text(stringResource(transferPhaseTitle(state)), color = colors.ink, fontSize = businessSp(18.sp), lineHeight = 1.4.em,
                 fontWeight = FontWeight.SemiBold, modifier = Modifier.fillMaxWidth().semantics { heading(); liveRegion = LiveRegionMode.Polite })
-            if (state.phase == DirectTransferPhase.SAS) {
-                TransferCode(state)
-                TransferCopy(stringResource(if (state.sasConfirmed) R.string.transfer_code_wait_peer else R.string.transfer_code_hint))
+            if (state.phase == DirectTransferPhase.WAITING && state.pairingCode.length == 8) {
+                TransferCode(state.pairingCode, onCopyPairingCode)
+                TransferCopy(stringResource(R.string.transfer_pairing_validity))
             }
             if (state.phase in setOf(DirectTransferPhase.TRANSFERRING, DirectTransferPhase.VERIFYING)) TransferProgress(state)
         }
@@ -116,10 +117,19 @@ internal fun BDirectTransferPage(controller: DirectTransferController, onStart: 
                             TransferCopy(stringResource(R.string.transfer_local_addresses_hint))
                         }
                     }
-                    DirectTransferPhase.CONNECTING -> TransferCopy(stringResource(R.string.transfer_discover_hint))
+                    DirectTransferPhase.PAIRING_CODE -> {
+                        TransferCopy(stringResource(R.string.transfer_pairing_hint))
+                        FormField(stringResource(R.string.transfer_pairing_code), state.pairingCode, controller::updatePairingCode,
+                            enabled = true, placeholder = "00000000", keyboardType = KeyboardType.NumberPassword,
+                            onDone = { focus.clearFocus(); controller.connectWithCode() })
+                        if (state.channel == DirectTransferChannel.BLUETOOTH) TransferCopy(stringResource(R.string.transfer_pairing_upgrade_hint))
+                    }
+                    DirectTransferPhase.CONNECTING -> TransferCopy(stringResource(R.string.transfer_connecting))
+                    DirectTransferPhase.WAIT_APPROVAL -> TransferCopy(stringResource(if (state.role == DirectTransferRole.RECEIVER)
+                        R.string.transfer_approval_hint else R.string.transfer_wait_approval_hint))
                     DirectTransferPhase.PREPARING, DirectTransferPhase.REVIEW, DirectTransferPhase.TRANSFERRING,
                     DirectTransferPhase.VERIFYING, DirectTransferPhase.RECEIVED, DirectTransferPhase.SENT -> TransferReview(state, controller)
-                    DirectTransferPhase.CONFIG, DirectTransferPhase.SAS, DirectTransferPhase.FAILED -> Unit
+                    DirectTransferPhase.CONFIG, DirectTransferPhase.FAILED -> Unit
                 }
                 when (state.phase) {
                     DirectTransferPhase.TRANSFERRING, DirectTransferPhase.VERIFYING -> TransferCopy(stringResource(R.string.transfer_foreground_hint))
@@ -163,19 +173,16 @@ internal fun BDirectTransferPage(controller: DirectTransferController, onStart: 
                         Spacer(Modifier.size(20.dp))
                     }
                 }
-                DirectTransferPhase.SAS -> PrimaryButton(stringResource(R.string.transfer_code_match), false,
-                    enabled = completeTransferCode(state) && !state.sasConfirmed, onClick = controller::confirmSas)
+                DirectTransferPhase.PAIRING_CODE -> PrimaryButton(stringResource(R.string.transfer_pairing_connect), false,
+                    enabled = state.pairingCode.length == 8, onClick = { focus.clearFocus(); controller.connectWithCode() })
+                DirectTransferPhase.WAIT_APPROVAL -> PrimaryButton(stringResource(if (state.role == DirectTransferRole.RECEIVER)
+                    R.string.transfer_approve else R.string.transfer_wait_approval), false,
+                    enabled = state.role == DirectTransferRole.RECEIVER, onClick = controller::approvePeer)
                 DirectTransferPhase.REVIEW -> {
-                    if (state.role == DirectTransferRole.SENDER) {
-                        if (!state.offerPrepared) PrimaryButton(stringResource(R.string.transfer_prepare), false,
-                            enabled = state.peerVaultName != null, onClick = controller::prepareOffer)
-                        else PrimaryButton(stringResource(if (state.accepted) R.string.transfer_start_send else R.string.transfer_wait_accept), false,
-                            enabled = state.accepted, onClick = controller::startTransfer)
-                    } else PrimaryButton(stringResource(when {
-                        !state.offerPrepared -> R.string.transfer_offer_wait
-                        state.accepted -> R.string.transfer_wait_start
-                        else -> R.string.transfer_accept
-                    }), false, enabled = state.offerPrepared && !state.accepted, onClick = controller::acceptTransfer)
+                    if (state.role == DirectTransferRole.SENDER) PrimaryButton(stringResource(if (state.offerPrepared)
+                        R.string.transfer_wait_start else R.string.transfer_start_send), false,
+                        enabled = state.peerVaultName != null && !state.offerPrepared, onClick = controller::prepareOffer)
+                    else PrimaryButton(stringResource(R.string.transfer_offer_wait), false, enabled = false, onClick = {})
                 }
                 DirectTransferPhase.FAILED -> PrimaryButton(stringResource(R.string.transfer_restart), false, onClick = controller::reset)
                 DirectTransferPhase.SENT -> PrimaryButton(stringResource(R.string.close), false, onClick = onCancel)
@@ -187,7 +194,8 @@ internal fun BDirectTransferPage(controller: DirectTransferController, onStart: 
                     DirectTransferSettings.BLUETOOTH -> R.string.transfer_open_bluetooth
                 })) { onOpenSettings(destination) }
             }
-            if (state.phase == DirectTransferPhase.SAS) TransferTextButton(stringResource(R.string.transfer_code_reject), controller::rejectSas)
+            if (state.phase == DirectTransferPhase.WAIT_APPROVAL && state.role == DirectTransferRole.RECEIVER)
+                TransferTextButton(stringResource(R.string.transfer_reject), controller::rejectPeer)
             else if (state.phase != DirectTransferPhase.SENT) TransferTextButton(stringResource(if (state.phase == DirectTransferPhase.FAILED)
                 R.string.back else R.string.cancel), onCancel)
         }
@@ -248,19 +256,18 @@ private fun TransferReview(state: DirectTransferUiState, controller: DirectTrans
 }
 
 @Composable
-private fun TransferCode(state: DirectTransferUiState) {
+private fun TransferCode(code: String, onCopy: () -> Unit) {
     val colors = LocalBThemeColors.current
-    if (completeTransferCode(state)) {
-        Row(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            state.sas.forEach { value ->
-                Surface(Modifier.weight(1f), shape = RoundedCornerShape(10.dp), color = colors.soft) {
-                    Text(value.toString(), Modifier.padding(horizontal = 4.dp, vertical = 10.dp), color = colors.ink,
-                        fontSize = businessSp(20.sp), lineHeight = 1.5.em, fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, softWrap = false)
-                }
+    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp), color = colors.soft) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(code.chunked(4).joinToString(" "), Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 10.dp), color = colors.ink,
+                fontSize = businessSp(26.sp), lineHeight = 1.5.em, fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, softWrap = false)
+            TextButton(onClick = onCopy) {
+                Text(stringResource(R.string.copy), color = colors.accentInk, fontSize = businessSp(14.sp), lineHeight = 1.5.em)
             }
         }
-    } else TransferCopy(stringResource(R.string.transfer_code_waiting), modifier = Modifier.heightIn(min = 50.dp))
+    }
 }
 
 @Composable
@@ -317,8 +324,6 @@ private fun TransferTextButton(text: String, onClick: () -> Unit) {
     }
 }
 
-private fun completeTransferCode(state: DirectTransferUiState): Boolean = state.sas.size == 3 && state.sas.all { it in 1000..9999 }
-
 private fun transferRoleLabel(role: DirectTransferRole): Int = when (role) {
     DirectTransferRole.SENDER -> R.string.transfer_send
     DirectTransferRole.RECEIVER -> R.string.transfer_receive
@@ -340,7 +345,8 @@ private fun transferPhaseTitle(state: DirectTransferUiState): Int = when (state.
     DirectTransferPhase.DISCOVERING -> R.string.transfer_nearby
     DirectTransferPhase.WAITING -> R.string.transfer_wait_connection
     DirectTransferPhase.CONNECTING -> R.string.transfer_connecting
-    DirectTransferPhase.SAS -> R.string.transfer_verify_code
+    DirectTransferPhase.PAIRING_CODE -> R.string.transfer_pairing_title
+    DirectTransferPhase.WAIT_APPROVAL -> if (state.role == DirectTransferRole.RECEIVER) R.string.transfer_approval_title else R.string.transfer_wait_approval
     DirectTransferPhase.PREPARING -> R.string.transfer_preparing
     DirectTransferPhase.REVIEW -> R.string.transfer_review
     DirectTransferPhase.TRANSFERRING -> if (state.role == DirectTransferRole.SENDER) R.string.transfer_sending else R.string.transfer_receiving

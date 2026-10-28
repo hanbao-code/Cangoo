@@ -7,11 +7,7 @@ import android.system.StructStat
 import java.io.DataOutputStream
 import java.io.File
 import java.io.OutputStream
-import java.nio.file.FileVisitResult
 import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.SimpleFileVisitor
-import java.nio.file.attribute.BasicFileAttributes
 import java.security.DigestOutputStream
 import java.security.MessageDigest
 import java.util.UUID
@@ -99,12 +95,22 @@ internal object VaultDeletion {
         val current = this.preview(root, preview.id, rawMaster, guard)
         if (current != preview) return@checked DeletionOutcome(DeletionStatus.NOT_REMOVED)
         val source = File(root, preview.id)
-        val removed = File(root, ".removed_${preview.id}_${UUID.randomUUID()}")
+        val operation = UUID.randomUUID().toString()
+        val removed = File(root, ".removed_${preview.id}_$operation")
         if (Files.exists(removed.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS)) unavailable()
         guard()
         beforePublish()
         guard()
         // 关闭当前目标连接后的最后核对仍属于发布前；此处失败尚未移动库目录。
+        val assets = mutableListOf<DeletionAsset>()
+        if (!matchesRoot(root, preview) || !matchesDirectory(source, preview) || fingerprint(source, guard, assets) != preview.snapshot) {
+            return@checked DeletionOutcome(DeletionStatus.NOT_REMOVED)
+        }
+        val receipt = DeletionReceipt(preview.id, operation, preview.rootDevice, preview.rootInode,
+            preview.directoryDevice, preview.directoryInode, preview.bindings, assets)
+        try { VaultDeletionReceipts.write(root, receipt) }
+        catch (failure: CancellationException) { throw failure }
+        catch (_: Exception) { guard(); return@checked DeletionOutcome(DeletionStatus.NOT_REMOVED) }
         if (!matchesRoot(root, preview) || !matchesDirectory(source, preview) || fingerprint(source, guard) != preview.snapshot) {
             return@checked DeletionOutcome(DeletionStatus.NOT_REMOVED)
         }
@@ -118,13 +124,12 @@ internal object VaultDeletion {
         }
         // 从此以后不抛普通取消冒充未删除；撤权/中断只停止清理并准确返回残留。
         if (published.status != DeletionStatus.REMOVED_RESIDUAL) return@checked published
-        val bindingCleanup = removeBindings(preview, guard)
+        var bindingCleanup = VaultCleanupStatus(false, emptyList())
         try {
             guard()
-            if (fingerprint(removed, guard) != preview.snapshot) return@checked DeletionOutcome(DeletionStatus.REMOVED_RESIDUAL, removed, bindingCleanup)
-            removeOwned(root, removed, preview, guard)
+            bindingCleanup = finishRemoval(root, receipt, guard)
             if (Files.exists(removed.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
-                DeletionOutcome(DeletionStatus.REMOVED_RESIDUAL, removed)
+                DeletionOutcome(DeletionStatus.REMOVED_RESIDUAL, removed, bindingCleanup)
             } else {
                 syncDirectory(root)
                 if (!matchesRoot(root, preview) || Files.exists(source.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
@@ -138,12 +143,12 @@ internal object VaultDeletion {
         }.let { if (it.bindingCleanup.complete && !bindingCleanup.complete) it.copy(bindingCleanup = bindingCleanup) else it }
     }
 
-    private fun removeBindings(preview: DeletionPreview, guard: () -> Unit): VaultCleanupStatus {
+    private fun removeBindings(id: String, bindings: VaultBindingClaims, guard: () -> Unit): VaultCleanupStatus {
         val remaining = mutableListOf<String>()
         val categories = mutableSetOf<VaultCleanupCategory>()
-        if (!preview.bindings.complete) categories += VaultCleanupCategory.UNVERIFIED
-        for (alias in preview.bindings.aliases) {
-            try { guard(); VaultBiometric.remove(preview.id, alias) }
+        if (!bindings.complete) categories += VaultCleanupCategory.UNVERIFIED
+        for (alias in bindings.aliases) {
+            try { guard(); VaultBiometric.remove(id, alias) }
             catch (_: Exception) { remaining += "keystore:$alias"; categories += VaultCleanupCategory.DEVICE_BINDING }
         }
         return VaultCleanupStatus(categories.isEmpty(), remaining, categories)
@@ -161,45 +166,107 @@ internal object VaultDeletion {
         } else DeletionOutcome(DeletionStatus.UNCERTAIN)
     } catch (_: Exception) { DeletionOutcome(DeletionStatus.UNCERTAIN) }
 
-    private fun removeOwned(root: File, removed: File, preview: DeletionPreview, guard: () -> Unit) {
-        fun stillOwned() {
-            guard()
-            if (!matchesRoot(root, preview) || !matchesDirectory(removed, preview) ||
-                Files.exists(File(root, preview.id).toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS)) unavailable()
-        }
-        stillOwned()
-        Files.walkFileTree(removed.toPath(), object : SimpleFileVisitor<Path>() {
-            override fun preVisitDirectory(path: Path, attrs: BasicFileAttributes): FileVisitResult {
-                stillOwned()
-                checkedPath(path.toFile(), removed)
-                if (!attrs.isDirectory || attrs.isSymbolicLink) unavailable()
-                return FileVisitResult.CONTINUE
+    /** 名称只用于找到责任文件；认证、精确身份和完整剩余清单才允许续清。 */
+    fun recover(root: File, guard: () -> Unit = {}): Boolean {
+        if (!Files.exists(root.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS)) return false
+        return try {
+            directoryStat(root)
+            val candidates = root.listFiles() ?: unavailable()
+            val names = candidates.filter { it.name.startsWith(".deletion_") }
+                .map { it.name.removeSuffix(".bak").removeSuffix(".new") }.distinct()
+            for (name in names) {
+                guard()
+                try {
+                    val receipt = VaultDeletionReceipts.read(root, File(root, name))
+                    checkReceiptRoot(root, receipt)
+                    val source = File(root, receipt.id)
+                    val removed = File(root, receipt.removedName)
+                    if (exists(source)) {
+                        val stamp = directoryStat(source)
+                        if (!exists(removed) && stamp.st_dev == receipt.directoryDevice && stamp.st_ino == receipt.directoryInode)
+                            VaultDeletionReceipts.remove(root, receipt)
+                    } else finishRemoval(root, receipt, guard)
+                } catch (failure: CancellationException) { throw failure }
+                catch (_: Exception) { /* 无法认证的责任保留，不阻断其他库。 */ }
             }
-            override fun visitFile(path: Path, attrs: BasicFileAttributes): FileVisitResult {
-                stillOwned()
-                checkedPath(path.toFile(), removed)
-                if (!attrs.isRegularFile || attrs.isSymbolicLink) unavailable()
-                Files.delete(path)
-                return FileVisitResult.CONTINUE
-            }
-            override fun postVisitDirectory(path: Path, failure: java.io.IOException?): FileVisitResult {
-                if (failure != null) throw failure
-                stillOwned()
-                checkedPath(path.toFile(), removed)
-                Files.delete(path)
-                return FileVisitResult.CONTINUE
-            }
-        })
+            root.listFiles()?.any { it.name.startsWith(".removed_") || it.name.startsWith(".deletion_") } ?: true
+        } catch (failure: CancellationException) { throw failure }
+        catch (_: Exception) { true }
     }
 
-    private fun fingerprint(directory: File, guard: () -> Unit): String {
+    private fun finishRemoval(root: File, expected: DeletionReceipt, guard: () -> Unit): VaultCleanupStatus {
+        val receipt = VaultDeletionReceipts.read(root, File(root, expected.receiptName))
+        if (receipt != expected) unavailable()
+        val removed = File(root, receipt.removedName)
+        fun stillOwned() {
+            guard(); checkReceiptRoot(root, receipt)
+            if (exists(File(root, receipt.id))) unavailable()
+            if (exists(removed)) directoryStat(removed).let {
+                if (it.st_dev != receipt.directoryDevice || it.st_ino != receipt.directoryInode) unavailable()
+            }
+        }
+        stillOwned()
+        if (exists(removed)) {
+            val remaining = mutableListOf<DeletionAsset>()
+            fingerprint(removed, guard, remaining)
+            val approved = receipt.assets.associateBy { it.path }
+            if (remaining.any { approved[it.path] != it }) unavailable()
+        }
+        // 重启可能发生在rename之后、父目录同步之前；续清前先确认移除事实持久化。
+        syncDirectory(root)
+        stillOwned()
+        val bindingCleanup = removeBindings(receipt.id, receipt.bindings, guard)
+        // 每个文件仍须匹配；只接受已认证清单的已删子集，目录最后删除。
+        val ordered = receipt.assets.filter { it.size >= 0 } +
+            receipt.assets.filter { it.size == -1L }.sortedByDescending { it.path.count { c -> c == '/' } * 2 + if (it.path.isEmpty()) 0 else 1 }
+        for (entry in ordered) {
+            stillOwned()
+            val file = if (entry.path.isEmpty()) removed else File(removed, entry.path)
+            checkedPath(file, removed)
+            if (!exists(file)) { syncExistingParent(root, file); continue }
+            if (entry.size == -1L) {
+                val stamp = directoryStat(file)
+                if (stamp.st_dev != entry.device || stamp.st_ino != entry.inode || file.listFiles()?.isEmpty() != true) unavailable()
+            } else {
+                val actual = mutableListOf<DeletionAsset>()
+                fingerprint(file, guard, actual)
+                if (actual.singleOrNull()?.copy(path = entry.path) != entry) unavailable()
+            }
+            stillOwned()
+            Os.remove(file.absolutePath); syncDirectory(file.parentFile!!)
+        }
+        stillOwned()
+        if (exists(removed)) unavailable()
+        syncDirectory(root)
+        if (bindingCleanup.complete) VaultDeletionReceipts.remove(root, receipt)
+        return bindingCleanup
+    }
+
+    private fun checkReceiptRoot(root: File, receipt: DeletionReceipt) {
+        directoryStat(root).let { if (it.st_dev != receipt.rootDevice || it.st_ino != receipt.rootInode) unavailable() }
+    }
+
+    private fun syncExistingParent(root: File, file: File) {
+        var parent = file.parentFile ?: unavailable()
+        while (!exists(parent)) {
+            if (parent == root || !parent.toPath().startsWith(root.toPath())) unavailable()
+            parent = parent.parentFile ?: unavailable()
+        }
+        directoryStat(parent); syncDirectory(parent)
+    }
+
+    private fun exists(file: File) = Files.exists(file.toPath(), java.nio.file.LinkOption.NOFOLLOW_LINKS)
+
+    private fun fingerprint(directory: File, guard: () -> Unit, assets: MutableList<DeletionAsset>? = null): String {
         val digest = MessageDigest.getInstance("SHA-256")
         val output = DataOutputStream(DigestOutputStream(object : OutputStream() { override fun write(value: Int) { } }, digest))
         fun visit(file: File) {
             guard()
             checkedPath(file, directory)
             val before = Os.lstat(file.absolutePath)
+            val relative = directory.toPath().relativize(file.toPath()).toString().replace(File.separatorChar, '/')
             if (OsConstants.S_ISDIR(before.st_mode)) {
+                assets?.add(DeletionAsset(relative, before.st_dev, before.st_ino, -1, ""))
                 // 整目录重命名只改变父目录位置，快照不把自身目录时间当内容。
                 output.writeByte(0)
                 output.writeUTF(directory.toPath().relativize(file.toPath()).toString())
@@ -223,6 +290,7 @@ internal object VaultDeletion {
                 output.writeLong(before.st_ctim.tv_nsec)
                 val descriptor = Os.open(file.absolutePath, OsConstants.O_RDONLY or OsConstants.O_NOFOLLOW or OsConstants.O_CLOEXEC, 0)
                 val buffer = ByteArray(65536)
+                val fileDigest = if (assets != null) MessageDigest.getInstance("SHA-256") else null
                 try {
                     if (!sameStamp(before, Os.fstat(descriptor))) unavailable()
                     var size = 0L
@@ -231,6 +299,7 @@ internal object VaultDeletion {
                         val count = Os.read(descriptor, buffer, 0, buffer.size)
                         if (count == 0) break
                         digest.update(buffer, 0, count)
+                        fileDigest?.update(buffer, 0, count)
                         size = Math.addExact(size, count.toLong())
                     }
                     if (size != before.st_size || !sameStamp(before, Os.fstat(descriptor))) unavailable()
@@ -240,6 +309,8 @@ internal object VaultDeletion {
                 }
                 guard()
                 if (!sameStamp(before, Os.lstat(file.absolutePath))) unavailable()
+                assets?.add(DeletionAsset(relative, before.st_dev, before.st_ino, before.st_size,
+                    fileDigest!!.digest().joinToString("") { "%02x".format(it) }))
             }
         }
         visit(directory)

@@ -1,0 +1,21 @@
+{
+  "qt_version": "6.9.3",
+  "arch": "windows-x64",
+  "modified_date": "2026-10-27",
+  "original_dll_sha256": "db3c9eaa57cc0580c068cbdd7a1e1b74259d070c0c369017e489d824ffecde9c",
+  "dll_sha256": "e5f9f96f6740b2296bba68acf33f24f6cc9d0713c48b9b8e2276d7f428c29f6e",
+  "patch_sha256": "0d49bf1e7cc673281160c671e5ced09880356496860fd74055c2597a4b904d1c",
+  "patched_file": "src/bluetooth/qbluetoothsocket_winrt.cpp",
+  "patched_file_sha256": "161fb5328ade0464dc25fb5b77ebd912aa3a3e4e006ec602d207d26a1bd2d5e7",
+  "source": {
+    "url": "https://download.qt.io/archive/qt/6.9/6.9.3/submodules/qtconnectivity-everywhere-src-6.9.3.tar.xz",
+    "sha256": "e21bba5efb174c4456c5e5a7b4d52bba1ee62dfb4509bcff73fdfad9cb1dd7f5"
+  },
+  "sdk": {
+    "url": "https://download.qt.io/online/qtsdkrepository/windows_x86/desktop/qt6_693/qt6_693/qt.qt6.693.win64_msvc2022_64/6.9.3-0-202509261208qtbase-Windows-Windows_11_23H2-MSVC2022-Windows-Windows_11_23H2-X86_64.7z",
+    "sha256": "94f8a097d3078661943446c9ecfee3fb4375d9b992a91a1a2d1856379c749d8d"
+  },
+  "compiler": "MSVC 14.44.35207 x64",
+  "windows_sdk": "10.0.26100.0",
+  "configuration": "Release; BUILD_WITH_PCH=OFF; BUILD_TESTING=OFF; QT_BUILD_TESTS=OFF; QT_BUILD_EXAMPLES=OFF; QT_BUILD_BENCHMARKS=OFF; FEATURE_nfc=OFF; target Bluetooth"
+}

@@ -28,7 +28,7 @@ try {
 & "$repoRoot/.venv/Scripts/python.exe" -m pip install --no-deps --no-index "$driverRoot/pysqleet-31.1.3/dist/pysqleet-31.1.3-cp310-cp310-win_amd64.whl"
 ```
 
-使用新的驱动源码目录，不向同一源码重复应用补丁。补丁只调整Python 3.10/MSVC构建兼容，不修改sqleet/SQLite实现。不同工具链生成的二进制不保证逐字节相同；修改或替换驱动后先用测试数据库验证读写、备份和改密。库替换说明见[第三方来源与库替换](../docs/third_party_sources.md)。
+使用新的驱动源码目录，不向同一源码重复应用补丁。补丁调整Python 3.10/MSVC构建兼容，并开放SQLite长度等资源限制接口；不修改sqleet加密及SQLite引擎实现。不同工具链生成的二进制不保证逐字节相同；修改或替换驱动后先用测试数据库验证读写、备份和改密。库替换说明见[第三方来源与库替换](../docs/third_party_sources.md)。
 
 ## English
 
@@ -36,4 +36,4 @@ This builds `pysqleet 31.1.3` for Cangoo on Windows. First follow [Building from
 
 The build has used Python 3.10.11 x64 and Visual C++ Build Tools 2022, with MSVC 14.44.35207 and Windows SDK 10.0.26100.0. Run the PowerShell commands above from the repository root. Stop on any failure. Use a fresh driver source directory and never apply the patch twice.
 
-The patch only adjusts Python 3.10/MSVC build compatibility; sqleet/SQLite is unchanged. Different toolchains are not guaranteed to produce identical bytes. Before adopting a modified driver, verify reading, writing, backups and password changes with test databases. See [library replacement](../docs/third_party_sources.md).
+The patch adjusts Python 3.10/MSVC build compatibility and exposes SQLite resource-limit APIs; the sqleet encryption and SQLite engine implementations are unchanged. Different toolchains are not guaranteed to produce identical bytes. Before adopting a modified driver, verify reading, writing, backups and password changes with test databases. See [library replacement](../docs/third_party_sources.md).

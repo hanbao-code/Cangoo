@@ -2,14 +2,26 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 import math
 import threading
 import time
 from typing import Callable
 
-from PySide6.QtCore import QObject, QTimer, Signal, Slot
+from PySide6.QtCore import QObject, QThread, Qt, QTimer, Signal, Slot
 
 from desktop.host.native_capabilities import NativeClipboard
+
+
+@dataclass
+class _PendingCopy:
+    text: str
+    content_kind: str
+    publication_token: int
+    cancelled: threading.Event | None
+    deadline: float
+    settled: threading.Event = field(default_factory=threading.Event)
+    result: dict[str, object] | None = None
 
 
 class M4ClipboardController(QObject):
@@ -17,6 +29,8 @@ class M4ClipboardController(QObject):
 
     state_changed = Signal(int, int, str, str, int, bool)
     _timer_requested = Signal(bool)
+    _copy_requested = Signal(object)
+    COPY_WAIT_SECONDS = 10.0
 
     def __init__(
         self,
@@ -31,6 +45,9 @@ class M4ClipboardController(QObject):
         self._lock = threading.RLock()
         self._page_epoch = 0
         self._session_epoch = 0
+        self._authority_serial = 1
+        self._pending_copies: dict[int, _PendingCopy] = {}
+        self._next_copy_id = 0
         self._mode = "COUNTDOWN"
         self._seconds = 30
         self._content_kind = "NONE"
@@ -41,6 +58,7 @@ class M4ClipboardController(QObject):
         self._timer.setInterval(250)
         self._timer.timeout.connect(self._on_tick)
         self._timer_requested.connect(self._set_timer_active)
+        self._copy_requested.connect(self._run_pending_copy, Qt.ConnectionType.QueuedConnection)
 
     def configure(self, mode: str, seconds: int) -> None:
         normalized_mode = mode if mode in {"COUNTDOWN", "MANUAL"} else "COUNTDOWN"
@@ -83,6 +101,7 @@ class M4ClipboardController(QObject):
 
     def bind_page(self, page_epoch: int) -> None:
         with self._lock:
+            self._revoke_publications_locked()
             self._page_epoch = page_epoch
             self._session_epoch = 0
             self._reset_state_locked()
@@ -97,6 +116,7 @@ class M4ClipboardController(QObject):
             except Exception:
                 preserve_owned = True
         with self._lock:
+            self._revoke_publications_locked()
             self._page_epoch = page_epoch
             self._session_epoch = session_epoch
             if not preserve_owned:
@@ -121,33 +141,119 @@ class M4ClipboardController(QObject):
         """Forget UI/timer state; the security coordinator force-clears next."""
 
         with self._lock:
+            self._revoke_publications_locked()
             self._reset_state_locked()
             self._page_epoch = 0
             self._session_epoch = 0
         self._timer_requested.emit(False)
 
+    def publication_token(
+        self,
+        *,
+        page_epoch: int | None = None,
+        session_epoch: int | None = None,
+    ) -> int:
+        """提交操作时捕获授权；撤权前的后台任务不能借用后来的会话。"""
+        with self._lock:
+            if (
+                self._page_epoch <= 0
+                or (page_epoch is not None and page_epoch != self._page_epoch)
+                or (session_epoch is not None and session_epoch != self._session_epoch)
+            ):
+                return 0
+            return self._authority_serial
+
     def copy(
         self,
         text: str,
         content_kind: str,
+        *,
+        publication_token: int | None = None,
+        cancelled: threading.Event | None = None,
     ) -> dict[str, object] | None:
         """Write a bounded record field and return content-free state."""
 
         if not text:
-            return self.snapshot()
+            with self._lock:
+                return self._public_result(self._snapshot_locked())
         if content_kind not in {"ACCOUNT", "PASSWORD", "TOTP", "RECOVERY_CODE"}:
             raise ValueError("unsupported M4 clipboard content kind")
+        if QThread.currentThread() == self.thread():
+            return self._copy_on_gui(text, content_kind, publication_token, cancelled)
         with self._lock:
-            mode = self._mode
-            seconds = self._seconds
-        try:
-            # M4 owns the authoritative timer so it can emit S03 every second.
-            self._clipboard.configure("manual", seconds)
-            if not self._clipboard.copy(text, content_kind.lower()):
+            # 正式后台执行器只有一个；只容纳一次待发布复制，避免秘密排队累积。
+            if (publication_token is None or self._pending_copies
+                    or not self._publication_is_current_locked(publication_token, cancelled)):
                 return None
+            self._next_copy_id += 1
+            request_id = self._next_copy_id
+            request = _PendingCopy(text, content_kind, self._authority_serial, cancelled,
+                                   time.monotonic() + self.COPY_WAIT_SECONDS)
+            self._pending_copies[request_id] = request
+        text = ""
+        try:
+            # Qt 排队事件只持有 ID；正文撤销后，迟到事件无法重放秘密。
+            self._copy_requested.emit(request_id)
+            while not request.settled.is_set():
+                remaining = request.deadline - time.monotonic()
+                if remaining <= 0 or (cancelled is not None and cancelled.is_set()):
+                    break
+                request.settled.wait(min(0.05, remaining))
+            with self._lock:
+                return request.result
         except Exception:
             return None
+        finally:
+            with self._lock:
+                self._finish_pending_copy_locked(request_id)
+
+    @Slot(object)
+    def _run_pending_copy(self, request_id: int) -> None:
         with self._lock:
+            request = self._pending_copies.get(request_id)
+            if request is None:
+                return
+            try:
+                if time.monotonic() < request.deadline:
+                    request.result = self._copy_on_gui(
+                        request.text, request.content_kind,
+                        request.publication_token, request.cancelled,
+                    )
+            finally:
+                self._finish_pending_copy_locked(request_id)
+
+    def _finish_pending_copy_locked(self, request_id: int) -> None:
+        request = self._pending_copies.pop(request_id, None)
+        if request is not None:
+            request.text = ""
+            request.settled.set()
+
+    def _revoke_publications_locked(self) -> None:
+        self._authority_serial += 1
+        for request_id in tuple(self._pending_copies):
+            self._finish_pending_copy_locked(request_id)
+
+    def _publication_is_current_locked(self, token: int | None, cancelled: threading.Event | None) -> bool:
+        return (self._page_epoch > 0
+                and (token is None or token == self._authority_serial)
+                and (cancelled is None or not cancelled.is_set()))
+
+    def _copy_on_gui(
+        self, text: str, content_kind: str, publication_token: int | None,
+        cancelled: threading.Event | None,
+    ) -> dict[str, object] | None:
+        with self._lock:
+            if not self._publication_is_current_locked(publication_token, cancelled):
+                return None
+            mode = self._mode
+            seconds = self._seconds
+            try:
+                # Windows 发布只在 GUI 线程执行，不让窗口消息等待持锁工作线程。
+                self._clipboard.configure("manual", seconds)
+                if not self._clipboard.copy(text, content_kind.lower()):
+                    return None
+            except Exception:
+                return None
             self._content_kind = content_kind
             self._owned = True
             self._deadline = (

@@ -2133,16 +2133,12 @@ class M4ApplicationAdapter:
             password = None
             if not opened:
                 kind = database.error_kind
-                database.disconnect()
-                return _OpenResult(
-                    None,
-                    path,
-                    (
-                        "DATABASE_IO_FAILED"
-                        if kind in {"permission_denied", "path_not_found"}
-                        else "DATABASE_INVALID"
-                    ),
+                error_code = M4ApplicationAdapter._database_core_error(
+                    database,
+                    fallback="DATABASE_IO_FAILED" if kind in {"permission_denied", "path_not_found"} else "DATABASE_INVALID",
                 )
+                database.disconnect()
+                return _OpenResult(None, path, error_code)
             if cancelled.is_set():
                 database.disconnect()
                 return _OpenResult(None, path, "CANCELLED")
@@ -2160,10 +2156,11 @@ class M4ApplicationAdapter:
             ):
                 database.disconnect()
                 return _OpenResult(None, path, "DATABASE_INVALID")
-            counts = database.get_record_counts()
+            counts = database.get_record_counts(should_cancel=cancelled.is_set)
             if counts is None:
+                error_code = "CANCELLED" if cancelled.is_set() else M4ApplicationAdapter._database_core_error(database)
                 database.disconnect()
-                return _OpenResult(None, path, "DATABASE_IO_FAILED")
+                return _OpenResult(None, path, error_code)
             password_count, note_count = counts
             # M4.3 reads and later writes reopen sqleet through the frozen
             # DatabaseService API. Its db_key is therefore retained only for
@@ -2208,6 +2205,7 @@ class M4ApplicationAdapter:
             opened = database.open_existing(
                 str(path),
                 str(password),
+                should_cancel=cancelled.is_set,
                 pre_write_guard=lambda: (
                     (current := M4ApplicationAdapter._file_identity(path))
                     is not None
@@ -2227,6 +2225,9 @@ class M4ApplicationAdapter:
                     "permission_denied": "DATABASE_IO_FAILED",
                     "invalid_path": "DATABASE_INVALID",
                     "corrupt_or_unreadable": "DATABASE_INVALID",
+                    "resource_limit": "DATABASE_LIMIT_EXCEEDED",
+                    "insufficient_space": "DATABASE_SPACE_INSUFFICIENT",
+                    "cancelled": "CANCELLED",
                 }.get(str(kind), "DATABASE_INVALID")
                 return _OpenResult(None, path, error_code)
             if cancelled.is_set():
@@ -2248,10 +2249,11 @@ class M4ApplicationAdapter:
             ):
                 database.disconnect()
                 return _OpenResult(None, path, "DATABASE_INVALID")
-            counts = database.get_record_counts()
+            counts = database.get_record_counts(should_cancel=cancelled.is_set)
             if counts is None:
+                error_code = "CANCELLED" if cancelled.is_set() else M4ApplicationAdapter._database_core_error(database)
                 database.disconnect()
-                return _OpenResult(None, path, "DATABASE_IO_FAILED")
+                return _OpenResult(None, path, error_code)
             password_count, note_count = counts
             # See _create_database: the sqleet key remains native-session
             # state and is never returned to or cached by the renderer.
@@ -2323,6 +2325,8 @@ class M4ApplicationAdapter:
                     self._destroy_open_result(result)
                     if result.error_code in {
                         "DATABASE_IO_FAILED",
+                        "DATABASE_LIMIT_EXCEEDED",
+                        "DATABASE_SPACE_INSUFFICIENT",
                         "CANCELLED",
                     }:
                         self._restore_ticket_locked(operation.ticket)
@@ -2938,6 +2942,7 @@ class M4ApplicationAdapter:
                 int(request.arguments[2]),
                 self._clipboard,
                 operation.cancelled,
+                publication_token=self._clipboard.publication_token(session_epoch=request.session_epoch),
             )
             operation.future = future
             future.add_done_callback(
@@ -3694,7 +3699,10 @@ class M4ApplicationAdapter:
             if secret is None or secret.page_epoch != request.page_epoch:
                 complete(self._error(request, "SECRET_LEASE_EXPIRED"))
                 return
-            result = self._clipboard.copy(secret.password, "PASSWORD")
+            result = self._clipboard.copy(
+                secret.password, "PASSWORD",
+                publication_token=self._clipboard.publication_token(page_epoch=request.page_epoch),
+            )
         if result is None:
             complete(self._error(request, "CLIPBOARD_UNAVAILABLE"))
             return
@@ -3746,6 +3754,11 @@ class M4ApplicationAdapter:
                 operation.cancelled,
                 wall_clock=time.time,
                 monotonic_clock=self._clock,
+                publication_token=self._clipboard.publication_token(
+                    page_epoch=None if native_command else request.page_epoch,
+                    session_epoch=request.session_epoch,
+                ) if request.command_id in {CommandId.C19, CommandId.C20, CommandId.C22,
+                                           CommandId.C78, CommandId.N02, CommandId.N03} else None,
                 code_index=request.arguments[5] if request.command_id in {CommandId.C77, CommandId.C78} else None,
             )
             operation.future = future
@@ -4934,7 +4947,7 @@ class M4ApplicationAdapter:
             return _BackupWorkerResult("CANCELLED")
         payload = database.export_backup_snapshot(scope)
         if not payload:
-            return _BackupWorkerResult("DATABASE_IO_FAILED")
+            return _BackupWorkerResult(M4ApplicationAdapter._database_core_error(database))
         if cancelled.is_set():
             return _BackupWorkerResult("CANCELLED")
         try:
@@ -4972,7 +4985,7 @@ class M4ApplicationAdapter:
                                                              hashlib.sha256(encoded).hexdigest(), cancelled)
             payload = database.export_backup_snapshot(scope)
             if not payload:
-                return _BackupWorkerResult("DATABASE_IO_FAILED")
+                return _BackupWorkerResult(M4ApplicationAdapter._database_core_error(database))
             try:
                 encoded = encode_transfer_payload(payload, guard)
                 return _BackupWorkerResult("OK", {"rawPayload": encoded,
@@ -5020,13 +5033,13 @@ class M4ApplicationAdapter:
             return _BackupWorkerResult("CANCELLED")
         rows = database.get_all_passwords()
         if database.last_error:
-            return _BackupWorkerResult("DATABASE_IO_FAILED")
+            return _BackupWorkerResult(M4ApplicationAdapter._database_core_error(database))
         if cancelled.is_set():
             return _BackupWorkerResult("CANCELLED")
         by_name = {str(row["platform"]): row for row in rows}
         notes = database.get_all_notes() if payload["notes"] else []
         if database.last_error:
-            return _BackupWorkerResult("DATABASE_IO_FAILED")
+            return _BackupWorkerResult(M4ApplicationAdapter._database_core_error(database))
         bindings = [
             [item["platform"], by_name[str(item["platform"])], item]
             for item in payload["passwords"]
@@ -5097,7 +5110,7 @@ class M4ApplicationAdapter:
             return _BackupWorkerResult(
                 "SECRET_LEASE_EXPIRED"
                 if database.last_error_kind == "backup_conflict_changed"
-                else "DATABASE_IO_FAILED"
+                else M4ApplicationAdapter._database_core_error(database)
             )
         result["changed"] = (
             int(result["imported"]) + int(result["overwritten"]) > 0
@@ -6917,7 +6930,7 @@ class M4ApplicationAdapter:
     ) -> tuple[dict[str, object], dict[str, object], str] | str:
         row = database.get_password_by_id(record_id)
         if row is None:
-            return "DATABASE_IO_FAILED" if database.last_error else "NOT_FOUND"
+            return cls._database_core_error(database, fallback="DATABASE_IO_FAILED" if database.last_error else "NOT_FOUND")
         if cancelled.is_set():
             cls._scrub_record_dict(row)
             return "CANCELLED"
@@ -7288,7 +7301,7 @@ class M4ApplicationAdapter:
                         "strength_analysis_failed": "PASSWORD_STRENGTH_FAILED",
                     }.get(
                         str(database.last_error_kind),
-                        "DATABASE_IO_FAILED",
+                        cls._database_core_error(database),
                     )
                 )
             changed = any(updated_row[field] != row[field] for field in ("password", "platform", "account"))
@@ -7332,7 +7345,7 @@ class M4ApplicationAdapter:
                 record_id, {"recovery_codes": codes}, expected=row, return_record=True,
             )
             if not isinstance(committed, dict):
-                return _SessionReadResult("REVISION_CONFLICT" if database.last_error_kind == "revision_conflict" else "DATABASE_IO_FAILED")
+                return _SessionReadResult("REVISION_CONFLICT" if database.last_error_kind == "revision_conflict" else cls._database_core_error(database))
             return cls._committed_record_result(revision_key, committed, record_id)
         except Exception:
             return _SessionReadResult("DATABASE_IO_FAILED")
@@ -7392,7 +7405,7 @@ class M4ApplicationAdapter:
                         "invalid_argument": "INVALID_ARGUMENT",
                     }.get(
                         str(database.last_error_kind),
-                        "DATABASE_IO_FAILED",
+                        cls._database_core_error(database),
                     )
                 )
             return cls._committed_record_result(
@@ -7529,7 +7542,7 @@ class M4ApplicationAdapter:
                         "invalid_argument": "INVALID_ARGUMENT",
                     }.get(
                         str(database.last_error_kind),
-                        "DATABASE_IO_FAILED",
+                        cls._database_core_error(database),
                     )
                 )
             return _SessionReadResult(
@@ -7598,7 +7611,7 @@ class M4ApplicationAdapter:
                         "platform_conflict": "PLATFORM_CONFLICT",
                         "cancelled": "CANCELLED",
                         "strength_analysis_failed": "PASSWORD_STRENGTH_FAILED",
-                    }.get(str(database.last_error_kind), "DATABASE_IO_FAILED")
+                    }.get(str(database.last_error_kind), cls._database_core_error(database))
                 )
             )
         return cls._committed_record_result(
@@ -7785,8 +7798,11 @@ class M4ApplicationAdapter:
         length: int,
         clipboard: M4ClipboardController,
         cancelled: threading.Event,
+        *,
+        publication_token: int | None = None,
     ) -> _SessionReadResult:
         password = ""
+        copy_arguments = {} if publication_token is None else {"publication_token": publication_token, "cancelled": cancelled}
         try:
             if cancelled.is_set():
                 return _SessionReadResult("CANCELLED")
@@ -7805,7 +7821,7 @@ class M4ApplicationAdapter:
             )
             if cancelled.is_set():
                 return _SessionReadResult("CANCELLED")
-            copied = clipboard.copy(password, "PASSWORD")
+            copied = clipboard.copy(password, "PASSWORD", **copy_arguments)
             if copied is None:
                 return _SessionReadResult("CLIPBOARD_UNAVAILABLE")
             return _SessionReadResult("OK", copied)
@@ -7828,16 +7844,18 @@ class M4ApplicationAdapter:
         wall_clock: Callable[[], float] = time.time,
         monotonic_clock: Callable[[], float] = time.monotonic,
         code_index: int | None = None,
+        publication_token: int | None = None,
     ) -> _SessionReadResult:
         row: dict[str, object] | None = None
         revision_source: dict[str, object] | None = None
         value = ""
         codes = []
+        copy_arguments = {} if publication_token is None else {"publication_token": publication_token, "cancelled": cancelled}
         try:
             row = database.get_password_by_id(record_id)
             if row is None:
                 return _SessionReadResult(
-                    "DATABASE_IO_FAILED" if database.last_error else "NOT_FOUND"
+                    cls._database_core_error(database, fallback="DATABASE_IO_FAILED" if database.last_error else "NOT_FOUND")
                 )
             if cancelled.is_set():
                 return _SessionReadResult("CANCELLED")
@@ -7897,7 +7915,7 @@ class M4ApplicationAdapter:
                     })
                 if cancelled.is_set():
                     return _SessionReadResult("CANCELLED")
-                copied = clipboard.copy(value, "RECOVERY_CODE")
+                copied = clipboard.copy(value, "RECOVERY_CODE", **copy_arguments)
                 return _SessionReadResult("OK", copied) if copied is not None else _SessionReadResult("CLIPBOARD_UNAVAILABLE")
             if command_id is CommandId.C13:
                 value = str(password)
@@ -7943,7 +7961,7 @@ class M4ApplicationAdapter:
                     if monotonic_clock() >= deadline:
                         value = ""
                         continue
-                    clipboard_result = clipboard.copy(value, "TOTP")
+                    clipboard_result = clipboard.copy(value, "TOTP", **copy_arguments)
                     if clipboard_result is None:
                         return _SessionReadResult("CLIPBOARD_UNAVAILABLE")
                     return _SessionReadResult("OK", clipboard_result)
@@ -7960,7 +7978,7 @@ class M4ApplicationAdapter:
                 return _SessionReadResult("CANCELLED")
             if not value:
                 return _SessionReadResult("EMPTY_FIELD")
-            clipboard_result = clipboard.copy(value, content_kind)
+            clipboard_result = clipboard.copy(value, content_kind, **copy_arguments)
             if clipboard_result is None:
                 return _SessionReadResult("CLIPBOARD_UNAVAILABLE")
             return _SessionReadResult("OK", clipboard_result)
@@ -7996,9 +8014,9 @@ class M4ApplicationAdapter:
         rows: list[dict[str, object]] = []
         normalized: list[dict[str, object]] = []
         try:
-            rows = database.get_all_passwords()
+            rows = database.get_all_passwords(should_cancel=cancelled.is_set)
             if database.last_error:
-                return "DATABASE_IO_FAILED"
+                return "CANCELLED" if cancelled.is_set() else cls._database_core_error(database)
             if not isinstance(rows, list):
                 return "DATABASE_IO_FAILED"
             if len(rows) > 100_000:
@@ -8197,6 +8215,15 @@ class M4ApplicationAdapter:
                 value[field] = ""
 
     @staticmethod
+    def _database_core_error(database: DatabaseService, *, fallback: str = "DATABASE_IO_FAILED") -> str:
+        """仅传递固定资源类别；各调用方保留原来的业务错误判定。"""
+        return {
+            "resource_limit": "DATABASE_LIMIT_EXCEEDED",
+            "insufficient_space": "DATABASE_SPACE_INSUFFICIENT",
+            "cancelled": "CANCELLED",
+        }.get(str(getattr(database, "last_error_kind", None)), fallback)
+
+    @staticmethod
     def _note_core_error(database: DatabaseService, *, missing: str = "DATABASE_IO_FAILED") -> str:
         if database.last_error is None and database.last_error_kind is None:
             return missing
@@ -8206,7 +8233,7 @@ class M4ApplicationAdapter:
             "revision_conflict": "REVISION_CONFLICT",
             "invalid_argument": "INVALID_ARGUMENT",
             "database_io_failed": "DATABASE_IO_FAILED",
-        }.get(str(database.last_error_kind), "DATABASE_IO_FAILED")
+        }.get(str(database.last_error_kind), M4ApplicationAdapter._database_core_error(database))
 
     @classmethod
     def _note_from_row(
@@ -8275,9 +8302,9 @@ class M4ApplicationAdapter:
         rows: list[dict[str, object]] = []
         records: list[_NoteRecord] = []
         try:
-            rows = database.get_all_notes()
+            rows = database.get_all_notes(should_cancel=cancelled.is_set)
             if database.last_error:
-                return "DATABASE_IO_FAILED"
+                return "CANCELLED" if cancelled.is_set() else cls._database_core_error(database)
             if not isinstance(rows, list):
                 return "DATABASE_IO_FAILED"
             seen_ids: set[int] = set()

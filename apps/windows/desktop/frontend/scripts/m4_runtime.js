@@ -41,6 +41,8 @@
     openAfterChoose: false,
     pendingRecent: '',
     pendingRecentEntry: null,
+    recentTimeTimer: 0,
+    recentTimeGeneration: 0,
     pendingRemove: '',
     pendingRemoveIndex: -1,
     pendingRemoveFocusKey: '',
@@ -748,6 +750,7 @@
       return false;
     }
     runtime.hostWindowPresentable = presentable;
+    syncRecentTimeRefresh();
     if (presentable) queueRatingRefresh();
     const result = setToastPresentationVisible(
       presentable && document.visibilityState === 'visible',
@@ -1028,6 +1031,14 @@
         '无法访问该位置，请检查读取或写入权限后重试。',
         'This location cannot be accessed. Check its read or write permissions and retry.',
       ],
+      DATABASE_LIMIT_EXCEEDED: [
+        '当前可用内存不足以完成此操作。请释放一些内存后重试。',
+        'There is not enough memory to complete this operation. Free some memory and retry.',
+      ],
+      DATABASE_SPACE_INSUFFICIENT: [
+        '磁盘空间不足以完成此操作。请释放空间后重试。',
+        'There is not enough disk space to complete this operation. Free some space and retry.',
+      ],
       CLIPBOARD_UNAVAILABLE: [
         '剪贴板暂时不可用，请稍后重试。',
         'The clipboard is temporarily unavailable. Try again.',
@@ -1139,7 +1150,8 @@
     'NOT_FOUND', 'REQUEST_BUSY', 'SELECTION_EXPIRED',
     'BACKUP_TARGET_IS_DATABASE', 'BACKUP_PASSWORD_MISMATCH', 'BACKUP_AUTH_FAILED',
     'BACKUP_INVALID', 'BACKUP_LIMIT_EXCEEDED', 'BACKUP_CONFLICTS_UNRESOLVED',
-    'DATABASE_INVALID', 'DATABASE_IO_FAILED', 'CLIPBOARD_UNAVAILABLE',
+    'DATABASE_INVALID', 'DATABASE_IO_FAILED', 'DATABASE_LIMIT_EXCEEDED',
+    'DATABASE_SPACE_INSUFFICIENT', 'CLIPBOARD_UNAVAILABLE',
     'EMPTY_FIELD',
     'PLATFORM_CONFLICT', 'EMPTY_CHARACTER_SET',
     'GENERATOR_LENGTH_TOO_SHORT', 'PASSWORD_STRENGTH_FAILED',
@@ -1310,9 +1322,9 @@
     ).length;
   }
 
-  function formatRelativeTime(unixMs) {
+  function formatRelativeTime(unixMs, nowMs = Date.now()) {
     if (!Number.isSafeInteger(unixMs) || unixMs < 0) return '';
-    const now = new Date(Date.now());
+    const now = new Date(nowMs);
     const past = new Date(unixMs);
     if (Number.isNaN(past.getTime())) return '';
     const elapsed = Math.max(0, now - past);
@@ -1338,6 +1350,43 @@
     }
     const months = Math.floor(days / 30);
     return fixedText(`${months} 个月前`, `${months}mo ago`);
+  }
+
+  function stopRecentTimeRefresh() {
+    window.clearTimeout(runtime.recentTimeTimer);
+    runtime.recentTimeTimer = 0;
+    runtime.recentTimeGeneration += 1;
+  }
+
+  function syncRecentTimeRefresh() {
+    stopRecentTimeRefresh();
+    const startup = byId('startup-page');
+    if (!runtime.ready || runtime.pageUnloading || runtime.state !== 'LOCKED' ||
+        !runtime.hostWindowPresentable || document.hidden || !startup ||
+        startup.classList.contains('hidden') || startup.classList.contains('minimized')) return;
+    const now = Date.now();
+    const midnight = new Date(now);
+    midnight.setHours(24, 0, 0, 0);
+    // 最长一分钟重读墙钟，避免系统改时后一直沿用旧的截止时间。
+    let delay = Math.min(60000, midnight.getTime() - now);
+    let valid = false;
+    startup.querySelectorAll('[data-pdm-relative-time]').forEach((label) => {
+      const timestamp = Number(label.dataset.pdmRelativeTime);
+      const text = formatRelativeTime(timestamp, now);
+      if (label.textContent !== text) label.textContent = text;
+      if (!text) return;
+      valid = true;
+      const elapsed = Math.max(0, now - timestamp);
+      if (elapsed < 3600000) {
+        delay = Math.min(delay, timestamp + (Math.floor(elapsed / 60000) + 1) * 60000 - now);
+      }
+    });
+    if (!valid) return;
+    const generation = runtime.recentTimeGeneration;
+    runtime.recentTimeTimer = window.setTimeout(() => {
+      if (generation !== runtime.recentTimeGeneration) return;
+      syncRecentTimeRefresh();
+    }, Math.max(1, delay));
   }
 
   function setStatusDisconnected() {
@@ -1441,6 +1490,7 @@
       list.append(item);
     }
     list.dataset.pdmM4RecentsReady = 'true';
+    syncRecentTimeRefresh();
   }
 
   const renderDemoVault = window.renderVault;
@@ -1793,6 +1843,7 @@
     runtime.language = language;
     setSharedCanvasLanguage(lang, {skipDynamicRender: true});
     refreshProductLocalizedContent();
+    syncRecentTimeRefresh();
     syncProductGlobalSearch();
     if (runtime.state === 'UNLOCKED' && state.currentNav === 'vault') renderM4Vault();
     if (runtime.state === 'UNLOCKED' && state.currentNav === 'notes') renderM4Notes();
@@ -11791,6 +11842,7 @@
         'MANUAL_LOCK',
         'AUTO_LOCK',
         'SUSPEND_LOCK',
+        'SESSION_INVALIDATED',
         'RENDERER_FAILURE',
       ].includes(reason)
     ) {
@@ -11799,6 +11851,7 @@
     if (
       runtime.state === 'LOCKED' &&
       runtime.sessionEpoch === 0 &&
+      reason !== 'SESSION_INVALIDATED' &&
       (runtime.lastLockReason || runtime.changeKeyTerminalReason)
     ) {
       return;
@@ -11912,6 +11965,7 @@
       'MANUAL_LOCK',
       'AUTO_LOCK',
       'SUSPEND_LOCK',
+      'SESSION_INVALIDATED',
       'RENDERER_FAILURE',
     ].includes(reason)) {
       applyPublicLock(reason);
@@ -15379,6 +15433,7 @@
     }
     showDatabasePathTail();
     renderProductUpdates();
+    syncRecentTimeRefresh();
   }
 
   function applyLocked(reason) {
@@ -17130,6 +17185,7 @@
         event.preventDefault();
         event.stopImmediatePropagation();
         if (runtime.state === 'LOCKED') expandStartupModal();
+        syncRecentTimeRefresh();
       } else if (target.id === 'theme-btn') {
         event.preventDefault();
         event.stopImmediatePropagation();
@@ -18001,6 +18057,7 @@
   });
 
   document.addEventListener('visibilitychange', () => {
+    syncRecentTimeRefresh();
     if (TOAST_PRESENTATION_AVAILABLE) {
       setToastPresentationVisible(
         runtime.hostWindowPresentable && document.visibilityState === 'visible',
@@ -18030,6 +18087,7 @@
       clearRuntimeToasts();
       runtime.hostWindowPresentable = false;
       runtime.pageUnloading = true;
+      stopRecentTimeRefresh();
       if (TOAST_PRESENTATION_AVAILABLE) setToastPresentationVisible(false);
       if (activeBackupModal()) {
         closeBackupDialog('page_unload', true);

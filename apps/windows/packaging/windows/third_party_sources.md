@@ -7,7 +7,9 @@
 
 使用PySide6官方Windows轮子及其中的Qt运行库，库文件保留独立动态链接形式。
 Qt自身许可、Chromium/WebEngine/PDF归属、实际保留原生模块和图像格式插件的上游许可均在软件中提供。
-Qt和PySide/Shiboken没有应用本项目补丁。
+QtBluetooth 使用本项目写等待补丁；其余 Qt 库及 PySide/Shiboken 保持上游版本。
+对应源码归档、补丁、摘要及重建说明随程序保存在 `_internal/third_party/qt_bluetooth/`，
+源码树中的说明见 `packaging/windows/qt_bluetooth_build.md`。
 
 以下是对应版本的官方源码归档，SHA-256取自Qt官方文件详情页。Qt WebEngine归档包含其Chromium来源；
 PySide/Shiboken来源为pyside-setup。构建第三方库时遵循源码内的许可和官方对应版本构建说明。
@@ -31,7 +33,7 @@ PySide/Shiboken来源为pyside-setup。构建第三方库时遵循源码内的�
 pysqleet31.1.3的原始源码：[官方源码包](https://files.pythonhosted.org/packages/c8/e4/b2271580532bb88e2c42d9f2b386f43e29675fc93269009c26240ebff9dc/pysqleet-31.1.3.tar.gz)，
 SHA-256为 `941e14b7533eeffcfee666c12e8ecf6e4b72317daafe3d0e788dc8540c8a277a`。
 本项目改动完整保存在 `packaging/windows/pysqleet_31_1_3.patch`，构建命令见根目录README。
-包装层还保留pysqlite各作者的来源许可；sqleet合并源码和SQLite实现保持原样。
+补丁包含Python3.10/MSVC构建适配与SQLite资源限制接口。包装层保留pysqlite各作者的来源许可；sqleet加密及SQLite引擎实现保持原样。
 
 Python3.10.11来源：[Python官方版本页](https://www.python.org/downloads/release/python-31011/)。
 Python自身及其OpenSSL等随附许可在软件中保留；此Windows运行时随附OpenSSL1.1.1t，
@@ -40,6 +42,8 @@ Python自身及其OpenSSL等随附许可在软件中保留；此Windows运行时
 网页侧的pinyin-pro、zxcvbn、Phosphor Icons、Manrope和JetBrains Mono保留随附原文及来源链接。
 
 Windows局域网授权使用[comtypes 1.4.17](https://pypi.org/project/comtypes/1.4.17/)调用系统COM接口，未修改上游库。采用MIT许可，原文保留在软件第三方许可中；不增加必选的传递依赖。官方轮子`comtypes-1.4.17-py3-none-any.whl`的SHA-256为`4e0a221dde2c589b82977bed802efd71cd5eb67a380347b732e02735e597f586`；源码包SHA-256为`3d9c1e92ad8daf7600d371e76ee16161a627a5fb70c3144f6e52e78af6034363`。
+
+设备配对使用[srp 1.0.22](https://pypi.org/project/srp/1.0.22/)与其依赖[six 1.17.0](https://pypi.org/project/six/1.17.0/)，两者MIT许可原文随帮助资产提供。运行固定srp的Python后端，打包排除旧OpenSSL动态后端；上游源码未修改。安卓继续使用其既有Bouncy Castle，未引入Python配对运行时。
 
 ## 替换第三方库
 
@@ -62,10 +66,12 @@ Windows局域网授权使用[comtypes 1.4.17](https://pypi.org/project/comtypes/
 The app includes copyright notices and license texts under Help → About → Third-party licenses.
 The same texts and their sources are present in `desktop/frontend/assets/help/content.json`.
 The table links the official, versioned Qt and PySide/Shiboken source archives and their published SHA-256 hashes.
-Qt WebEngine includes Chromium sources. No project patches are applied to Qt or PySide/Shiboken.
+Qt WebEngine includes Chromium sources. QtBluetooth includes the project write-wait patch dated 2026-10-27;
+other Qt libraries and PySide/Shiboken are unchanged. The matching source archive, patch, hashes and build
+instructions are bundled under `_internal/third_party/qt_bluetooth/`.
 
 The pysqleet31.1.3 source URL, archive hash and complete project patch are provided above and in the root README.
-The patch is limited to Python3.10/MSVC build compatibility; the sqleet/SQLite implementation is unchanged.
+The patch adjusts Python3.10/MSVC build compatibility and exposes SQLite resource-limit APIs; the sqleet encryption and SQLite engine implementations are unchanged.
 Other Python component versions are pinned in `requirements.txt`; their versioned source releases are available
 through PyPI. Notices also include bundled native implementations such as libffi and Argon2/Blake2.
 
@@ -76,3 +82,10 @@ WebEngine additionally needs its matching helper executable, resource packs and 
 Test with a separate database and restore the backed-up program if interfaces are incompatible.
 Third-party library bytes are not pinned by the application; frontend resource integrity is a separate boundary.
 Rights granted by the component licenses, including modification and debugging those modifications, remain intact.
+
+
+## Inno安装器 / Inno installer
+
+当前安装器使用Inno Setup 7.1.0。官方来源及编译器文件摘要见`packaging/windows/inno_tool_lock.json`；原始许可以`inno_license.txt`随构建成品保留；公开源码中的原文见 `third_party/inno_license.txt`。自有安装脚本和明确标为MIT的原生辅助源码按项目许可声明提供，第三方许可不被替换。
+
+The installer uses Inno Setup 7.1.0, pinned in `packaging/windows/inno_tool_lock.json`. The original license is supplied as `inno_license.txt` with build outputs and in the public source tree under `third_party/inno_license.txt`. Project licensing applies to original scripts and explicitly marked native helpers; third-party notices remain unchanged.

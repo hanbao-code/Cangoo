@@ -134,6 +134,7 @@ _M4_LOCK_REASONS = frozenset(
         "MANUAL",
         "AUTO",
         "SUSPEND",
+        "SESSION_INVALIDATED",
         "RENDERER_FAILURE",
         "C49_SUCCESS",
         "C49_RESTORED",
@@ -148,6 +149,7 @@ _PROCESSING_SECURITY_REASONS = frozenset(
         SecurityBoundaryReason.AUTO_LOCK,
         SecurityBoundaryReason.RENDERER_FAILURE,
         SecurityBoundaryReason.SUSPEND_LOCK,
+        SecurityBoundaryReason.SESSION_INVALIDATED,
         SecurityBoundaryReason.CHANGE_KEY_SUCCESS,
         SecurityBoundaryReason.CHANGE_KEY_RESTORED,
     }
@@ -156,6 +158,7 @@ _PROCESSING_FAILURE_STATES = frozenset(
     {
         RendererRecoveryViewState.RECOVERY_AVAILABLE,
         RendererRecoveryViewState.BLOCKED,
+        RendererRecoveryViewState.POWER_PROTECTION_UNAVAILABLE,
         RendererRecoveryViewState.DATABASE_RECOVERY_FAILED,
     }
 )
@@ -177,6 +180,8 @@ _M4_CURTAIN_SURFACE_MODES = {
     RendererRecoveryViewState.REBUILDING:
         RendererRecoverySurfaceMode.FULL_NATIVE,
     RendererRecoveryViewState.BLOCKED:
+        RendererRecoverySurfaceMode.FULL_NATIVE,
+    RendererRecoveryViewState.POWER_PROTECTION_UNAVAILABLE:
         RendererRecoverySurfaceMode.FULL_NATIVE,
     RendererRecoveryViewState.DATABASE_RECOVERY_FAILED:
         RendererRecoverySurfaceMode.FULL_NATIVE,
@@ -320,6 +325,12 @@ class _M4SuspendLockState(str, Enum):
     FAILED = "failed"
 
 
+class _M4PowerRebindState(str, Enum):
+    NONE = "none"
+    CLEARING = "clearing"
+    WAITING_REGISTRATION = "waiting_registration"
+
+
 class M4HostWindow(HostWindow):
     """M4 产品宿主；构造时必须显式注入已验证的运行路径。"""
 
@@ -364,6 +375,9 @@ class M4HostWindow(HostWindow):
         self._m4_auto_lock_minutes = 5
         self._m4_suspend_lock_state = _M4SuspendLockState.NONE
         self._m4_power_suspended = False
+        self._m4_power_registration_ready = False
+        self._m4_power_protection_failed = False
+        self._m4_power_rebind_state = _M4PowerRebindState.NONE
         self._m4_last_security_resume_count = -1
         self._m4_suspended_canvas_probe_generation = 0
         self._m4_suspended_initial_probe_generation = 0
@@ -413,6 +427,7 @@ class M4HostWindow(HostWindow):
                 # construction must not publish exception text or exit.
                 pass
         self.native.clipboard = self._m4_native_clipboard
+        self._sync_clipboard_window_handle()
         monitor = (
             idle_monitor_factory(self)
             if idle_monitor_factory is not None
@@ -443,6 +458,7 @@ class M4HostWindow(HostWindow):
         self._show_renderer_curtain(
             RendererRecoveryViewState.STARTING
         )
+        self._m4_power_registration_ready = True
 
     @property
     def bridge_attached(self) -> bool:
@@ -502,7 +518,7 @@ class M4HostWindow(HostWindow):
             core = DirectTransferController(runtime.adapter, authority=authority,
                 lock_monitor_ready=self._transfer_lock_monitor_ready, busy=busy,
                 hold=self._set_transfer_hold, adopt_received=self._adopt_transfer_preview, parent=self,
-                lan_access=LanAccess(self))
+                lan_access=LanAccess(self), clipboard=runtime.clipboard)
             self._m4_transfer_core = core
             transfer = DirectTransferWindowController(core, authority=authority, busy=busy,
                 view_factory=lambda: self.create_m4_editor_view("/transfer.html"),
@@ -672,6 +688,7 @@ class M4HostWindow(HostWindow):
             self.isVisible()
             and not self.isMinimized()
             and not self._m4_power_suspended
+            and not M4HostWindow.m4_power_rebind_pending(self)
             and not self._tray_hide_settling
         )
 
@@ -1478,6 +1495,8 @@ class M4HostWindow(HostWindow):
             self.set_tray_state(TraySessionState.DISCONNECTED)
 
     def on_m4_session_opened(self, session_epoch: int) -> None:
+        if not self.ensure_m4_power_protection():
+            return
         suspend_lock_required = self._m4_suspend_lock_state in {
             _M4SuspendLockState.IN_PROGRESS,
             _M4SuspendLockState.COMPLETE,
@@ -1747,6 +1766,86 @@ class M4HostWindow(HostWindow):
         if not available:
             self._revoke_direct_transfer()
 
+    def ensure_m4_power_protection(self) -> bool:
+        if (
+            self._m4_power_protection_failed
+            or not self._m4_power_registration_ready
+            or self._exit_cleanup_started
+            or self.m4_power_rebind_pending()
+        ):
+            return False
+        if self.power.is_registered_for(int(self.internalWinId())):
+            return True
+        self._on_power_registration_failed()
+        return False
+
+    def m4_power_rebind_pending(self) -> bool:
+        return (
+            getattr(self, "_m4_power_rebind_state", _M4PowerRebindState.NONE)
+            is not _M4PowerRebindState.NONE
+        )
+
+    def _on_power_registration_lost(self) -> None:
+        if (
+            not self._m4_power_registration_ready
+            or self._m4_power_protection_failed
+            or self._exit_cleanup_started
+            or self.m4_power_rebind_pending()
+        ):
+            return
+        runtime = self.m4_runtime
+        self._m4_power_rebind_state = _M4PowerRebindState.CLEARING
+        try:
+            complete = (
+                runtime.bridge.active_page_epoch <= 0
+                or runtime.lock_session_from_native("SESSION_INVALIDATED")
+            )
+        except Exception:
+            complete = False
+        if complete is not True:
+            self._on_power_registration_failed()
+            return
+        self._m4_power_rebind_state = _M4PowerRebindState.WAITING_REGISTRATION
+        self._on_power_registration_available()
+
+    def _on_power_registration_available(self) -> None:
+        if (
+            self._m4_power_rebind_state is not _M4PowerRebindState.WAITING_REGISTRATION
+            or not self.power.is_registered_for(int(self.internalWinId()))
+        ):
+            return
+        self._m4_power_rebind_state = _M4PowerRebindState.NONE
+        self._resume_processing_presentation_if_possible()
+
+    def _on_power_registration_failed(self) -> None:
+        if (
+            not self._m4_power_registration_ready
+            or self._m4_power_protection_failed
+            or self._exit_cleanup_started
+        ):
+            return
+        self._m4_power_protection_failed = True
+        self._clear_canvas_probe()
+        self._clear_initial_surface_probe()
+        self.renderer_lifecycle.begin_exit()
+        try:
+            runtime = self.m4_runtime
+            try:
+                complete = runtime.close("bridge_close")
+            except Exception:
+                complete = False
+            if complete is not True:
+                # 运行时前置收尾异常也必须尝试撤销桥接权限。
+                runtime.bridge.close_bridge("bridge_close")
+        finally:
+            self.ready = False
+            self.load_ok = False
+            self.view.setEnabled(False)
+            self.view.hide()
+            self._show_renderer_curtain(
+                RendererRecoveryViewState.POWER_PROTECTION_UNAVAILABLE
+            )
+
     def announce_m4_accessible_operation(
         self,
         operation: str,
@@ -1978,6 +2077,8 @@ class M4HostWindow(HostWindow):
         self,
         state: RendererRecoveryViewState,
     ) -> None:
+        if self._m4_power_protection_failed and not self._exit_cleanup_started:
+            state = RendererRecoveryViewState.POWER_PROTECTION_UNAVAILABLE
         startup_failure = bool(
             not self._initial_surface_ready_emitted
             and isinstance(

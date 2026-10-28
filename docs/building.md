@@ -40,63 +40,24 @@ py -3.10 -m venv .venv
 
 再按[数据库驱动构建](../third_party/driver_build.md)校验、应用补丁并安装 `pysqleet 31.1.3`。不要用其他SQLite驱动代替它；驱动补丁位于 `apps/windows/packaging/windows/pysqleet_31_1_3.patch`。
 
-### 准备固定安装工具
+### 准备安装工具与生成包体
 
-安装包使用WiX 7.0.0和独立的.NET Runtime 10.0.13。具体官方归档、SHA-512和解包布局以[tool_lock.json](../apps/windows/packaging/windows/msi/tool_lock.json)为准。
+按[Inno工具锁](../apps/windows/packaging/windows/inno_tool_lock.json)的官方来源准备Inno Setup 7.1.0，先核对安装器SHA-256及[原始许可](../third_party/inno_license.txt)。构建器核对ISCC和支持文件，不自动下载或全局安装工具。配置x64 MSVC的`cl.exe`、`INCLUDE`与`LIB`。
 
-**下载和使用WiX官方二进制前，请自行阅读[其维护协议](../apps/windows/packaging/windows/msi/third_party/wix_osmf_eula.txt)，确认适用于你的条件。** 该协议与源码的MS-RL许可不同；是否需要付费，应按该协议和你的使用情况判断。
-
-决定使用后，在一个新的工具目录按锁文件下载、核验和解包。不要覆盖已有工具目录：
-
-```powershell
-$toolchainRoot = Join-Path $env:PDM_WORK_ROOT 'wix_7_0_0'
-$toolLock = Get-Content -LiteralPath "$repoRoot/apps/windows/packaging/windows/msi/tool_lock.json" -Raw | ConvertFrom-Json
-New-Item -ItemType Directory -Path $toolchainRoot -ErrorAction Stop | Out-Null
-Add-Type -AssemblyName System.IO.Compression.FileSystem
-foreach ($item in @($toolLock.runtime) + @($toolLock.packages)) {
-    $archive = Join-Path $toolchainRoot $item.archive
-    New-Item -ItemType Directory -Force -Path (Split-Path $archive) | Out-Null
-    Invoke-WebRequest -Uri $item.url -OutFile $archive
-    if ((Get-FileHash -LiteralPath $archive -Algorithm SHA512).Hash -ne $item.sha512) {
-        throw "工具归档摘要不匹配：$($item.archive)"
-    }
-    [IO.Compression.ZipFile]::ExtractToDirectory($archive, (Join-Path $toolchainRoot $item.directory))
-}
-$wixSourceArchive = Join-Path $toolchainRoot $toolLock.source_archive.filename
-Invoke-WebRequest -Uri $toolLock.source_archive.url -OutFile $wixSourceArchive
-if ((Get-FileHash -LiteralPath $wixSourceArchive -Algorithm SHA256).Hash -ne $toolLock.source_archive.sha256) {
-    throw 'WiX对应源码归档摘要不匹配'
-}
-```
-
-构建器还会核对解包后的实际文件。它不自动下载工具、不全局安装，也不写入全局协议接受状态。
-
-### 生成安装包与便携包
-
-先生成前端资源：
+按[QtBluetooth构建说明](../apps/windows/packaging/windows/qt_bluetooth_build.md)准备固定DLL及对应源码归档，再执行：
 
 ```powershell
 Set-Location "$repoRoot/apps/windows"
 & "$repoRoot/.venv/Scripts/python.exe" -B tools/build_web_frontend.py --product-only
-```
-
-阅读并确认接受 WiX 维护协议后，在下面命令末尾添加 `--accept-wix-eula`。未添加时，构建器会在开始构建前退出。
-
-```powershell
 & "$repoRoot/.venv/Scripts/python.exe" -B tools/build_windows_packages.py `
     --output "$env:PDM_WORK_ROOT/releases/windows" `
-    --toolchain $toolchainRoot `
-    --wix-source-archive $wixSourceArchive `
+    --iscc '<Inno工具目录>/ISCC.exe' `
     --compiler (Get-Command cl.exe).Source
 ```
 
-`--toolchain`是按锁文件准备的目录，`--wix-source-archive`是与固定WiX提交对应的完整源码ZIP；二者分别校验。`--compiler`是MSVC的 `cl.exe`，不能代替x64的 `INCLUDE`／`LIB` 环境。
+每次输出新的 `<版本>_<时间>/`，包含Inno `setup.exe`、同一份程序文件生成的便携ZIP、安装构建记录、Inno原始许可及`sha256sums.txt`。QtBluetooth源码归档和补丁随程序提供。保留完整程序目录，单独复制EXE无法运行。失败会保留诊断目录；构建器不启动安装器或发布文件。
 
-每次输出独立的 `<版本>_<时间>` 目录，包含Burn `setup.exe`、从同一份程序文件生成的便携ZIP、安装构建记录、完整WiX源码归档 `wix-b8977d6f88e7b68e000bac226a2814f236770570.zip` 及 `sha256sums.txt`。源码归档必须随安装包一同交付，不能仅用上游链接代替；无需将该归档提交到 Git。用户通过 `setup.exe` 安装和维护程序，MSI 已包含在其中。
-
-保留完整程序目录；只复制EXE不能正常运行。构建失败时会报告保留的诊断目录，请修正输入后重新构建，仅使用构建成功的完整输出。
-
-主体软件的AGPL-3.0-only及限定OpenSSL例外见[根许可](../LICENSE.md)。仅明确标记为MIT的自有原生安装辅助源码适用[独立MIT许可](../apps/windows/packaging/windows/native/LICENSE)；WiX上游及其派生主题等材料保留[MS-RL](../apps/windows/packaging/windows/msi/third_party/wix_license.txt)。
+主体许可见[根许可](../LICENSE.md)；明确标为MIT的自有原生安装辅助按[独立MIT许可](../apps/windows/packaging/windows/native/LICENSE)提供，第三方组件各自原文保持。
 
 需要从源码运行时，在 `apps/windows` 执行：
 
@@ -126,7 +87,7 @@ Set-Location "$repoRoot/apps/android"
 
 首次构建需要联网取得Gradle、依赖和Python组件；仅在所需内容已缓存时使用 `--offline`。也可在未入库的 `local.properties` 设置本机 `sdk.dir`。构建前会核对共用许可与生成资源；修改许可真源后运行 `scripts/generate_legal_content.py` 更新，再构建。
 
-当前首发架构为 `arm64-v8a`。Release构建启用R8，生成 `app/build/outputs/apk/arm64/release/app-arm64-release-unsigned.apk`。它尚未签名，不能直接安装。开发构建可使用 `:app:assembleArm64Debug`，应用标识为 `app.cangoo.android.dev`，与正式应用不同。
+此处构建的架构为 `arm64-v8a`。Release构建启用R8，生成 `app/build/outputs/apk/arm64/release/app-arm64-release-unsigned.apk`。它尚未签名，不能直接安装。开发构建可使用 `:app:assembleArm64Debug`，应用标识为 `app.cangoo.android.dev`，与正式应用不同。
 
 ### 本地签名
 
@@ -135,7 +96,7 @@ Set-Location "$repoRoot/apps/android"
 ```powershell
 $buildTools = Join-Path $env:ANDROID_HOME 'build-tools/36.1.0'
 $unsignedApk = 'app/build/outputs/apk/arm64/release/app-arm64-release-unsigned.apk'
-$signedApk = Join-Path $env:PDM_WORK_ROOT 'releases/android/cangoo-1.0.0-android-arm64.apk'
+$signedApk = Join-Path $env:PDM_WORK_ROOT 'releases/android/cangoo-1.0.1-android-arm64.apk'
 New-Item -ItemType Directory -Force -Path (Split-Path $signedApk) | Out-Null
 & "$buildTools/zipalign.exe" -c -P 16 -v 4 $unsignedApk
 & "$buildTools/apksigner.bat" sign --ks '<自己的密钥文件绝对路径>' `
@@ -158,11 +119,11 @@ Run the PowerShell commands above one step at a time and stop on failure. Start 
 
 For Windows, create `.venv` at the repository root with Python 3.10.11 x64 and install `apps/windows/packaging/windows/requirements.txt`. Build the pinned database driver using [these instructions](../third_party/driver_build.md#english). Configure the x64 MSVC 14.44.35207 / Windows SDK 10.0.26100.0 development environment, including `cl.exe`, `INCLUDE` and `LIB`.
 
-The installer uses WiX 7.0.0 with a standalone .NET Runtime 10.0.13. Read the [WiX binary maintenance agreement](../apps/windows/packaging/windows/msi/third_party/wix_osmf_eula.txt) and make your own applicability and acceptance decision before downloading or using the binaries. Prepare a fresh tool directory using the URLs, SHA-512 hashes and extraction paths in [tool_lock.json](../apps/windows/packaging/windows/msi/tool_lock.json). The PowerShell loop above checks each archive before extracting it. Nothing is installed globally.
+Use Inno Setup 7.1.0 from the [pinned tool lock](../apps/windows/packaging/windows/inno_tool_lock.json). Check the official installer hash and [original license](../third_party/inno_license.txt), then supply `--iscc` and the configured x64 MSVC `--compiler`. Prepare the QtBluetooth DLL and corresponding source archive as described in its build notes. Run the frontend and packaging commands from `apps/windows`.
 
-Run the frontend and packaging commands from `apps/windows`. `--toolchain` names the prepared tool directory and `--compiler` names MSVC `cl.exe`. After reading and accepting the WiX maintenance agreement, add `--accept-wix-eula` to the command; without it, the builder exits before building. Pass the complete source ZIP from the same WiX commit as `--wix-source-archive`. The output contains a Burn setup.exe with its internal MSI, a portable ZIP using the same application files, a build record, `wix-b8977d6f88e7b68e000bac226a2814f236770570.zip` and SHA-256 checksums. Distribute this source archive with the installer; an upstream URL alone is not a replacement. There is no need to commit the archive to Git. Users install and maintain the app through setup.exe, which includes the MSI. The installer requires Windows 10 1809 or later.
+The output contains Inno setup.exe, a portable ZIP from the same application files, a build record, the original Inno license and SHA-256 checksums. QtBluetooth source and patch materials remain in the application payload. The build does not install or publish files. The installer requires Windows 10 1809 or later. Main application and original native helper licensing remain defined in the [root license](../LICENSE.md) and [native MIT license](../apps/windows/packaging/windows/native/LICENSE).
 
-The main application remains AGPL-3.0-only with the limited OpenSSL exception. Only original native helpers explicitly marked as MIT have the separate MIT scope defined in the [root license](../LICENSE.md) and [native license](../apps/windows/packaging/windows/native/LICENSE). Upstream WiX code and its derivatives retain MS-RL. Running `desktop.product_app` uses the current Windows user's Cangoo data directory. Use a separate test account and test databases when validating changes so that everyday data is not affected. Back up existing vaults before upgrading them.
+Running `desktop.product_app` uses the current Windows user's Cangoo data directory. Use a separate test account and test databases when validating changes so that everyday data is not affected. Back up existing vaults before upgrading them.
 
 For Android, use JDK 21, Android SDK platform 36, Build Tools 36.1.0 and a separate Python 3.11 interpreter. Set `JAVA_HOME`, `ANDROID_HOME`, `GRADLE_USER_HOME` and `ANDROID_USER_HOME` as shown, then run the included Gradle wrapper from `apps/android`. The first build needs network access; use `--offline` only after dependencies are cached. `:app:assembleArm64Release` enables R8 and produces an unsigned arm64 APK. `:app:assembleArm64Debug` uses the separate `app.cangoo.android.dev` identity.
 

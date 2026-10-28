@@ -66,6 +66,9 @@ internal interface PasswordDao {
     @Query("SELECT length(CAST(title AS BLOB)) + length(CAST(account AS BLOB)) + length(CAST(password AS BLOB)) + length(CAST(notes AS BLOB)) + length(CAST(totpSecret AS BLOB)) + length(CAST(updatedAt AS BLOB)) + COALESCE(length(CAST(passwordChangedAt AS BLOB)), 0) FROM passwords WHERE id = :id")
     fun backupTextBytes(id: String): Long
 
+    @Query("SELECT length(CAST(recoveryCodesJson AS BLOB)) FROM passwords WHERE id = :id")
+    fun backupRecoveryBytes(id: String): Long
+
     @Query("""
         SELECT id, substr(title, 1, 128) AS title, substr(account, 1, 128) AS account,
                updatedAt, favorite, revision, (totpSecret != '') AS hasTotp, 0 AS recoveryCodeCount,

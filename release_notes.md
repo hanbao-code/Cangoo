@@ -2,6 +2,21 @@
 
 电脑版与安卓版各有自己的版本号。文件与校验清单见[发行页面](https://github.com/hanbao-code/Cangoo/releases)，操作步骤见[电脑版手册](docs/user_guide_zh.md)和[安卓版手册](docs/android/user_guide_zh.md)。
 
+## Windows 1.1.1
+
+- 设备传输改为接收端显示8位临时配对码，发送端输入后由接收端确认一次，再选择范围并发送。两端均需支持新方式；旧版直传不互通，加密备份文件继续兼容。
+- 改进复制体验和失败提示，连接页的最近使用时间自动刷新；降低蓝牙传输期间的CPU占用。
+- 进行了一些安全与稳定性增强。
+
+从Windows1.1.0安装版升级时，请先备份并保留资料卸载旧版，再安装新版；具体步骤见[电脑版手册](docs/user_guide_zh.md#安装迁移与卸载)。
+
+Windows文件未做代码签名，操作开始时可能出现系统或安全软件提示。
+
+## Android 1.0.1
+
+- 设备传输改为8位临时配对码和接收端一次确认；两端均需支持新方式，旧版直传不互通，加密备份文件继续兼容。
+- 进行了一些安全与稳定性增强。
+
 ## Windows 1.1.0
 
 适用于 Windows 10（1809及以上）或 Windows 11 的 x64 电脑，提供安装版和便携版。
@@ -55,6 +70,21 @@ Windows 1.1.0与Android 1.0.0采用 AGPL-3.0-only，Windows 随包 OpenSSL 另�
 ## English
 
 Windows and Android have separate version numbers. See the [releases page](https://github.com/hanbao-code/Cangoo/releases) for files and checksums, and the [Windows](docs/user_guide_en.md) or [Android](docs/android/user_guide_en.md) guide for instructions.
+
+### Windows 1.1.1
+
+- Device transfer uses the receiver’s eight-digit temporary pairing code and one receiver confirmation. Both devices need the new method; older versions cannot transfer directly, while encrypted backups remain compatible.
+- Improves copying and failure messages, refreshes recent-vault time labels automatically and reduces CPU use during Bluetooth transfers.
+- Includes security and stability improvements.
+
+When upgrading from the Windows 1.1.0 installed edition, back up and uninstall it with data cleanup unchecked, then install this version. See the [Windows guide](docs/user_guide_en.md#install-migrate-and-uninstall) for the steps.
+
+Windows files are not code-signed, and system or security-software prompts may appear.
+
+### Android 1.0.1
+
+- Device transfer uses an eight-digit temporary pairing code and one receiver confirmation. Both devices need the new method; encrypted backups remain compatible with older versions.
+- Includes security and stability improvements.
 
 ### Windows 1.1.0
 
