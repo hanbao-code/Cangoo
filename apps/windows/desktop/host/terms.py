@@ -17,8 +17,8 @@ from PySide6.QtWidgets import (
 from core.config import ConfigManager
 from desktop.host.focus_visibility import NativeFocusVisibilityController
 from desktop.host.window_chrome import set_win11_caption_colors
-from desktop.m4.resources import M4ResourceCatalog
-from desktop.m4.settings_store import M4AtomicSettingsStore, M4SettingsCommitError
+from desktop.application.resources import ProductResourceCatalog
+from desktop.application.settings_store import AtomicSettingsStore, SettingsCommitError
 from desktop.ui_font_scale import normalize_ui_font_scale, scaled_font_pixel_size
 
 
@@ -40,7 +40,7 @@ class TermsSettings:
     def __init__(self, path: Path) -> None:
         self.manager = ConfigManager(str(path))
         self.manager.load(create_if_missing=False)
-        self.store = M4AtomicSettingsStore(self.manager, path)
+        self.store = AtomicSettingsStore(self.manager, path)
 
     @property
     def language(self) -> str:
@@ -289,7 +289,7 @@ class TermsDialog(QDialog):
         self._scroll_positions[self._document] = current.verticalScrollBar().value()
         try:
             self.settings.set_language(language)
-        except M4SettingsCommitError:
+        except SettingsCommitError:
             self.zh.setChecked(self.settings.language == "zh")
             self.en.setChecked(self.settings.language == "en")
             self.show_failure()
@@ -303,7 +303,7 @@ class TermsDialog(QDialog):
         self._busy = True
         try:
             self.settings.accept(self.content["terms_version"])
-        except M4SettingsCommitError:
+        except SettingsCommitError:
             # 这里只记录本次告知；AGPL不以接受或成功保存记录作为运行条件。
             pass
         finally:
@@ -312,7 +312,7 @@ class TermsDialog(QDialog):
 
 
 def ensure_terms_accepted(settings_file: Path) -> bool:
-    catalog = M4ResourceCatalog()
+    catalog = ProductResourceCatalog()
     payload = catalog.payload_for_url(QUrl("pdm://app/assets/help/content.json"))
     if payload is None:
         raise RuntimeError("terms resource is unavailable")

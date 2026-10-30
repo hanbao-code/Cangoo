@@ -14,8 +14,8 @@ os.environ["PATH"] = os.pathsep.join(str(path) for path in (
     venv / "Scripts", base_python, base_python / "DLLs", windows / "System32", windows,
 ))
 
-from desktop.m4.contract import load_m4_contract
-from desktop.m4.resources import M4ResourceCatalog
+from desktop.application.contract import load_bridge_contract
+from desktop.application.resources import ProductResourceCatalog
 from tools.build_windows_installer import read_product_version
 from tools.qt_bluetooth_build import prepare_inputs, replace_binary
 from PyInstaller.utils.win32.versioninfo import (
@@ -39,13 +39,13 @@ version_info = VSVersionInfo(
 )
 
 # 构建前使用正式加载器检查固定资源，不复制整棵开发文档或测试目录。
-load_m4_contract()
-M4ResourceCatalog()
+load_bridge_contract()
+ProductResourceCatalog()
 frontend_sources = {
     "canvas.html",
-    "m4_product_shell.html",
+    "product_shell.html",
     "source_manifest.json",
-    *(source for source, _mime in M4ResourceCatalog.ASSET_SOURCES.values()),
+    *(source for source, _mime in ProductResourceCatalog.ASSET_SOURCES.values()),
 }
 datas = [
     (str(root / "desktop/frontend" / name), str(Path("desktop/frontend") / Path(name).parent))
@@ -65,7 +65,7 @@ main = Analysis([str(root / "desktop/product_app.py")], pathex=[str(root)], data
                 hookspath=[str(root / "packaging/windows/hooks")],
                 runtime_hooks=runtime_hooks,
                 excludes=["cffi._shimmed_dist_utils", "srp._ctsrp"])
-worker = Analysis([str(root / "desktop/m4/strength_worker.py")], pathex=[str(root)],
+worker = Analysis([str(root / "desktop/application/strength_worker.py")], pathex=[str(root)],
                   runtime_hooks=runtime_hooks)
 
 for analysis in (main, worker):

@@ -13,7 +13,8 @@ import java.nio.file.Files
 import java.time.Instant
 import java.util.UUID
 
-internal data class LocalBackupRecord(val vaultId: String, val completedAt: Instant, val scope: BackupScope)
+internal enum class LocalBackupScope { ALL, PASSWORDS, NOTES, CUSTOM }
+internal data class LocalBackupRecord(val vaultId: String, val completedAt: Instant, val scope: LocalBackupScope)
 internal sealed interface LocalBackupRecordState {
     data object Missing : LocalBackupRecordState
     data class Available(val record: LocalBackupRecord) : LocalBackupRecordState
@@ -114,7 +115,7 @@ internal class LocalBackupRecordFile(private val directory: File, private val va
             val seen = mutableSetOf<String>()
             var id: String? = null
             var completedAt: Instant? = null
-            var scope: BackupScope? = null
+            var scope: LocalBackupScope? = null
             require(reader.peek() == JsonToken.BEGIN_OBJECT)
             reader.beginObject()
             while (reader.hasNext()) {
@@ -129,7 +130,7 @@ internal class LocalBackupRecordFile(private val directory: File, private val va
                     }
                     "scope" -> {
                         val value = reader.strictString()
-                        scope = requireNotNull(BackupScope.entries.firstOrNull { it.name == value })
+                        scope = requireNotNull(LocalBackupScope.entries.firstOrNull { it.name == value })
                     }
                     else -> throw IllegalArgumentException()
                 }

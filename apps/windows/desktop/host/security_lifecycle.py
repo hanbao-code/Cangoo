@@ -1,10 +1,7 @@
-"""Single native coordinator for fail-closed security boundaries.
+"""请求资格撤销后的原生同步清理协调器。
 
-The typed Bridge owns request authorization.  This module is the native
-side-effect coordinator invoked *after* that authority has synchronously been
-revoked and before an adapter can release its session.  It intentionally has
-no dependency on a database, configuration, clipboard implementation, or
-renderer so M3 can verify the ordering with injected public-state callbacks.
+请求授权归类型化 Bridge；本模块在资格同步撤销后、适配器释放会话前按固定
+阶段执行回调。数据库、配置、剪贴板和渲染器通过回调接入，不成为本模块依赖。
 """
 
 from __future__ import annotations
@@ -235,7 +232,7 @@ class SecurityBoundaryCoordinator:
             raise ValueError("page epoch must be a positive integer")
 
     def session_authorized(self, session_epoch: int) -> None:
-        """Observer hook; native activities may be attached in M4."""
+        """观察者入口，原生活动由产品运行时接入。"""
 
         if type(session_epoch) is not int or session_epoch <= 0:
             raise ValueError("session epoch must be a positive integer")

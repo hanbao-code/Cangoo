@@ -47,8 +47,11 @@ import app.cangoo.android.data.NoteImportChoice
 import app.cangoo.android.data.NoteImportAction
 import app.cangoo.android.data.BackupPrivateCleanup
 import app.cangoo.android.data.BackupScope
+import app.cangoo.android.data.BackupSelection
+import app.cangoo.android.data.BackupProtocol
 import app.cangoo.android.data.LocalBackupRecordState
 import app.cangoo.android.data.LocalBackupRecordWrite
+import app.cangoo.android.data.LocalBackupScope
 import app.cangoo.android.data.DeletionPreview
 import app.cangoo.android.data.VaultDeletionResult
 import app.cangoo.android.data.DeletionStatus
@@ -169,6 +172,11 @@ class VaultModel private constructor(application: Application, private val clipb
     @Volatile private var contentVisible = false
     internal var backupState by mutableStateOf(BackupUiState())
         private set
+    internal var exportSelectionState by mutableStateOf<ExportSelectionUiState?>(null)
+        private set
+    private var exportSelectionToken = 0L
+    private var exportSelectionRun = 0L
+    private var exportSelectionJob: Job? = null
     internal var directTransfer by mutableStateOf<DirectTransferController?>(null)
         private set
     private var transferHoldOwner: Pair<Long, String>? = null
@@ -177,7 +185,7 @@ class VaultModel private constructor(application: Application, private val clipb
     private var transferSourceName = ""
     internal var documentIntent by mutableStateOf<BackupDocumentIntent?>(null)
         private set
-    private class ExportTarget(val request: BackupDocumentIntent, val scope: BackupScope, val permission: Long) {
+    private class ExportTarget(val request: BackupDocumentIntent, val scope: BackupScope, val permission: Long, val selection: BackupSelection?) {
         val token = UUID.randomUUID().toString()
         val mutex = Mutex()
         var uri: android.net.Uri? = null
@@ -614,7 +622,7 @@ class VaultModel private constructor(application: Application, private val clipb
                 receivedPreviewId != null && backupState.preview?.id == receivedPreviewId },
             interact = { current() && contentVisible && onUserInteraction() },
             transferHold = { held -> setTransferHold(permission, vault.id, held) },
-            exportSnapshot = { selected, qualified -> store.exportTransferSnapshot(vault.id, selected, qualified) },
+            exportSnapshot = { selected, selection, qualified -> store.exportTransferSnapshot(vault.id, selected, selection, qualified) },
             receiveSnapshot = { encoded, selected, passwords, notes, qualified ->
                 val preview = store.previewReceivedSnapshot(vault.id, encoded, selected, passwords, notes, qualified)
                 if (current() && qualified()) {
@@ -622,7 +630,10 @@ class VaultModel private constructor(application: Application, private val clipb
                     pendingTransferPreview = preview
                     transferSourceName = directTransfer?.state?.peerName.orEmpty()
                 } else store.discardImport(preview.id)
-            }, received = ::showReceivedTransfer)
+            }, received = ::showReceivedTransfer, selectionEnded = { controller ->
+                val view = exportSelectionState
+                if (directTransfer === controller && view != null && view.origin == Page.TRANSFER && exportSelectionCurrent(view)) clearExportSelection()
+            })
     }
 
     internal fun closeDirectTransfer() {
@@ -649,6 +660,7 @@ class VaultModel private constructor(application: Application, private val clipb
     }
 
     private fun clearDirectTransfer() {
+        clearExportSelection()
         val controller = directTransfer
         directTransfer = null
         transferHoldOwner = null
@@ -727,6 +739,9 @@ class VaultModel private constructor(application: Application, private val clipb
         if (!backupMatches(input) || state.busy || !onUserInteraction() ||
             backupState.step != if (kind == BackupDocumentKind.EXPORT) BackupStep.EXPORT else BackupStep.IMPORT) return null
         if (kind == BackupDocumentKind.EXPORT && (exportSelectionPending || !validExportPassword())) return null
+        if (kind == BackupDocumentKind.EXPORT && backupState.custom && backupState.selection.empty) {
+            state = state.copy(error = UiText(R.string.export_selection_empty)); return null
+        }
         val vaultId = state.vault?.id ?: return null
         val configuration = backupState
         clearBackup(keepStep = true)
@@ -734,7 +749,8 @@ class VaultModel private constructor(application: Application, private val clipb
         inputGeneration++
         val next = BackupDocumentIntent(kind, vaultId, UUID.randomUUID().toString())
         documentIntent = next
-        if (kind == BackupDocumentKind.EXPORT) exportTargets[next.requestId] = ExportTarget(next, configuration.scope, generation)
+        if (kind == BackupDocumentKind.EXPORT) exportTargets[next.requestId] = ExportTarget(next, configuration.scope, generation,
+            configuration.selection.takeIf { configuration.custom }?.let { it.copy(passwords = it.passwords.toMap(), notes = it.notes.toMap()) })
         state = state.copy(error = UiText.Empty, notice = UiText.Empty)
         return next
     }
@@ -821,11 +837,122 @@ class VaultModel private constructor(application: Application, private val clipb
     internal fun changeBackup(input: Long, change: BackupUiState.() -> BackupUiState) {
         if (!backupMatches(input) || state.busy || !onUserInteraction()) return
         if (exportSelectionPending) return
-        backupState = backupState.change().let { changed -> currentExport()?.let { changed.copy(scope = it.scope) } ?: changed }
+        backupState = backupState.change().let { changed -> currentExport()?.let { changed.copy(scope = it.scope,
+            custom = it.selection != null, selection = it.selection ?: BackupSelection()) } ?: changed }
         state = state.copy(error = UiText.Empty, notice = UiText.Empty)
     }
 
     private fun backupMatches(input: Long): Boolean = input == inputGeneration && state.page == Page.BACKUP && state.unlocked
+
+    internal fun openExportSelection(input: Long) {
+        if (input != inputGeneration || state.busy || !onUserInteraction() || !state.unlocked) return
+        val selected = when (state.page) {
+            Page.BACKUP -> {
+                if (backupState.step != BackupStep.EXPORT || documentIntent != null) return
+                backupState.selection
+            }
+            Page.TRANSFER -> directTransfer?.state?.takeIf { it.role == DirectTransferRole.SENDER &&
+                it.phase == DirectTransferPhase.REVIEW && !it.offerPrepared }?.selection ?: return
+            else -> return
+        }
+        val vaultId = state.vault?.id ?: return
+        clearExportSelection()
+        exportSelectionState = ExportSelectionUiState(++exportSelectionToken, generation, inputGeneration, vaultId, state.page, selected)
+        state = state.copy(error = UiText.Empty, notice = UiText.Empty)
+        readExportSelection(refreshSelected = true)
+    }
+
+    private fun exportSelectionCurrent(view: ExportSelectionUiState): Boolean = exportSelectionState?.token == view.token &&
+        view.permission == generation && view.input == inputGeneration && view.vaultId == state.vault?.id &&
+        view.origin == state.page && state.unlocked
+
+    private fun readExportSelection(refreshSelected: Boolean = false) {
+        val view = exportSelectionState ?: return
+        exportSelectionJob?.cancel()
+        val run = ++exportSelectionRun
+        exportSelectionState = view.copy(loading = true, error = UiText.Empty)
+        exportSelectionJob = viewModelScope.launch {
+            try {
+                val rows = withContext(Dispatchers.IO) {
+                    val passwords = store.searchPasswords(view.query).map { ExportSelectionRow(BackupImportKind.PASSWORD, it.id, it.revision, it.title, it.account, it.updatedAt) }
+                    val notes = store.searchNotes(view.query).map { ExportSelectionRow(BackupImportKind.NOTE, it.id, it.revision, it.title, it.preview, it.updatedAt) }
+                    (passwords + notes).sortedWith(compareByDescending<ExportSelectionRow> { BackupProtocol.timestampOrder(it.updatedAt) }.thenBy { it.id }.thenBy { it.kind })
+                }
+                if (run != exportSelectionRun || !exportSelectionCurrent(view)) return@launch
+                val current = exportSelectionState ?: return@launch
+                val selected = if (!refreshSelected) current.selected else BackupSelection(
+                    rows.filter { it.kind == BackupImportKind.PASSWORD && it.id in current.selected.passwords }.associate { it.id to it.revision },
+                    rows.filter { it.kind == BackupImportKind.NOTE && it.id in current.selected.notes }.associate { it.id to it.revision })
+                exportSelectionState = current.copy(rows = rows, selected = selected, loading = false)
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (failure: Exception) {
+                if (run == exportSelectionRun && exportSelectionCurrent(view)) exportSelectionState = exportSelectionState?.copy(
+                    loading = false, rows = emptyList(), error = backupError(failure))
+            }
+        }
+    }
+
+    internal fun queryExportSelection(value: String, token: Long) {
+        val view = exportSelectionState?.takeIf { it.token == token } ?: return
+        if (!exportSelectionCurrent(view) || !onUserInteraction()) return
+        if (value.codePointCount(0, value.length) > 128) {
+            exportSelectionState = view.copy(error = UiText(R.string.search_limit)); return
+        }
+        exportSelectionState = view.copy(query = value)
+        readExportSelection()
+    }
+
+    internal fun filterExportSelection(kind: BrowseKind, token: Long) {
+        val view = exportSelectionState?.takeIf { it.token == token } ?: return
+        if (exportSelectionCurrent(view) && onUserInteraction()) exportSelectionState = view.copy(kind = kind)
+    }
+
+    internal fun toggleExportSelection(row: ExportSelectionRow, token: Long) {
+        val view = exportSelectionState?.takeIf { it.token == token && !it.loading } ?: return
+        if (!exportSelectionCurrent(view) || !onUserInteraction() || row !in view.rows) return
+        val ids = if (row.kind == BackupImportKind.PASSWORD) view.selected.passwords else view.selected.notes
+        val changed = if (row.id in ids) ids - row.id else ids + (row.id to row.revision)
+        exportSelectionState = view.copy(error = UiText.Empty, selected = if (row.kind == BackupImportKind.PASSWORD)
+            view.selected.copy(passwords = changed) else view.selected.copy(notes = changed))
+    }
+
+    internal fun toggleExportFiltered(token: Long) {
+        val view = exportSelectionState?.takeIf { it.token == token && !it.loading } ?: return
+        if (!exportSelectionCurrent(view) || !onUserInteraction()) return
+        val selected = view.toggledVisibleSelection()
+        if (selected == view.selected) return
+        exportSelectionState = view.copy(error = UiText.Empty, selected = selected)
+    }
+
+    internal fun clearAllExportSelections(token: Long) {
+        val view = exportSelectionState?.takeIf { it.token == token && !it.loading && !it.selected.empty } ?: return
+        if (!exportSelectionCurrent(view) || !onUserInteraction()) return
+        exportSelectionState = view.copy(selected = BackupSelection())
+    }
+
+    internal fun confirmExportSelection(token: Long) {
+        val view = exportSelectionState?.takeIf { it.token == token && !it.loading && it.error.isEmpty() } ?: return
+        if (!exportSelectionCurrent(view) || !onUserInteraction()) return
+        if (view.selected.empty) { exportSelectionState = view.copy(error = UiText(R.string.export_selection_empty)); return }
+        if (view.selected.passwords.size.toLong() + view.selected.notes.size > BackupProtocol.MAX_RECORDS) {
+            exportSelectionState = view.copy(error = BackupStoreProblem.LIMIT.uiText()); return
+        }
+        if (view.origin == Page.BACKUP) backupState = backupState.copy(custom = true, selection = view.selected)
+        else if (directTransfer?.selectRecords(view.selected) != true) return
+        clearExportSelection()
+    }
+
+    internal fun closeExportSelection() {
+        if (!onUserInteraction()) return
+        clearExportSelection()
+    }
+
+    private fun clearExportSelection() {
+        exportSelectionRun++
+        exportSelectionJob?.cancel()
+        exportSelectionJob = null
+        exportSelectionState = null
+    }
 
     internal fun confirmBackupDocument(input: Long) {
         val intent = documentIntent?.takeIf { it.uri != null && it.vaultId == state.vault?.id } ?: return
@@ -940,6 +1067,7 @@ class VaultModel private constructor(application: Application, private val clipb
     }
 
     private fun clearBackup(keepStep: Boolean = false, keepDocument: Boolean = false) {
+        clearExportSelection()
         if (backupState.source == BackupSource.TRANSFER) clearDirectTransfer()
         stopBackupWork()
         store.discardImport()
@@ -947,7 +1075,9 @@ class VaultModel private constructor(application: Application, private val clipb
         if (!keepDocument && target != null) abandonExport(target)
         if (keepDocument && target != null) target.autoStart = false
         backupState = BackupUiState(step = if (keepStep) backupState.step else BackupStep.HOME,
-            scope = if (keepDocument) target?.scope ?: BackupScope.ALL else BackupScope.ALL)
+            scope = if (keepDocument) target?.scope ?: BackupScope.ALL else BackupScope.ALL,
+            custom = keepDocument && target?.selection != null,
+            selection = if (keepDocument) target?.selection ?: BackupSelection() else BackupSelection())
         if (!keepDocument) documentIntent = null
     }
 
@@ -1091,7 +1221,7 @@ class VaultModel private constructor(application: Application, private val clipb
                     store.exportBackup(intent.vaultId, scope, password, destination,
                         qualified = { qualified() && !target.abandoned && target.owns },
                         stillOwned = { it === target.created && target.owns },
-                        onPrivateCleanup = { privateCleanup.set(it) }, onLocalRecordWrite = { recordWrite.set(it) })
+                        onPrivateCleanup = { privateCleanup.set(it) }, selection = target.selection, onLocalRecordWrite = { recordWrite.set(it) })
                 }
                 val apply: () -> Unit = {
                     backupState = BackupUiState()
@@ -1877,7 +2007,8 @@ class VaultModel private constructor(application: Application, private val clipb
         val pending = documentIntent?.takeIf { it.vaultId == opened.vault?.id } ?: return opened
         val target = exportTargets[pending.requestId]
         backupState = BackupUiState(step = if (pending.kind == BackupDocumentKind.EXPORT) BackupStep.EXPORT else BackupStep.IMPORT,
-            scope = target?.scope ?: BackupScope.ALL, documentName = target?.created?.displayName.orEmpty())
+            scope = target?.scope ?: BackupScope.ALL, custom = target?.selection != null,
+            selection = target?.selection ?: BackupSelection(), documentName = target?.created?.displayName.orEmpty())
         return opened.copy(page = Page.BACKUP, notice = if (pending.kind == BackupDocumentKind.EXPORT) UiText(R.string.backup_password_again) else opened.notice)
     }
 
@@ -2333,7 +2464,7 @@ class VaultModel private constructor(application: Application, private val clipb
         is LocalBackupRecordState.Available -> {
             val record = value.record
             val time = UiDate(record.completedAt.toEpochMilli())
-            val scope = when (record.scope) { BackupScope.ALL -> UiText(R.string.scope_all); BackupScope.PASSWORDS -> UiText(R.string.scope_passwords); BackupScope.NOTES -> UiText(R.string.scope_notes) }
+            val scope = when (record.scope) { LocalBackupScope.ALL -> UiText(R.string.scope_all); LocalBackupScope.PASSWORDS -> UiText(R.string.scope_passwords); LocalBackupScope.NOTES -> UiText(R.string.scope_notes); LocalBackupScope.CUSTOM -> UiText(R.string.scope_custom) }
             UiText(R.string.backup_history, listOf(time, scope))
         }
     }
@@ -2716,6 +2847,7 @@ class VaultModel private constructor(application: Application, private val clipb
     // 只有根库列表允许结束活动；常用首页先撤权并回根库列表。
     fun back(exitConfirmationMillis: Long = 2000L): Boolean {
         if (!observeUserInteraction()) return false
+        if (exportSelectionState != null) { closeExportSelection(); return false }
         if (backupState.batchReview != null || backupState.commitReview != null) {
             backupState = backupState.copy(batchReview = null, commitReview = null)
             return false

@@ -63,6 +63,9 @@ internal interface PasswordDao {
     @Query("SELECT count(*) FROM passwords")
     fun backupCount(): Long
 
+    @Query("SELECT revision FROM passwords WHERE id = :id")
+    fun backupRevision(id: String): Long?
+
     @Query("SELECT length(CAST(title AS BLOB)) + length(CAST(account AS BLOB)) + length(CAST(password AS BLOB)) + length(CAST(notes AS BLOB)) + length(CAST(totpSecret AS BLOB)) + length(CAST(updatedAt AS BLOB)) + COALESCE(length(CAST(passwordChangedAt AS BLOB)), 0) FROM passwords WHERE id = :id")
     fun backupTextBytes(id: String): Long
 
@@ -127,6 +130,9 @@ internal interface NoteDao {
 
     @Query("SELECT count(*) FROM notes")
     fun backupCount(): Long
+
+    @Query("SELECT revision FROM notes WHERE id = :id")
+    fun backupRevision(id: String): Long?
 
     @Query("SELECT length(CAST(title AS BLOB)) + length(CAST(content AS BLOB)) + length(CAST(createdAt AS BLOB)) + length(CAST(updatedAt AS BLOB)) FROM notes WHERE id = :id")
     fun backupTextBytes(id: String): Long

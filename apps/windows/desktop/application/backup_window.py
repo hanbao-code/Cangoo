@@ -15,8 +15,9 @@ from desktop.host.scene_refresh import SceneRefresh, request_surface_frame, scen
 from desktop.host.window_placement import fit_window_rect
 from .editor_window import EditorWindow, _PassiveEditorAdapter, _EditorSecurityBoundarySink
 
-BACKUP_COMMANDS = frozenset({*(CommandId(f"C{number}") for number in range(50, 60)), CommandId.C81})
-BACKUP_IMPORT_COMMANDS = BACKUP_COMMANDS - {CommandId.C50, CommandId.C51}
+BACKUP_COMMANDS = frozenset({*(CommandId(f"C{number}") for number in range(50, 60)),
+                             *(CommandId(f"C{number}") for number in range(87, 91)), CommandId.C81})
+BACKUP_IMPORT_COMMANDS = BACKUP_COMMANDS - {CommandId.C50, CommandId.C51, *(CommandId(f"C{number}") for number in range(87, 91))}
 
 
 class BackupLauncherBridge(QObject):

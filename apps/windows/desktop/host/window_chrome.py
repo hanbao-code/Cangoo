@@ -1,4 +1,4 @@
-"""Native frameless-window chrome helpers for the WebEngine host."""
+"""WebEngine 宿主的标准标题栏、窗口命中与候选无边框能力。"""
 
 from __future__ import annotations
 

@@ -1,8 +1,4 @@
-"""Typed adapter protocol for the isolated M3.3 Bridge boundary.
-
-The renderer never supplies a command identifier.  Explicit Bridge methods
-select a :class:`CommandId`, and only that enum value reaches an adapter.
-"""
+"""类型化命令、完成结果和生命周期回调协议。"""
 
 from __future__ import annotations
 
@@ -76,7 +72,7 @@ C49_INTERNAL_FAILURE_REASON = "C49_INTERNAL_FAILURE"
 
 
 class BridgeAdapter(Protocol):
-    """Typed application-port protocol; M3 supplies only memory fakes."""
+    """业务适配器端口；正式实现和工具侧公开替身遵循同一调用协议。"""
 
     def submit(
         self,

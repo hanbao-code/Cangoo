@@ -63,7 +63,7 @@ from desktop.host.window_chrome import (
     standard_window_frame_client_rect,
     track_non_client_mouse_leave,
 )
-from desktop.m4.editor_chrome import (
+from desktop.application.editor_chrome import (
     EditorConfirmationDialog,
     EditorConfirmationKind,
 )

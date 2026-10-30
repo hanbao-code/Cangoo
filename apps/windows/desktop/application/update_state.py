@@ -7,12 +7,12 @@ import json
 from collections.abc import Callable
 from uuid import uuid4
 
-from desktop.m4.settings_store import (
-    M4AtomicSettingsStore,
-    M4SettingsCommitError,
-    M4SettingsReadError,
+from desktop.application.settings_store import (
+    AtomicSettingsStore,
+    SettingsCommitError,
+    SettingsReadError,
 )
-from desktop.m4.update_feed import parse_version, validate_release_result
+from desktop.application.update_feed import parse_version, validate_release_result
 
 
 DAY_MS = 86_400_000
@@ -106,8 +106,8 @@ def _attempt_id(value: object, *, allow_empty: bool = False) -> None:
 class UpdateStateStore:
     """只保存公开更新资料；网络结果身份由调用方核验。"""
 
-    def __init__(self, store: M4AtomicSettingsStore) -> None:
-        if not isinstance(store, M4AtomicSettingsStore):
+    def __init__(self, store: AtomicSettingsStore) -> None:
+        if not isinstance(store, AtomicSettingsStore):
             raise TypeError("update state requires the atomic settings store")
         self._store = store
 
@@ -117,12 +117,12 @@ class UpdateStateStore:
     ) -> dict[str, object]:
         try:
             _changed, settings = self._store.compute_values(compute)
-        except M4SettingsReadError as exc:
+        except SettingsReadError as exc:
             cause = exc.__cause__
             if isinstance(cause, UpdateStateError) and cause.kind == "SETTINGS_WRITE_FAILED":
                 raise UpdateStateError("SETTINGS_WRITE_FAILED") from exc
             raise UpdateStateError("SETTINGS_UNAVAILABLE") from exc
-        except M4SettingsCommitError as exc:
+        except SettingsCommitError as exc:
             raise UpdateStateError("SETTINGS_WRITE_FAILED") from exc
         return _state(settings)
 

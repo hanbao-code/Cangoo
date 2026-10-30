@@ -311,7 +311,7 @@ def _start_strength_process(
     if getattr(sys, "frozen", False):
         arguments = [str(Path(sys.executable).resolve().with_name("cangoo_strength_worker.exe"))]
     else:
-        arguments = [sys.executable, "-m", "desktop.m4.strength_worker"]
+        arguments = [sys.executable, "-m", "desktop.application.strength_worker"]
     if reusable:
         arguments.append("--reuse")
     flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)

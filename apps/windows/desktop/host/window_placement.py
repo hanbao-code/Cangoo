@@ -1,4 +1,4 @@
-"""Screen-safe placement helpers for the isolated native candidate host."""
+"""窗口位置、工作区约束及恢复能力。"""
 
 from __future__ import annotations
 

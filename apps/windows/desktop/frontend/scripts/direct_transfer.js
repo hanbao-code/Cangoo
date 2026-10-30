@@ -46,7 +46,7 @@
       receiveReview:'等待对方发送', receiveReviewHint:'请在对方设备选择资料并发送。', receiveNote:'收齐并校验后，将打开差异比较，由你决定导入哪些资料。',
       localFrom:'本机密码库（发送）', peerFrom:'对方密码库（发送）', localTo:'本机密码库（接收）', peerTo:'对方密码库（接收）', receiveScope:'本次接收范围',
       review:'确认这次传输', reviewHint:'资料只会沿下面的方向发送。', from:'发送密码库', to:'接收密码库',
-      scope:'传输哪些资料？', all:'全部', passwords:'仅密码', notes:'仅记事',
+      scope:'传输哪些资料？', all:'全部', passwords:'仅密码', notes:'仅记事', custom:'自定义', chooseRecords:'选择记录',
       reviewNote:'发送端资料保持不变。接收端完整接收后，可逐项比较并决定如何导入。',
       preparing:'正在准备所选资料…', start:'发送资料', awaitingOffer:'等待发送方选择范围并发送资料。',
       awaitingAccept:'正在等待接收端准备完成…', accepted:'等待发送方传输资料。', ready:'接收端已确认，可以发送资料。',
@@ -64,7 +64,7 @@
       timeout:'等待超时。请确认对方已准备好，再重新连接。',
       limit:'本次范围超出传输上限，请选择更小的范围后重试。', invalid:'接收的资料未通过校验，未进入导入。请重新传输。',
       internal:'本次操作未完成，请关闭后重新开始。', session:'当前密码库已锁定或切换，请解锁后重新开始。',
-      stale:'本次连接已结束，请重新开始。', busy:'上一项操作仍在处理，请稍后再试。',
+      selectionChanged:'所选记录已修改或删除，请重新选择并核对。', stale:'本次连接已结束，请重新开始。', busy:'上一项操作仍在处理，请稍后再试。',
     },
     EN: {
       title:'Device transfer', subtitle:'Transfer contents between devices, then compare and import.',
@@ -109,7 +109,7 @@
       receiveReview:'Waiting for the sender', receiveReviewHint:'Choose contents and start sending on the other device.', receiveNote:'After receiving and checking the complete copy, compare it and choose what to import.',
       localFrom:'Your vault · sending', peerFrom:'Other vault · sending', localTo:'Your vault · receiving', peerTo:'Other vault · receiving', receiveScope:'Receiving',
       review:'Confirm this transfer', reviewHint:'Contents will be sent in the direction shown below.', from:'Sending vault', to:'Receiving vault',
-      scope:'What would you like to send?', all:'Everything', passwords:'Passwords only', notes:'Notes only',
+      scope:'What would you like to send?', all:'Everything', passwords:'Passwords only', notes:'Notes only', custom:'Custom', chooseRecords:'Choose records',
       reviewNote:'The sending vault stays unchanged. After receiving the complete copy, the other device can compare and choose what to import.',
       preparing:'Preparing the selected contents…', start:'Send contents', awaitingOffer:'Waiting for the sender to select and send contents.',
       awaitingAccept:'Waiting for the receiver to be ready…', accepted:'Waiting for the sender to transfer contents.', ready:'The receiver approved. You can send contents.',
@@ -127,18 +127,18 @@
       timeout:'The wait timed out. Check that the other device is ready, then reconnect.',
       limit:'This selection exceeds the transfer limit. Choose a smaller scope and try again.', invalid:'The received contents did not pass validation and were not opened for import. Send them again.',
       internal:'The operation did not finish. Close this window and start again.', session:'The vault was locked or switched. Unlock it and start again.',
-      stale:'This connection has ended. Please start again.', busy:'The previous action is still processing. Please try again shortly.',
+      selectionChanged:'Selected records changed or were removed. Choose and review them again.', stale:'This connection has ended. Please start again.', busy:'The previous action is still processing. Please try again shortly.',
     },
   };
   const PHASES = ['IDLE','DISCOVERING','WAITING','PAIRING_CODE','CONNECTING','WAIT_APPROVAL','REVIEW','TRANSFERRING','VERIFYING_PAYLOAD','WAIT_RECEIPT','RECEIVED','SENT','FAILED','CANCELLED'];
-  const ERROR_KEYS = {COPY_FAILED:'copyFailed',UNAVAILABLE:'unavailable',LOCK_MONITOR_UNAVAILABLE:'lockMonitor',LAN_ACCESS_REQUIRED:'networkRequiredError',INVALID_ADDRESS:'invalidAddress',ADDRESS_NOT_FOUND:'addressNotFound',CONNECT_FAILED:'connectFailed',DISCONNECTED:'disconnected',AUTH_FAILED:'authFailed',INVALID_PAIRING_CODE:'invalidCode',UPGRADE_REQUIRED:'upgrade',TIMEOUT:'timeout',LIMIT_EXCEEDED:'limit',INVALID_DATA:'invalid',INTERNAL_FAILURE:'internal',SESSION_REQUIRED:'session',STALE_FLOW:'stale',REQUEST_BUSY:'busy',INVALID_ARGUMENT:'internal',CANCELLED:'cancelledHint'};
+  const ERROR_KEYS = {REVISION_CONFLICT:'selectionChanged',COPY_FAILED:'copyFailed',UNAVAILABLE:'unavailable',LOCK_MONITOR_UNAVAILABLE:'lockMonitor',LAN_ACCESS_REQUIRED:'networkRequiredError',INVALID_ADDRESS:'invalidAddress',ADDRESS_NOT_FOUND:'addressNotFound',CONNECT_FAILED:'connectFailed',DISCONNECTED:'disconnected',AUTH_FAILED:'authFailed',INVALID_PAIRING_CODE:'invalidCode',UPGRADE_REQUIRED:'upgrade',TIMEOUT:'timeout',LIMIT_EXCEEDED:'limit',INVALID_DATA:'invalid',INTERNAL_FAILURE:'internal',SESSION_REQUIRED:'session',STALE_FLOW:'stale',REQUEST_BUSY:'busy',INVALID_ARGUMENT:'internal',CANCELLED:'cancelledHint'};
   const NETWORK_ACCESS = {DEVELOPMENT:'',CHECKING:'networkChecking',REQUIRED:'networkRequired',AUTHORIZING:'networkAuthorizing',REVOKING:'networkRevoking',READY:'networkReady',BLOCKED:'networkBlocked',FAILED:'networkFailed'};
-  const SCOPES = ['ALL','PASSWORDS','NOTES'];
-  const SCOPE_KEYS = ['all','passwords','notes'];
+  const SCOPES = ['ALL','PASSWORDS','NOTES','CUSTOM'];
+  const SCOPE_KEYS = ['all','passwords','notes','custom'];
   const STATE_KEYS = ['flowId','revision','pageEpoch','sessionEpoch','phase','role','transport','scope','peers','pairingCode',
     'receiverAccepted','offerReady','preparing','peerDeviceName','localVaultName',
     'peerVaultName','transferredBytes','totalBytes','errorCode','networkAccess','effectiveTheme','language','uiFontScale',
-    'localAddresses','manualAddress','manualSearching'];
+    'localAddresses','manualAddress','manualSearching','passwordCount','noteCount'];
   function normalizeState(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value) ||
         Object.keys(value).length !== STATE_KEYS.length || !STATE_KEYS.every(key => Object.hasOwn(value,key))) return null;
@@ -150,7 +150,8 @@
     for (const key of ['revision','pageEpoch','sessionEpoch','transferredBytes','totalBytes']) {
       if (!Number.isSafeInteger(value[key]) || value[key] < (key.endsWith('Epoch') ? 1 : 0)) return null;
     }
-    if (value.totalBytes > 67108864 || value.transferredBytes > value.totalBytes ||
+    if (!['passwordCount','noteCount'].every(key => Number.isSafeInteger(value[key]) && value[key] >= 0) || value.passwordCount + value.noteCount > 100000 ||
+        value.totalBytes > 67108864 || value.transferredBytes > value.totalBytes ||
         !['receiverAccepted','offerReady','preparing','manualSearching'].every(key => typeof value[key] === 'boolean')) return null;
     const bounded = (text,limit) => typeof text === 'string' && !text.includes('\0') && Array.from(text).length <= limit;
     const address = text => typeof text === 'string' && /^(?:0|[1-9]\d{0,2})(?:\.(?:0|[1-9]\d{0,2})){3}$/.test(text) && text.split('.').every(part => Number(part) <= 255);
@@ -225,15 +226,15 @@
         <div class="transfer-context"><span class="transfer-context-dot" aria-hidden="true"></span><span data-transfer-text="protected"></span><span class="transfer-context-name" data-transfer-slot="reviewPeer"></span></div>
         <h2 class="transfer-heading" data-transfer-slot="reviewTitle"></h2><p class="transfer-description" data-transfer-slot="reviewHint"></p>
         <div class="transfer-route"><div class="transfer-vault"><p class="transfer-vault-label" data-transfer-slot="fromLabel"></p><p class="transfer-vault-name" data-transfer-slot="from"></p></div><span class="transfer-route-arrow" aria-hidden="true">→</span><div class="transfer-vault"><p class="transfer-vault-label" data-transfer-slot="toLabel"></p><p class="transfer-vault-name" data-transfer-slot="to"></p></div></div>
-        <fieldset class="transfer-field transfer-scope-field"><legend class="transfer-label" data-transfer-slot="scopeLabel"></legend><div class="transfer-scope"><button type="button" class="btn" data-transfer-scope="ALL" data-transfer-text="all"></button><button type="button" class="btn" data-transfer-scope="PASSWORDS" data-transfer-text="passwords"></button><button type="button" class="btn" data-transfer-scope="NOTES" data-transfer-text="notes"></button></div><p data-transfer-slot="scopeValue" hidden></p></fieldset>
-        <p class="transfer-note" data-transfer-slot="reviewNote"></p>
+        <fieldset class="transfer-field transfer-scope-field"><legend class="transfer-label" data-transfer-slot="scopeLabel"></legend><div class="transfer-scope"><button type="button" class="btn" data-transfer-scope="ALL" data-transfer-text="all"></button><button type="button" class="btn" data-transfer-scope="PASSWORDS" data-transfer-text="passwords"></button><button type="button" class="btn" data-transfer-scope="NOTES" data-transfer-text="notes"></button><button type="button" class="btn" data-transfer-scope="CUSTOM" data-transfer-text="custom" hidden></button></div><div class="export-selection-summary" data-transfer-custom hidden><span></span><button type="button" class="btn btn-sm" data-transfer-action="chooseRecords" data-transfer-text="chooseRecords"></button></div><p data-transfer-slot="scopeValue" hidden></p></fieldset>
+        <p class="transfer-description" data-transfer-slot="reviewCounts" hidden></p><p class="transfer-note" data-transfer-slot="reviewNote"></p>
       </section>
-      <section class="transfer-panel" data-transfer-panel="TRANSFERRING VERIFYING_PAYLOAD WAIT_RECEIPT" hidden><h2 class="transfer-heading" data-transfer-slot="transferTitle"></h2><p class="transfer-description" data-transfer-text="transferringHint"></p><div class="transfer-progress"><div class="transfer-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100"><div class="transfer-progress-fill"></div></div><div class="transfer-progress-label"><span data-transfer-slot="bytes"></span><span data-transfer-slot="percent"></span></div></div><p class="transfer-note" data-transfer-text="transferNote"></p></section>
-      <section class="transfer-panel transfer-result" data-transfer-panel="RECEIVED SENT FAILED CANCELLED" hidden><div class="transfer-result-mark" aria-hidden="true">✓</div><h2 class="transfer-heading" data-transfer-slot="resultTitle"></h2><p class="transfer-description" data-transfer-slot="resultHint"></p></section>
+      <section class="transfer-panel" data-transfer-panel="TRANSFERRING VERIFYING_PAYLOAD WAIT_RECEIPT" hidden><h2 class="transfer-heading" data-transfer-slot="transferTitle"></h2><p class="transfer-description" data-transfer-text="transferringHint"></p><p class="transfer-description" data-transfer-slot="transferCounts" hidden></p><div class="transfer-progress"><div class="transfer-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100"><div class="transfer-progress-fill"></div></div><div class="transfer-progress-label"><span data-transfer-slot="bytes"></span><span data-transfer-slot="percent"></span></div></div><p class="transfer-note" data-transfer-text="transferNote"></p></section>
+      <section class="transfer-panel transfer-result" data-transfer-panel="RECEIVED SENT FAILED CANCELLED" hidden><div class="transfer-result-mark" aria-hidden="true">✓</div><h2 class="transfer-heading" data-transfer-slot="resultTitle"></h2><p class="transfer-description" data-transfer-slot="resultHint"></p><p class="transfer-description" data-transfer-slot="resultCounts" hidden></p></section>
     </div>
     <footer class="transfer-footer"><p class="transfer-status" role="status" aria-live="polite" aria-atomic="true"></p><div class="transfer-actions"><button type="button" class="btn btn-ghost" data-transfer-action="cancel"></button><button type="button" class="btn btn-primary" data-transfer-action="primary"></button></div></footer>`;
 
-  function create(container, onAction) {
+  function create(container, onAction, openSelection = null) {
     container.classList.add('transfer-window');
     container.setAttribute('aria-labelledby','transfer-title');
     // 仅首次装入固定本地模板；投影不得重建面板或设备行。
@@ -263,6 +264,7 @@
     let copied = false;
     let alive = true;
     let actionVersion = 0;
+    let selection = [], picker = null;
 
     function text(node, value) { if (node.textContent !== value) node.textContent = value; }
     function words() { return TEXT[language]; }
@@ -395,7 +397,19 @@
       container.querySelector('.transfer-scope-field').hidden = !scopeKnown;
       nodes.scopeValue.hidden = canChooseScope || !scopeKnown;
       text(nodes.scopeValue,scopeKnown ? w[SCOPE_KEYS[SCOPES.indexOf(s.scope)]] : '');
+      container.querySelector('[data-transfer-scope="CUSTOM"]').hidden = typeof openSelection !== 'function';
+      const custom = container.querySelector('[data-transfer-custom]');
+      custom.hidden = !canChooseScope || draft.scope !== 'CUSTOM';
+      if (!custom.hidden) {
+        const counts = window.PdmExportSelection.counts(selection);
+        text(custom.firstElementChild,language === 'ZH' ? `密码 ${counts.passwordCount} · 记事 ${counts.noteCount}` : `${counts.passwordCount} passwords · ${counts.noteCount} notes`);
+      }
       const percent = s.totalBytes > 0 ? Math.min(100,Math.floor(s.transferredBytes * 100 / s.totalBytes)) : 0;
+      for (const key of ['reviewCounts','transferCounts','resultCounts']) {
+        nodes[key].hidden = !s.offerReady;
+        text(nodes[key],s.offerReady ? language === 'ZH' ? `密码 ${s.passwordCount} · 记事 ${s.noteCount}` :
+          `${s.passwordCount} passwords · ${s.noteCount} notes` : '');
+      }
       const transferring = ['TRANSFERRING','VERIFYING_PAYLOAD','WAIT_RECEIPT'].includes(phase);
       text(nodes.transferTitle,phase === 'WAIT_RECEIPT' ? w.receiptTitle : phase === 'VERIFYING_PAYLOAD' ? w.checkingTitle : w.transferring);
       const track = container.querySelector('.transfer-progress-track');
@@ -418,7 +432,7 @@
       else if (phase === 'WAIT_APPROVAL') { primaryText = s.role === 'RECEIVE' ? w.approve : w.wait; blocked = s.role === 'SEND'; }
       else if (review) {
         primaryText = s.role === 'SEND' ? w.start : w.wait;
-        blocked = s.role === 'RECEIVE' || s.offerReady || !s.peerVaultName;
+        blocked = s.role === 'RECEIVE' || s.offerReady || !s.peerVaultName || draft.scope === 'CUSTOM' && window.PdmExportSelection.counts(selection).passwordCount + window.PdmExportSelection.counts(selection).noteCount === 0;
         message = s.role === 'RECEIVE' ? w.awaitingOffer : s.offerReady ? w.awaitingAccept : w.ready;
       } else if (phase === 'FAILED' || phase === 'CANCELLED') primaryText = w.restart;
       else if (finished) primaryText = w.close;
@@ -460,7 +474,11 @@
       if (!button || !container.contains(button) || button.disabled || button.getAttribute('aria-disabled') === 'true') return;
       if (button.dataset.transferRole && current?.phase === 'IDLE') draft.role = button.dataset.transferRole;
       else if (button.dataset.transferTransport && current?.phase === 'IDLE') draft.transport = button.dataset.transferTransport;
-      else if (button.dataset.transferScope && current?.phase === 'REVIEW' && current.role === 'SEND' && !current.offerReady && !current.preparing) draft.scope = button.dataset.transferScope;
+      else if (button.dataset.transferScope && current?.phase === 'REVIEW' && current.role === 'SEND' && !current.offerReady && !current.preparing) {
+        if (button.dataset.transferScope === 'CUSTOM') return chooseRecords();
+        draft.scope = button.dataset.transferScope;
+      }
+      else if (button.dataset.transferAction === 'chooseRecords') return chooseRecords();
       else if (button.dataset.transferPeer && current?.phase === 'DISCOVERING') return dispatch('peer',button.dataset.transferPeer);
       else if (button.dataset.transferAction === 'copyPairingCode' && current?.phase === 'WAITING' && current.role === 'RECEIVE') return dispatch('copyPairingCode');
       else if (button.dataset.transferAction === 'revokeNetwork' && current?.phase === 'IDLE') return dispatch('revokeNetwork');
@@ -470,11 +488,20 @@
         if (current.phase === 'IDLE' || current.phase === 'DISCOVERING') return dispatch('begin',{...draft});
         if (current.phase === 'PAIRING_CODE') return submitCode();
         if (current.phase === 'WAIT_APPROVAL') return dispatch('approve');
-        if (current.phase === 'REVIEW') return dispatch('send',draft.scope);
+        if (current.phase === 'REVIEW') return dispatch('send',draft.scope === 'CUSTOM' ? {scope:'CUSTOM',selection} : draft.scope);
         if (['FAILED','CANCELLED'].includes(current.phase)) return dispatch('restart');
         if (['SENT','RECEIVED'].includes(current.phase)) return dispatch('close');
       }
       render();
+    }
+    function chooseRecords() {
+      if (typeof openSelection !== 'function' || picker || current?.phase !== 'REVIEW' || current.role !== 'SEND' || current.offerReady || current.preparing) return;
+      const previous = draft.scope; draft.scope = 'CUSTOM'; render();
+      picker = openSelection(container,selection,result => {
+        picker = null;
+        if (result !== null) selection = result; else draft.scope = previous;
+        render();
+      });
     }
     function submitAddress(event) {
       event.preventDefault();
@@ -503,27 +530,32 @@
         if (current && (value.revision < current.revision || value.pageEpoch !== current.pageEpoch || value.sessionEpoch !== current.sessionEpoch)) return false;
         const keepManual = current && !manual.hidden && ['IDLE','DISCOVERING'].includes(value.phase) && value.role === 'SEND' && value.transport === 'LAN';
         if (!current || value.flowId !== current.flowId) {
+          picker?.dispose(); picker = null; selection = [];
           draft = {role:value.role,transport:value.transport,scope:value.scope}; error = '';
           addressError = '';
           if (!keepManual) { addressInput.value = value.manualAddress; manual.open = Boolean(value.manualAddress); }
           actionVersion++; pending = false;
         }
         if (value.errorCode !== current?.errorCode && ['INVALID_ADDRESS','ADDRESS_NOT_FOUND'].includes(value.errorCode)) addressError = value.errorCode;
+        const leavingSelection = Boolean(picker) && value.phase !== 'REVIEW';
         if (value.offerReady) draft.scope = value.scope;
+        if (value.phase !== 'REVIEW') { picker?.dispose(); picker = null; selection = []; }
         if (error === 'LAN_ACCESS_REQUIRED' && value.networkAccess === 'READY') error = '';
         if (value.flowId !== current?.flowId || value.phase !== current?.phase || value.pairingCode !== current?.pairingCode) copied = false;
         const panel = container.querySelector('[data-transfer-panel]:not([hidden])');
         const focusCode = value.phase === 'PAIRING_CODE' && current?.phase !== 'PAIRING_CODE';
         current = value; render();
+        if (leavingSelection) primary.focus({preventScroll:true});
         if (focusCode) codeInput.focus({preventScroll:true});
         if (panel !== container.querySelector('[data-transfer-panel]:not([hidden])') && !(keepManual && manual.open)) container.querySelector('.transfer-body').scrollTop = 0;
         return true;
       },
       appearance(value) {
         if (!['ZH','EN'].includes(value.language)) return;
-        language = value.language; render();
+        language = value.language; picker?.appearance(language); render();
       },
       dispose() {
+        picker?.dispose(); picker = null; selection = [];
         alive = false; actionVersion++; current = null; draft = null; peerNodes.clear(); addressNodes.clear();
         container.removeEventListener('click',click); addressForm.removeEventListener('submit',submitAddress);
         codeInput.value = '';
@@ -536,8 +568,9 @@
 
   const host = document.getElementById('transfer-app');
   if (!host) return;
-  let bridge = null, live = true, revision = -1;
-  const view = create(host,action);
+  let bridge = null, live = true, revision = -1, lastState = null;
+  const view = create(host,action,(container,selected,done) => window.PdmExportSelection.openNative(container,bridge,
+    lastState.pageEpoch,lastState.sessionEpoch,lastState.language,selected,done));
   function action(kind,value,observed) {
     if (!live || !bridge) return {accepted:false,errorCode:'SESSION_REQUIRED'};
     if (kind === 'close') { bridge.requestCloseV1(); return {accepted:true,errorCode:'OK'}; }
@@ -546,7 +579,8 @@
     if (!name || typeof bridge[name] !== 'function') return {accepted:false,errorCode:'INTERNAL_FAILURE'};
     const args = [observed.flowId];
     if (kind === 'begin') args.push(value.role,value.transport);
-    else if (kind === 'peer' || kind === 'pairingCode' || kind === 'send' || kind === 'manualConnect') args.push(value);
+    else if (kind === 'send') args.push(typeof value === 'object' ? value.scope : value);
+    else if (kind === 'peer' || kind === 'pairingCode' || kind === 'manualConnect') args.push(value);
     return new Promise(resolve => bridge[name](...args,ack => {
       if (!ack || Object.keys(ack).length !== 2 || typeof ack.accepted !== 'boolean' || typeof ack.errorCode !== 'string') {
         resolve({accepted:false,errorCode:'INTERNAL_FAILURE'}); return;
@@ -558,7 +592,7 @@
     const next = normalizeState(raw);
     if (!live || !next || next.revision < revision) return false;
     if (!view.project(next)) return false;
-    revision = next.revision;
+    revision = next.revision; lastState = next;
     document.documentElement.classList.toggle('light',next.effectiveTheme === 'LIGHT');
     document.documentElement.lang = next.language === 'EN' ? 'en' : 'zh-CN';
     document.documentElement.style.setProperty('--pdm-ui-font-scale',String(Number(next.uiFontScale) / 100));

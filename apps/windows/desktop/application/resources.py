@@ -1,4 +1,4 @@
-"""Fixed resource catalog for the explicit M4 isolated candidate."""
+"""正式产品页面及独立编辑、备份、传输窗口的固定资源目录。"""
 
 from __future__ import annotations
 
@@ -7,11 +7,11 @@ from types import MappingProxyType
 from desktop.host.resources import ResourceCatalog
 
 
-class M4ResourceCatalog(ResourceCatalog):
-    """Serve the M4 shell without changing the frozen M2/M3 resource set."""
+class ProductResourceCatalog(ResourceCatalog):
+    """在基础资源白名单上提供正式主页面与受限独立窗口。"""
 
-    PRODUCT_SHELL_PATH = "m4_product_shell.html"
-    PRODUCT_OUTPUT_KEY = "m4_product.html"
+    PRODUCT_SHELL_PATH = "product_shell.html"
+    PRODUCT_OUTPUT_KEY = "product.html"
     ASSET_SOURCES = MappingProxyType(
         {
             **ResourceCatalog.ASSET_SOURCES,
@@ -22,8 +22,8 @@ class M4ResourceCatalog(ResourceCatalog):
                 "vendor/qwebchannel.js",
                 b"text/javascript; charset=utf-8",
             ),
-            "/scripts/m4_runtime.js": (
-                "scripts/m4_runtime.js",
+            "/scripts/product_runtime.js": (
+                "scripts/product_runtime.js",
                 b"text/javascript; charset=utf-8",
             ),
             "/scripts/focus_visibility.js": (
@@ -66,4 +66,4 @@ class M4ResourceCatalog(ResourceCatalog):
     )
 
 
-__all__ = ["M4ResourceCatalog"]
+__all__ = ["ProductResourceCatalog"]

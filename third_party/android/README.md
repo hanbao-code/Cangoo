@@ -1,8 +1,8 @@
 # 安卓第三方来源与许可 / Android third-party sources and licenses
 
-本目录提供Android 1.0.0 arm64所用组件、原生库的来源及25项随包许可正文。版本与支持范围见[版本说明](../../release_notes.md)。
+本目录提供Android arm64所用组件、原生库的来源及25项随包许可正文。版本与支持范围见[版本说明](../../release_notes.md)。
 
-These materials provide component and native-library sources and 25 bundled license texts for Android 1.0.0 arm64. See the [release notes](../../release_notes.md) for version and platform support.
+These materials provide component and native-library sources and 25 bundled license texts for Android arm64. See the [release notes](../../release_notes.md) for version and platform support.
 
 [双端第三方材料入口 / All platform sources](../../docs/third_party_sources.md) · [中文手册](../../docs/android/user_guide_zh.md) · [English guide](../../docs/android/user_guide_en.md)
 

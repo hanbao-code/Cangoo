@@ -1,4 +1,4 @@
-"""Native system-tray surface for the isolated WebEngine candidate host."""
+"""原生托盘及窗口显示、退出意图；业务权限由产品运行时接入。"""
 
 from __future__ import annotations
 

@@ -10,7 +10,7 @@ from desktop.bridge.contract_catalog import ContractCatalog
 
 
 _CONTRACT_SHA256 = (
-    "7d4e5b306790fdcc7808e3728b49a6f0ae38d646e64c4115fca3257d0d0de464"
+    "ff500f97cab10cd5c4d00547ea83e3d00c3a9f82065c8e725f6db823042fd39a"
 )
 _CONTRACT_PATH = (
     Path(__file__).resolve().parents[2]
@@ -19,7 +19,7 @@ _CONTRACT_PATH = (
 )
 
 
-def load_m4_contract() -> ContractCatalog:
+def load_bridge_contract() -> ContractCatalog:
     """Load one fixed developer-owned file and reject any byte drift."""
 
     data = _CONTRACT_PATH.read_bytes()
@@ -31,4 +31,4 @@ def load_m4_contract() -> ContractCatalog:
     return ContractCatalog.from_mapping(value)
 
 
-__all__ = ["load_m4_contract"]
+__all__ = ["load_bridge_contract"]

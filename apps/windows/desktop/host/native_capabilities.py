@@ -1,4 +1,4 @@
-"""Native-only capability ownership for the isolated WebEngine host."""
+"""基础宿主持有的文件、剪贴板、热键能力及清理编排。"""
 
 from __future__ import annotations
 

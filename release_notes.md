@@ -2,6 +2,25 @@
 
 电脑版与安卓版各有自己的版本号。文件与校验清单见[发行页面](https://github.com/hanbao-code/Cangoo/releases)，操作步骤见[电脑版手册](docs/user_guide_zh.md)和[安卓版手册](docs/android/user_guide_zh.md)。
 
+## Windows 1.1.2
+
+适用于 Windows 10（1809及以上）或 Windows 11，x64。Windows 1.1.1 安装版可直接运行新版安装包更新；其他安装方式见[电脑版手册](docs/user_guide_zh.md#安装迁移与卸载)。升级前请备份，密码库与备份格式保持不变。
+
+- 备份导出和设备发送新增“自定义”，可选择一条或多条密码、记事。
+- 支持搜索、按类型筛选、全选或取消全选当前结果，以及清除全部选择。
+- 差异比较时，当前条目的处理按钮保持可见，方便核对长内容后直接选择。
+
+继续兼容 Windows 1.1.1、Android 1.0.1 的加密备份和设备传输。旧接收端可能沿用原范围名称，实际只包含选中的记录。
+
+## Android 1.0.2
+
+适用于 Android 10及以上的 arm64 手机。升级前请备份，再安装新版 APK；密码库与备份格式保持不变。
+
+- 备份导出和设备发送新增“自定义”，可混选密码和记事，支持搜索、筛选、全选或取消全选当前结果，以及清除全部选择。
+- 使用“自定义”导出后，本机最近备份会标明这一范围。
+
+继续兼容 Windows 1.1.1、Android 1.0.1 的加密备份和设备传输。旧接收端可能沿用原范围名称，实际只包含选中的记录。
+
 ## Windows 1.1.1
 
 - 设备传输改为接收端显示8位临时配对码，发送端输入后由接收端确认一次，再选择范围并发送。两端均需支持新方式；旧版直传不互通，加密备份文件继续兼容。
@@ -70,6 +89,25 @@ Windows 1.1.0与Android 1.0.0采用 AGPL-3.0-only，Windows 随包 OpenSSL 另�
 ## English
 
 Windows and Android have separate version numbers. See the [releases page](https://github.com/hanbao-code/Cangoo/releases) for files and checksums, and the [Windows](docs/user_guide_en.md) or [Android](docs/android/user_guide_en.md) guide for instructions.
+
+### Windows 1.1.2
+
+For Windows 10 version 1809 or later, or Windows 11; x64. Run the new installer to update an installed copy of Windows 1.1.1. See the [Windows guide](docs/user_guide_en.md#install-migrate-and-uninstall) for other installation methods. Back up before updating; vault and backup formats are unchanged.
+
+- Adds Custom selection to backup exports and device transfers, letting you choose individual passwords and notes.
+- Supports search, type filters, selecting or deselecting all filtered results, and clearing all selections.
+- Keeps the current item’s decision buttons visible while comparing long contents.
+
+Encrypted backups and device transfers remain compatible with Windows 1.1.1 and Android 1.0.1. An older receiver may show its original scope label, but receives only the selected records.
+
+### Android 1.0.2
+
+For arm64 phones running Android 10 or later. Back up before installing the new APK. Vault and backup formats are unchanged.
+
+- Adds Custom selection to backup exports and device transfers, with mixed password and note selection, search, filtered selection and deselection, and an option to clear all selections.
+- Shows Custom in the latest local backup record when that scope was used.
+
+Encrypted backups and device transfers remain compatible with Windows 1.1.1 and Android 1.0.1. An older receiver may show its original scope label, but receives only the selected records.
 
 ### Windows 1.1.1
 

@@ -37,7 +37,7 @@ import java.util.concurrent.atomic.AtomicReference
 import java.time.Instant
 import javax.crypto.AEADBadTagException
 
-internal class BackupTransferSnapshot(val bytes: ByteArray, val passwordCount: Int, val noteCount: Int) {
+internal class BackupTransferSnapshot(val bytes: ByteArray, val passwordCount: Int, val noteCount: Int, val scope: BackupScope) {
     override fun toString() = "BackupTransferSnapshot(内容已隐藏)"
 }
 
@@ -119,7 +119,7 @@ class VaultStore private constructor(context: Context, documentFactory: (Context
     internal suspend fun exportBackup(vaultId: String, scope: BackupScope, password: String,
                                       destination: CreatedBackupDocument, qualified: () -> Boolean,
                                       stillOwned: (CreatedBackupDocument) -> Boolean,
-                                      onPrivateCleanup: (BackupPrivateCleanup) -> Unit = {},
+                                      onPrivateCleanup: (BackupPrivateCleanup) -> Unit = {}, selection: BackupSelection? = null,
                                       onLocalRecordWrite: (LocalBackupRecordWrite) -> Unit = {}): BackupExportResult {
         val request = currentCoroutineContext()
         return withSession { current ->
@@ -139,7 +139,7 @@ class VaultStore private constructor(context: Context, documentFactory: (Context
                 val created = Os.lstat(file.absolutePath)
                 if (!OsConstants.S_ISREG(created.st_mode)) throw VaultException(VaultError.DATA_UNAVAILABLE)
                 privateIdentity = created.st_dev to created.st_ino
-                val payload = current.database.runInTransaction(Callable { guard(); BackupRecords.export(current.database, scope, guard) })
+                val payload = current.database.runInTransaction(Callable { guard(); BackupRecords.export(current.database, scope, guard, selection = selection) })
                 FileOutputStream(file).use { output ->
                     contentProof = BackupProtocol.encrypt(payload, password, object : FilterOutputStream(output) {
                         private var bytes = 0L
@@ -156,7 +156,8 @@ class VaultStore private constructor(context: Context, documentFactory: (Context
                 guard()
                 val receipt = backupDocuments.exportNew(file, destination, { backupAllowed(guard) }, stillOwned)
                 // 已发生的完整导出事实在原库同步收尾；不再读库或恢复会话。
-                val completed = LocalBackupRecord(current.id, Instant.ofEpochMilli(System.currentTimeMillis()), scope)
+                val completed = LocalBackupRecord(current.id, Instant.ofEpochMilli(System.currentTimeMillis()),
+                    if (selection == null) LocalBackupScope.valueOf(scope.name) else LocalBackupScope.CUSTOM)
                 var localRecord: LocalBackupRecordState = LocalBackupRecordState.Unavailable
                 val localWrite = try {
                     val recordFile = LocalBackupRecordFile(vaultDirectory(current.id), current.id)
@@ -198,7 +199,7 @@ class VaultStore private constructor(context: Context, documentFactory: (Context
         }
     } catch (_: Exception) { BackupPrivateCleanup.RESIDUAL }
 
-    internal suspend fun exportTransferSnapshot(vaultId: String, scope: BackupScope,
+    internal suspend fun exportTransferSnapshot(vaultId: String, scope: BackupScope, selection: BackupSelection? = null,
                                                 qualified: () -> Boolean): BackupTransferSnapshot {
         val request = currentCoroutineContext()
         var encoded: ByteArray? = null
@@ -208,12 +209,12 @@ class VaultStore private constructor(context: Context, documentFactory: (Context
                 val guard = { request.ensureActive(); checkGeneration(current.generation); backupQualified(qualified) }
                 guard()
                 val payload = current.database.runInTransaction(Callable {
-                    BackupRecords.export(current.database, scope, guard, encryptedEnvelope = false)
+                    BackupRecords.export(current.database, scope, guard, encryptedEnvelope = false, selection = selection)
                 })
                 val bytes = BackupProtocol.encodePayload(payload, guard)
                 encoded = bytes
                 guard()
-                BackupTransferSnapshot(bytes, payload.passwords.size, payload.notes.size)
+                BackupTransferSnapshot(bytes, payload.passwords.size, payload.notes.size, payload.scope)
             }
         } catch (failure: Exception) { encoded?.fill(0); throw failure }
     }

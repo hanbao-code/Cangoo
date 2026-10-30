@@ -1,4 +1,4 @@
-"""Long-lived QWebChannel and security authority for the M4 candidate."""
+"""产品运行时；装配业务桥接、原生窗口控制器及安全生命周期。"""
 
 from __future__ import annotations
 
@@ -27,15 +27,15 @@ from desktop.host.security_lifecycle import (
 )
 from desktop.runtime_paths import RuntimePaths
 
-from .adapter import M4ApplicationAdapter, SettingsCommitPublication
+from .adapter import ApplicationAdapter, SettingsCommitPublication
 from .backup import BackupFileSelector
 from .backup_window import BackupWindowController, BACKUP_COMMANDS
-from .clipboard import M4ClipboardController
-from .contract import load_m4_contract
+from .clipboard import ProductClipboardController
+from .contract import load_bridge_contract
 from .database_targets import DatabaseTargetSelector
 from .editor_window import EditorWindowController
 from .quickbar import NativeQuickbarController, QuickbarFocusPort
-from .resources import M4ResourceCatalog
+from .resources import ProductResourceCatalog
 from .update_controller import UpdateController
 
 
@@ -120,7 +120,7 @@ _PASSWORD_COPY_FIELDS = frozenset(
 )
 
 
-class _M4HostPort(Protocol):
+class _ProductHostPort(Protocol):
     security: SecurityBoundaryCoordinator
 
     def on_m4_handshake(self, page_epoch: int) -> None: ...
@@ -177,7 +177,7 @@ class _M4HostPort(Protocol):
 class _CurrentSensitiveDomSink:
     """Delegate lease cleanup to the controller for the current page."""
 
-    def __init__(self, host: _M4HostPort) -> None:
+    def __init__(self, host: _ProductHostPort) -> None:
         self._host = host
 
     def revoke_secret_leases(
@@ -201,7 +201,7 @@ class _CurrentSensitiveDomSink:
 class RendererBridgeSecurityPort:
     """Make RequestBoundary the sole renderer-failure authority."""
 
-    def __init__(self, runtime: "M4BridgeRuntime") -> None:
+    def __init__(self, runtime: "ProductRuntime") -> None:
         self._runtime = runtime
         self._last_request: dict[str, object] = {}
 
@@ -323,7 +323,7 @@ class _GuiCallPort(QObject):
             settled.set()
 
 
-class M4BridgeRuntime(QObject):
+class ProductRuntime(QObject):
     """Own one Bridge/channel/adapter across every renderer generation."""
 
     WEBCHANNEL_OBJECT = "pdmBridgeV1"
@@ -332,7 +332,7 @@ class M4BridgeRuntime(QObject):
 
     def __init__(
         self,
-        host: _M4HostPort,
+        host: _ProductHostPort,
         isolation: RuntimePaths,
         selector: DatabaseTargetSelector,
         parent: QObject,
@@ -344,7 +344,7 @@ class M4BridgeRuntime(QObject):
     ) -> None:
         super().__init__(parent)
         self._host = host
-        self.clipboard = M4ClipboardController(
+        self.clipboard = ProductClipboardController(
             host.current_native_clipboard(),
             self,
         )
@@ -381,7 +381,7 @@ class M4BridgeRuntime(QObject):
             max(1, int(application.doubleClickInterval()) + 50),
         )
         self._gui_calls = _GuiCallPort(self)
-        self.adapter = M4ApplicationAdapter(
+        self.adapter = ApplicationAdapter(
             isolation,
             selector,
             self.clipboard,
@@ -394,7 +394,7 @@ class M4BridgeRuntime(QObject):
             hotkey_dispatch=self._gui_calls.call,
         )
         self._database_label = ""
-        catalog = load_m4_contract()
+        catalog = load_bridge_contract()
         self.bridge = PdmBridgeV1(
             catalog,
             self.adapter,
@@ -405,7 +405,7 @@ class M4BridgeRuntime(QObject):
             accessible_rejection_sink=self._on_accessible_submit_rejected,
             request_admission=self._admit_main_bridge_request,
         )
-        version_resource = M4ResourceCatalog().payload_for_url(QUrl("pdm://app/assets/help/content.json"))
+        version_resource = ProductResourceCatalog().payload_for_url(QUrl("pdm://app/assets/help/content.json"))
         if version_resource is None:
             raise RuntimeError("installed version resource is unavailable")
         self.updates = UpdateController(
@@ -2160,6 +2160,6 @@ class M4BridgeRuntime(QObject):
 
 
 __all__ = [
-    "M4BridgeRuntime",
+    "ProductRuntime",
     "RendererBridgeSecurityPort",
 ]

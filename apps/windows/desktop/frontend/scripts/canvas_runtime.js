@@ -5379,6 +5379,9 @@ function syncOpenModalAccessibility(overlay=$('#active-modal')){
 function closeModal(){
   const m = $('#active-modal');
   if(m){
+    if(m.dataset.pdmBackupLayout==='true'){
+      IE_STATE.picker?.dispose(); IE_STATE.picker=null; IE_STATE.exportSelection=[];
+    }
     const returnToTransfer = m.dataset.ieTransfer === 'true';
     const returnFocus = m._returnFocus;
     if(m._focusTimer){clearTimeout(m._focusTimer);m._focusTimer=0}
@@ -5861,7 +5864,8 @@ function arrangeBackupWindow(overlay) {
 const IE_STATE = {
   mode: 'export',           /* 'export' | 'import' */
   sourceKind: 'FILE', sourceDisplayName: '',
-  scope: 'all',             /* 'all' | 'passwords' | 'notes'（仅导出） */
+  scope: 'all',             /* 仅导出：全部、密码、记事或自定义 */
+  exportSelection: [], picker: null,
   path: '',
   password: '',
   confirmPw: '',
@@ -5872,6 +5876,69 @@ const IE_STATE = {
   added: 0, updated: 0, skipped: 0, totalPw: 0, totalNote: 0
 };
 
+function openDemoExportSelection(container,confirmed,onDone){
+  const records=[
+    ...passwords.map(item=>({kind:'PASSWORD',id:item.id,revision:item.updated_at,title:item.platform,detail:item.account})),
+    ...notes.map(item=>({kind:'NOTE',id:item.id,revision:item.updated_at,title:item.title,detail:item.content.slice(0,160),searchContent:item.content})),
+  ];
+  const key=item=>`${item.kind}:${item.id}`;
+  const selected=new Map(confirmed.map(item=>[key(item),{...item}]));
+  let query='',kind='ALL',offset=0;
+  const limit=20;
+  const matching=()=>records.filter(item=>(kind==='ALL'||kind===item.kind)&&(!query.trim()||
+    settingsFieldMatches(item.title,query.trim())||
+    (item.kind==='PASSWORD'?settingsFieldMatches(item.detail,query.trim()):(item.searchContent||'').toLowerCase().includes(query.trim().toLowerCase()))));
+  const view=window.PdmExportSelection.create(container,(action,value)=>{
+    if(action==='cancel'||action==='done'){
+      if(action==='done'&&!selected.size)return;
+      const result=action==='done'?[...selected.values()]:null;
+      view.dispose();selected.clear();onDone(result);return;
+    }
+    if(action==='query'){query=value.query;kind=value.kind;offset=0;}
+    if(action==='toggle'){
+      const item=records.find(item=>key(item)===key(value));
+      if(item){if(value.selected)selected.set(key(item),{kind:item.kind,id:item.id,revision:item.revision});else selected.delete(key(item));}
+    }
+    if(action==='all'){
+      const filtered=matching(),allSelected=filtered.length>0&&filtered.every(item=>selected.has(key(item)));
+      for(const item of filtered){
+        if(allSelected)selected.delete(key(item));
+        else selected.set(key(item),{kind:item.kind,id:item.id,revision:item.revision});
+      }
+    }
+    if(action==='clear')selected.clear();
+    if(action==='previous')offset=Math.max(0,offset-limit);
+    if(action==='next')offset+=limit;
+    render();
+  },state.lang==='en'?'EN':'ZH');
+  function render(){
+    const filtered=matching();offset=Math.min(offset,Math.max(0,Math.floor((filtered.length-1)/limit)*limit));
+    view.project({query,kind,offset,limit,total:filtered.length,allSelected:filtered.length>0&&filtered.every(item=>selected.has(key(item))),...window.PdmExportSelection.counts([...selected.values()]),
+      items:filtered.slice(offset,offset+limit).map(item=>({...item,selected:selected.has(key(item))}))});
+  }
+  render();return view;
+}
+
+function updateIEDemoExportSelection(){
+  const custom=IE_STATE.scope==='custom';
+  const summary=$('#ie-custom-selection');
+  if(summary){
+    summary.hidden=!custom;
+    const counts=window.PdmExportSelection.counts(IE_STATE.exportSelection);
+    summary.firstElementChild.textContent=ieDemoText(`密码 ${counts.passwordCount} · 记事 ${counts.noteCount}`,`${counts.passwordCount} passwords · ${counts.noteCount} notes`);
+  }
+  if(IE_STATE.mode==='export')$('#ie-execute-btn').disabled=custom&&!IE_STATE.exportSelection.length;
+}
+
+function chooseIEDemoExportSelection(previousScope=IE_STATE.scope){
+  IE_STATE.scope='custom';updateIEDemoExportSelection();
+  IE_STATE.picker=openDemoExportSelection($('#active-modal .modal'),IE_STATE.exportSelection,result=>{
+    IE_STATE.picker=null;
+    if(result!==null)IE_STATE.exportSelection=result;else IE_STATE.scope=previousScope;
+    $('#ie-scope').value=IE_STATE.scope;updateIEDemoExportSelection();
+  });
+}
+
 function openImportExportDialog(mode){
   clearIEDemoReads();
   IE_STATE.selected.clear();
@@ -5879,6 +5946,7 @@ function openImportExportDialog(mode){
   IE_STATE.mode = mode;
   IE_STATE.sourceKind='FILE'; IE_STATE.sourceDisplayName='';
   IE_STATE.scope = 'all';
+  IE_STATE.exportSelection=[];IE_STATE.picker=null;
   IE_STATE.path = '';
   IE_STATE.password = '';
   IE_STATE.confirmPw = '';
@@ -5937,11 +6005,13 @@ function openImportExportDialog(mode){
 
           <div class="modal-field" id="ie-scope-field">
             <label class="modal-field-label">${t('dialog.ie.scope.label')}</label>
-            <select class="modal-field-input" id="ie-scope" data-pdm-onchange="IE_STATE.scope=this.value">
+            <select class="modal-field-input" id="ie-scope">
               <option value="all">${t('dialog.ie.scope.all')}</option>
               <option value="passwords">${t('dialog.ie.scope.passwords')}</option>
               <option value="notes">${t('dialog.ie.scope.notes')}</option>
+              <option value="custom">${ieDemoText('自定义','Custom')}</option>
             </select>
+            <div class="export-selection-summary" id="ie-custom-selection" hidden><span></span><button type="button" class="btn btn-sm" id="ie-select-records">${ieDemoText('选择记录','Choose records')}</button></div>
           </div>
 
           <div id="ie-export-warning" class="ie-warning-box">
@@ -5975,6 +6045,11 @@ function openImportExportDialog(mode){
     if(event.target.id==='ie-field-filter'&&IE_STATE.fieldFilter!==event.target.value){clearIEDemoReads();IE_STATE.fieldFilter=event.target.value;IE_STATE.confirmation=false;renderIEPreview();}
   });
   arrangeBackupWindow(overlay);
+  $('#ie-scope').addEventListener('change',event=>{
+    const previous=IE_STATE.scope;IE_STATE.scope=event.target.value;
+    if(IE_STATE.scope==='custom')chooseIEDemoExportSelection(previous);else updateIEDemoExportSelection();
+  });
+  $('#ie-select-records').addEventListener('click',()=>chooseIEDemoExportSelection());
   switchIEMode(mode);
 }
 
@@ -6012,6 +6087,7 @@ function switchIEMode(mode){
   /* 切换到导出时清空预览状态（避免脏状态） */
   if(mode==='export'){
     IE_STATE.previewReady = false;
+    updateIEDemoExportSelection();
   }
 }
 
@@ -6250,8 +6326,12 @@ function renderIEDemoComparison(item){
     if(item.kind==='NOTE')actions.push(['KEEP','保留两份','Keep both',false]);
     actions.push(['SKIP','跳过','Skip',false]);
   }
+  const decisions=new Set(['OVERWRITE','KEEP','SKIP']);
+  const buttons=items=>items.map(([action,zh,en,disabled])=>`<button type="button" class="btn btn-sm" data-ie-focus="decision:${item.idx}:${action}" data-pdm-onclick="resolveIEConflict(${item.idx},'${action}')" ${disabled?'disabled':''}>${ieDemoText(zh,en)}</button>`).join('');
+  const targets=actions.filter(([action])=>!decisions.has(action));
   return `<div data-pdm-backup-conflict-id="${item.sourceId}" data-pdm-demo-target-id="${item.targetSelected?item.candidates[item.targetIndex]?.id??'':''}">
-    <div class="ie-comparison-heading"><strong>${escapeHtml(item.incoming.PLATFORM)}</strong><div class="ie-conflict-actions">${actions.map(([action,zh,en,disabled])=>`<button type="button" class="btn btn-sm" data-ie-focus="decision:${item.idx}:${action}" data-pdm-onclick="resolveIEConflict(${item.idx},'${action}')" ${disabled?'disabled':''}>${ieDemoText(zh,en)}</button>`).join('')}</div></div>
+    <div class="ie-comparison-heading"><strong>${escapeHtml(item.incoming.PLATFORM)}</strong><div class="ie-conflict-actions">${buttons(actions.filter(([action])=>decisions.has(action)))}</div></div>
+    ${targets.length?`<div class="ie-comparison-targets ie-conflict-actions">${buttons(targets)}</div>`:''}
     ${item.status==='IDENTICAL'?`<div class="ie-conflict-help">${ieDemoText('业务内容相同，保留当前记录及其时间、排序。','Identical content. Keep the existing record, dates and order.')}</div>`:''}
     ${ieDemoClearsRecovery(item)?`<div class="ie-conflict-help recovery-backup-warning">${ieDemoText('覆盖会清空当前整组恢复码；跳过可保留。','Overwrite removes the existing recovery codes. Skip to keep them.')}</div>`:''}
     <div class="ie-comparison-columns"><div class="ie-conflict-side-title">${t('dialog.ie.conflict.current')}${current?` (${item.targetIndex+1}/${item.candidates.length})`:''}</div><div class="ie-conflict-side-title">${IE_STATE.sourceKind==='TRANSFER'?ieDemoText('接收资料','Received contents'):t('dialog.ie.conflict.incoming')}</div></div>
@@ -6340,6 +6420,7 @@ function recomputeIEStats(){
 
 function executeIEOperation(){
   if(IE_STATE.mode==='export'){
+    if(IE_STATE.scope==='custom'&&!IE_STATE.exportSelection.length)return;
     if(!IE_STATE.path){showToast(t('dialog.ie.error.path'),'error');return;}
     if(!IE_STATE.password){showToast(t('dialog.ie.error.password'),'error');return;}
     if(IE_STATE.password!==IE_STATE.confirmPw){showToast(t('dialog.ie.error.mismatch'),'error');return;}

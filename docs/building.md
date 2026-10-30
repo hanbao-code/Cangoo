@@ -96,7 +96,7 @@ Set-Location "$repoRoot/apps/android"
 ```powershell
 $buildTools = Join-Path $env:ANDROID_HOME 'build-tools/36.1.0'
 $unsignedApk = 'app/build/outputs/apk/arm64/release/app-arm64-release-unsigned.apk'
-$signedApk = Join-Path $env:PDM_WORK_ROOT 'releases/android/cangoo-1.0.1-android-arm64.apk'
+$signedApk = Join-Path $env:PDM_WORK_ROOT 'releases/android/cangoo-1.0.2-android-arm64.apk'
 New-Item -ItemType Directory -Force -Path (Split-Path $signedApk) | Out-Null
 & "$buildTools/zipalign.exe" -c -P 16 -v 4 $unsignedApk
 & "$buildTools/apksigner.bat" sign --ks '<自己的密钥文件绝对路径>' `

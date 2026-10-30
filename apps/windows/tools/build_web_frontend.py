@@ -28,8 +28,8 @@ SOURCE_FILES = (
     "editor_shell.html",
     "note_editor_shell.html",
     "transfer_shell.html",
-    "m4_product_shell.html",
     "product_shell.html",
+    "preview_shell.html",
 )
 EVENT_ATTRIBUTE_RE = re.compile(r"(?<![\w.-])\b(on[a-z]+)\s*=", re.IGNORECASE)
 STYLE_ATTRIBUTE_RE = re.compile(r"(?<![\w.-])\bstyle\s*=", re.IGNORECASE)
@@ -56,7 +56,8 @@ PROTOTYPE_TEMPLATE = """<!DOCTYPE html>
 <script defer src="../../../apps/windows/desktop/frontend/vendor/pinyin-pro.js"></script>
 <script defer src="../../../apps/windows/desktop/frontend/vendor/dictionaries.js"></script>
 <script defer src="../../../apps/windows/desktop/frontend/scripts/help_content.js"></script>
-<script defer src="../../../apps/windows/desktop/frontend/scripts/demo_runtime.js"></script>
+<script defer src="../../../apps/windows/desktop/frontend/scripts/export_selection.js"></script>
+<script defer src="../../../apps/windows/desktop/frontend/scripts/canvas_runtime.js"></script>
 <script defer src="../../../apps/windows/desktop/frontend/scripts/direct_transfer.js"></script>
 <script defer src="../../../apps/windows/desktop/frontend/design/direct_transfer_fixture.js"></script>
 <script defer src="../../../apps/windows/desktop/frontend/scripts/help.js"></script>
@@ -118,8 +119,8 @@ def _sha256_bytes(data: bytes) -> str:
 
 def _manifest(
     prototype: str,
+    preview: str,
     product: str,
-    m4_product: str,
 ) -> dict[str, object]:
     sources = {
         path.relative_to(FRONTEND).as_posix(): {
@@ -142,13 +143,13 @@ def _manifest(
                 "sha256": _sha256_bytes(prototype.encode("utf-8")),
                 "role": "visible design truth and inspection host",
             },
+            "preview.html": {
+                "sha256": _sha256_bytes(preview.encode("utf-8")),
+                "role": "public canvas preview",
+            },
             "product.html": {
                 "sha256": _sha256_bytes(product.encode("utf-8")),
-                "role": "generated product canvas shell",
-            },
-            "m4_product.html": {
-                "sha256": _sha256_bytes(m4_product.encode("utf-8")),
-                "role": "isolated M4 typed-Bridge candidate shell",
+                "role": "product canvas shell",
             },
         },
     }
@@ -194,7 +195,7 @@ def _assert_dispatcher_coverage() -> None:
     product_source = "\n".join(
         [
             _read(FRONTEND / "canvas.html"),
-            _read(FRONTEND / "scripts" / "demo_runtime.js"),
+            _read(FRONTEND / "scripts" / "canvas_runtime.js"),
         ]
     )
     dispatcher = _read(FRONTEND / "scripts" / "event_dispatcher.js")
@@ -242,17 +243,17 @@ def build_product_only(check_only: bool) -> None:
     """公开源码只构建正式产品，不依赖内部设计画布和验收文档。"""
     import sys
     sys.path.insert(0, str(ROOT))
-    from desktop.m4.resources import M4ResourceCatalog
+    from desktop.application.resources import ProductResourceCatalog
     from desktop.host.resources import _compose_product
 
     _prepare_help_script(not check_only)
-    product = _compose_product(FRONTEND, M4ResourceCatalog.PRODUCT_SHELL_PATH).decode("utf-8")
+    product = _compose_product(FRONTEND, ProductResourceCatalog.PRODUCT_SHELL_PATH).decode("utf-8")
     _assert_external_only(product, "product")
     _assert_sources()
     _assert_dispatcher_coverage()
     if not check_only:
-        names = {"canvas.html", M4ResourceCatalog.PRODUCT_SHELL_PATH,
-                 *(name for name, _mime in M4ResourceCatalog.ASSET_SOURCES.values())}
+        names = {"canvas.html", ProductResourceCatalog.PRODUCT_SHELL_PATH,
+                 *(name for name, _mime in ProductResourceCatalog.ASSET_SOURCES.values())}
         manifest = {
             "schema_version": 1,
             "generator": "tools/build_web_frontend.py --product-only",
@@ -260,12 +261,12 @@ def build_product_only(check_only: bool) -> None:
             "sources": {name: {"sha256": _sha256_bytes((FRONTEND / name).read_bytes()),
                                "bytes": (FRONTEND / name).stat().st_size}
                         for name in sorted(names)},
-            "outputs": {M4ResourceCatalog.PRODUCT_OUTPUT_KEY: {
+            "outputs": {ProductResourceCatalog.PRODUCT_OUTPUT_KEY: {
                 "sha256": _sha256_bytes(product.encode("utf-8")),
                 "role": "product canvas shell"}},
         }
         _write(MANIFEST, json.dumps(manifest, ensure_ascii=False, indent=2))
-    M4ResourceCatalog(root=FRONTEND)
+    ProductResourceCatalog(root=FRONTEND)
     print("Product frontend resources are current.")
 
 
@@ -275,13 +276,13 @@ def build(
 ) -> tuple[str, str, str, dict[str, object]]:
     _prepare_help_script(write_committed)
     prototype = _compose(PROTOTYPE_TEMPLATE)
-    product = _compose(_read(FRONTEND / "product_shell.html"))
-    m4_product = _compose(
-        _read(FRONTEND / "m4_product_shell.html")
+    preview = _compose(_read(FRONTEND / "preview_shell.html"))
+    product = _compose(
+        _read(FRONTEND / "product_shell.html")
     )
     _assert_external_only(prototype, "prototype")
+    _assert_external_only(preview, "preview")
     _assert_external_only(product, "product")
-    _assert_external_only(m4_product, "M4 product")
     _assert_sources()
     _assert_dispatcher_coverage()
 
@@ -289,16 +290,16 @@ def build(
         shutil.rmtree(output)
     output.mkdir(parents=True)
     _copy_product_assets(output)
+    _write(output / "preview.html", preview)
     _write(output / "product.html", product)
-    _write(output / "m4_product.html", m4_product)
     _write(output / "transfer.html", _read(FRONTEND / "transfer_shell.html"))
 
-    manifest = _manifest(prototype, product, m4_product)
+    manifest = _manifest(prototype, preview, product)
     _write(output / "source_manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
     if write_committed:
         _write(PROTOTYPE, prototype)
         _write(MANIFEST, json.dumps(manifest, ensure_ascii=False, indent=2))
-    return prototype, product, m4_product, manifest
+    return prototype, preview, product, manifest
 
 
 def check() -> None:

@@ -9,7 +9,9 @@ from shiboken6 import isValid
 
 from desktop.host.scene_refresh import SceneRefresh, request_surface_frame, scene_target
 from desktop.host.window_placement import fit_window_rect
-from .editor_window import EditorWindow
+from desktop.bridge.export_selection_bridge import ExportSelectionBridgeSurface
+from desktop.bridge.command_ids import CommandId
+from .editor_window import EditorWindow, _PassiveEditorAdapter, _EditorSecurityBoundarySink
 
 
 class DirectTransferLauncherBridge(QObject):
@@ -22,12 +24,24 @@ class DirectTransferLauncherBridge(QObject):
         return self._owner.open()
 
 
-class DirectTransferWindowBridge(QObject):
+class DirectTransferWindowBridge(ExportSelectionBridgeSurface):
     stateChangedV1 = Signal("QVariantMap")
 
     def __init__(self, owner):
-        super().__init__(owner)
         self._owner = owner
+        super().__init__(owner.catalog, _PassiveEditorAdapter(owner.core.adapter), owner,
+                         security_boundary_sink=_EditorSecurityBoundarySink(owner.conceal))
+        self._boundary.bind_borrowed_web_authority(*owner.core.epochs)
+
+    def _submit_explicit(self, command_id, arguments):
+        core = self._owner.core
+        if self._owner.bridge is not self or not core._current():
+            return {"accepted": False, "errorCode": "STALE_PAGE"}
+        if command_id not in {CommandId.C07, CommandId.C90} and (
+                core._state["role"] != "SEND" or core._state["phase"] != "REVIEW"
+                or core._state["offerReady"] or core._state["preparing"]):
+            return {"accepted": False, "errorCode": "REQUEST_BUSY"}
+        return super()._submit_explicit(command_id, arguments)
 
     def _invoke(self, action, flow_id, *arguments):
         if self._owner.bridge is not self:
@@ -95,9 +109,10 @@ class DirectTransferWindowBridge(QObject):
 
 
 class DirectTransferWindowController(QObject):
-    def __init__(self, core, *, authority, busy, view_factory, renderer_failed, parent=None):
+    def __init__(self, core, *, catalog, authority, busy, view_factory, renderer_failed, parent=None):
         super().__init__(parent)
         self.core = core
+        self.catalog = catalog
         self._authority, self._busy = authority, busy
         self._view_factory, self._renderer_failed = view_factory, renderer_failed
         self.window = self.bridge = self._channel = self._handle = None
@@ -264,6 +279,8 @@ class DirectTransferWindowController(QObject):
         window, bridge, channel = self.window, self.bridge, self._channel
         self.window = self.bridge = self._channel = None
         self._appearance = None
+        if bridge is not None and not bridge.close_bridge("bridge_close"):
+            self._renderer_failed()
         if self._handle is not None and isValid(self._handle):
             self._handle.removeEventFilter(self)
         self._handle = None

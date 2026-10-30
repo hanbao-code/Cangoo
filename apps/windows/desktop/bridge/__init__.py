@@ -1,9 +1,4 @@
-"""Isolated M3 typed Bridge and native secret-lifecycle boundary.
-
-No adapter in this package touches core, a database, configuration, native
-capabilities, or user state.  The fake used by verification lives under
-``tools/`` and cannot be registered as a production adapter.
-"""
+"""类型化网页桥接、原生快速栏端口与秘密生命周期边界。"""
 
 from .command_ids import CommandId
 from .contract_catalog import ContractCatalog

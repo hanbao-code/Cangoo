@@ -1,4 +1,4 @@
-"""Bounded real-core adapter for the isolated M4 connection slice."""
+"""产品命令到核心业务的适配器；统一管理当前会话、后台任务与结果交付。"""
 
 from __future__ import annotations
 
@@ -61,6 +61,7 @@ from .backup import (
     BackupPreviewDraft,
     BackupRejected,
     BackupSelection,
+    ExportSelection,
     NullBackupFileSelector,
     file_identity as backup_file_identity,
     encode_transfer_payload,
@@ -69,7 +70,7 @@ from .backup import (
     read_backup_file,
     source_matches,
 )
-from .clipboard import M4ClipboardController
+from .clipboard import ProductClipboardController
 from .health_rescan import HealthRescan, SessionStrengthQueue, strength_input_token
 from .record_field_reads import (
     FieldReadRejected,
@@ -78,7 +79,7 @@ from .record_field_reads import (
     field_preview,
 )
 from desktop.runtime_paths import RuntimePaths
-from .settings_store import M4AtomicSettingsStore, M4SettingsCommitError
+from .settings_store import AtomicSettingsStore, SettingsCommitError
 from desktop.ui_font_scale import normalize_ui_font_scale
 from .strength_worker import (
     StrengthAnalysisCancelled,
@@ -306,6 +307,7 @@ class _BackupWorkerResult:
     error_code: str
     result: dict[str, object] | None = None
     preview_draft: BackupPreviewDraft | None = None
+    selection_update: tuple[ExportSelection, int, dict, dict] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -368,22 +370,18 @@ class _NoteRecord:
     favorite: bool
 
 
-class M4ApplicationAdapter:
-    """Implement the isolated connection, vault, and note slices.
+class ApplicationAdapter:
+    """产品命令与核心业务适配。
 
-    The adapter is usable only with a validated :class:`RuntimePaths` port.
-    Database creation, Argon2/sqleet, and bounded record reads run on one
-    background worker.
-    Page/session invalidation waits for that worker and synchronously destroys
-    any resulting core session before returning to the native security
-    coordinator.
+    只接收已验证的 RuntimePaths 路径端口。数据库创建、派生及有界读取进入既有后台执行器；
+    页面或会话失效时等待在途操作并释放产生的核心会话，再向原生安全协调器返回。
     """
 
     def __init__(
         self,
         isolation: RuntimePaths,
         selector: DatabaseTargetSelector,
-        clipboard: M4ClipboardController,
+        clipboard: ProductClipboardController,
         *,
         hotkey: _NativeHotkeyPort | None = None,
         backup_selector: BackupFileSelector | None = None,
@@ -439,7 +437,7 @@ class M4ApplicationAdapter:
             self._config.set("theme", "dark")
         if source_settings is None or "language" not in source_settings:
             self._config.set("language", "zh")
-        self._settings_store = M4AtomicSettingsStore(
+        self._settings_store = AtomicSettingsStore(
             self._config,
             isolation.settings_file,
         )
@@ -614,11 +612,19 @@ class M4ApplicationAdapter:
             if database is None or revision_key is None:
                 complete(self._error(request, "SESSION_REQUIRED"))
                 return request_id
+            export_selection = None
+            if command_id is CommandId.C51:
+                try:
+                    scope, export_selection = self._backup.export_choice(page_epoch, session_epoch, scope)
+                except BackupRejected as exc:
+                    complete(self._error(request, str(exc)))
+                    return request_id
             operation = _BackupOperation(request_id, 0, command_id, page_epoch, session_epoch, database,
                                          complete, threading.Event(), threading.Event(), native_transfer=True)
             self._operations[request_id] = operation
             future = self._submit_worker(self._transfer_snapshot_worker, database, revision_key, scope, encoded,
-                                         password_count, note_count, command_id is CommandId.C53, operation.cancelled)
+                                         password_count, note_count, command_id is CommandId.C53, operation.cancelled,
+                                         export_selection)
             operation.future = future
             future.add_done_callback(lambda finished: self._finish_backup_operation(request_id, finished))
         return request_id
@@ -1060,6 +1066,9 @@ class M4ApplicationAdapter:
         if request.command_id is CommandId.C59:
             self._submit_close_backup_preview(request, complete)
             return
+        if request.command_id in {CommandId.C87, CommandId.C88, CommandId.C89, CommandId.C90}:
+            self._submit_export_selection(request, complete)
+            return
         complete(self._error(request, "INTERNAL_FAILURE"))
 
     def cancel(self, request: AdapterRequest) -> str:
@@ -1345,6 +1354,10 @@ class M4ApplicationAdapter:
     def discard(self, completion: AdapterCompletion) -> None:
         with self._lock:
             if isinstance(completion.result, dict) and "rawPayload" in completion.result:
+                completion.result.clear()
+                return
+            if completion.command_id is CommandId.C87 and isinstance(completion.result, dict):
+                self._backup.discard_export_draft(str(completion.result.get("selectionTicket", "")))
                 completion.result.clear()
                 return
             if completion.command_id in {CommandId.C50, CommandId.C52}:
@@ -2133,7 +2146,7 @@ class M4ApplicationAdapter:
             password = None
             if not opened:
                 kind = database.error_kind
-                error_code = M4ApplicationAdapter._database_core_error(
+                error_code = ApplicationAdapter._database_core_error(
                     database,
                     fallback="DATABASE_IO_FAILED" if kind in {"permission_denied", "path_not_found"} else "DATABASE_INVALID",
                 )
@@ -2146,10 +2159,10 @@ class M4ApplicationAdapter:
             if published_identity is None:
                 database.disconnect()
                 return _OpenResult(None, path, "DATABASE_INVALID")
-            final_identity = M4ApplicationAdapter._file_identity(path)
+            final_identity = ApplicationAdapter._file_identity(path)
             if (
                 final_identity is None
-                or not M4ApplicationAdapter._same_file_object(
+                or not ApplicationAdapter._same_file_object(
                     published_identity,
                     final_identity,
                 )
@@ -2158,7 +2171,7 @@ class M4ApplicationAdapter:
                 return _OpenResult(None, path, "DATABASE_INVALID")
             counts = database.get_record_counts(should_cancel=cancelled.is_set)
             if counts is None:
-                error_code = "CANCELLED" if cancelled.is_set() else M4ApplicationAdapter._database_core_error(database)
+                error_code = "CANCELLED" if cancelled.is_set() else ApplicationAdapter._database_core_error(database)
                 database.disconnect()
                 return _OpenResult(None, path, error_code)
             password_count, note_count = counts
@@ -2188,12 +2201,12 @@ class M4ApplicationAdapter:
     ) -> _OpenResult:
         if cancelled.is_set():
             return _OpenResult(None, path, "CANCELLED")
-        current_identity = M4ApplicationAdapter._file_identity(path)
+        current_identity = ApplicationAdapter._file_identity(path)
         if current_identity is None:
             return _OpenResult(None, path, "NOT_FOUND")
         if (
             expected_identity is None
-            or not M4ApplicationAdapter._same_file_object(
+            or not ApplicationAdapter._same_file_object(
                 expected_identity,
                 current_identity,
             )
@@ -2207,9 +2220,9 @@ class M4ApplicationAdapter:
                 str(password),
                 should_cancel=cancelled.is_set,
                 pre_write_guard=lambda: (
-                    (current := M4ApplicationAdapter._file_identity(path))
+                    (current := ApplicationAdapter._file_identity(path))
                     is not None
-                    and M4ApplicationAdapter._same_file_object(
+                    and ApplicationAdapter._same_file_object(
                         expected_identity,
                         current,
                     )
@@ -2234,15 +2247,15 @@ class M4ApplicationAdapter:
                 database.disconnect()
                 return _OpenResult(None, path, "CANCELLED")
             opened_identity = database.opened_file_identity
-            final_identity = M4ApplicationAdapter._file_identity(path)
+            final_identity = ApplicationAdapter._file_identity(path)
             if (
                 opened_identity is None
                 or final_identity is None
-                or not M4ApplicationAdapter._same_file_object(
+                or not ApplicationAdapter._same_file_object(
                     expected_identity,
                     final_identity,
                 )
-                or not M4ApplicationAdapter._same_file_object(
+                or not ApplicationAdapter._same_file_object(
                     opened_identity,
                     final_identity,
                 )
@@ -2251,7 +2264,7 @@ class M4ApplicationAdapter:
                 return _OpenResult(None, path, "DATABASE_INVALID")
             counts = database.get_record_counts(should_cancel=cancelled.is_set)
             if counts is None:
-                error_code = "CANCELLED" if cancelled.is_set() else M4ApplicationAdapter._database_core_error(database)
+                error_code = "CANCELLED" if cancelled.is_set() else ApplicationAdapter._database_core_error(database)
                 database.disconnect()
                 return _OpenResult(None, path, error_code)
             password_count, note_count = counts
@@ -4191,7 +4204,7 @@ class M4ApplicationAdapter:
                     settings_revision != before_revision
                     or settings != before_settings
                 )
-        except M4SettingsCommitError:
+        except SettingsCommitError:
             return _SettingsWorkerResult("INTERNAL_FAILURE")
         except Exception:
             return _SettingsWorkerResult("INTERNAL_FAILURE")
@@ -4612,6 +4625,8 @@ class M4ApplicationAdapter:
                 complete(self._error(request, error))
                 return
             try:
+                scope, export_selection = self._backup.export_choice(
+                    request.page_epoch, request.session_epoch, str(request.arguments[4]))
                 selection = self._backup.selection(
                     str(request.arguments[3]),
                     "DESTINATION",
@@ -4647,10 +4662,12 @@ class M4ApplicationAdapter:
                 self._export_backup,
                 database,
                 selection,
-                str(request.arguments[4]),
+                scope,
                 backup_password,
                 operation.cancelled,
                 lambda: self._authorize_backup_commit(operation),
+                export_selection,
+                self._session_revision_key,
             )
             operation.future = future
             future.add_done_callback(
@@ -4901,6 +4918,120 @@ class M4ApplicationAdapter:
             )
         complete(self._success(request, {}))
 
+    def close_export_selection(self, page_epoch: int, session_epoch: int) -> None:
+        with self._lock:
+            self._backup.clear_export_selection(page_epoch, session_epoch)
+
+    def _submit_export_selection(self, request: AdapterRequest, complete: CompletionCallback) -> None:
+        with self._lock:
+            if request.command_id is CommandId.C90:
+                error = ("STALE_PAGE" if self._closed or request.page_epoch not in self._valid_pages else
+                         "STALE_SESSION" if request.session_epoch != self._session_epoch else
+                         "SESSION_REQUIRED" if self._database is None else None)
+            else:
+                error = self._backup_operation_error_locked(request)
+            if error:
+                complete(self._error(request, error)); return
+            try:
+                if request.command_id is CommandId.C87:
+                    complete(self._success(request, self._backup.begin_export_selection(request.page_epoch, request.session_epoch)))
+                    return
+                value = self._backup.export_selection(str(request.arguments[3]), request.page_epoch, request.session_epoch,
+                                                     draft=request.command_id is not CommandId.C90)
+                if request.command_id is CommandId.C90:
+                    complete(self._success(request, self._backup.finish_export_selection(value, str(request.arguments[4]))))
+                    return
+                bulk_action = ""
+                if request.command_id is CommandId.C89:
+                    action, kind, record_id, revision = request.arguments[4:8]
+                    if action not in ("ALL", "REMOVE_FILTERED"):
+                        complete(self._success(request, self._backup.change_export_selection(value, action, kind, record_id, revision)))
+                        return
+                    if kind != "ALL" or type(record_id) is not int or record_id or revision != "":
+                        raise BackupRejected("INVALID_ARGUMENT")
+                    bulk_action = action
+                    query, kind, offset, limit = value.query, value.kind, value.offset, value.limit
+                else:
+                    query, kind, offset, limit = request.arguments[4:8]
+                if (type(query) is not str or len(query) > 128 or "\x00" in query
+                        or kind not in {"ALL", "PASSWORD", "NOTE"} or type(offset) is not int or not 0 <= offset <= 100_000
+                        or type(limit) is not int or not 1 <= limit <= 100):
+                    raise BackupRejected("INVALID_ARGUMENT")
+            except BackupRejected as exc:
+                complete(self._error(request, str(exc))); return
+            operation = _BackupOperation(request.request_id, request.token, request.command_id, request.page_epoch,
+                                         request.session_epoch, self._database, complete, threading.Event(), threading.Event())
+            self._operations[request.request_id] = operation
+            future = self._submit_worker(self._export_selection_page, self._database, self._session_revision_key,
+                                         value, value.generation, dict(value.entries), query, kind, offset, limit,
+                                         bulk_action, operation.cancelled)
+            operation.future = future
+            future.add_done_callback(lambda finished: self._finish_backup_operation(request.request_id, finished))
+
+    @classmethod
+    def _export_selection_page(cls, database, revision_key, value, generation, entries,
+                               query, kind, offset, limit, bulk_action, cancelled):
+        rows = []
+        loaded_kinds = {"PASSWORD", "NOTE"} if kind == "ALL" else {kind}
+        for current_kind in ("PASSWORD", "NOTE"):
+            if current_kind not in loaded_kinds:
+                continue
+            records = (cls._load_vault_records(database, revision_key, cancelled, detail_record_id=0)
+                       if current_kind == "PASSWORD" else cls._load_note_records(database, revision_key, cancelled))
+            if isinstance(records, str):
+                return _BackupWorkerResult(records)
+            for item in records:
+                if cancelled.is_set():
+                    return _BackupWorkerResult("CANCELLED")
+                if current_kind == "PASSWORD":
+                    title, detail, record_id = item.platform, item.account, item.record_id
+                    matches = not query.strip() or field_matches_query(title, query.strip().casefold()) or field_matches_query(detail, query.strip().casefold())
+                    summary_title, summary_detail = field_preview("PLATFORM", title), field_preview("ACCOUNT", detail)
+                else:
+                    title, detail, record_id = item.title, item.content, item.note_id
+                    matches = not query.strip() or field_matches_query(title, query.strip().casefold()) or query.strip().casefold() in detail.casefold()
+                    summary_title, summary_detail = field_preview("NOTE_TITLE", title), detail[:160]
+                rows.append({"kind": current_kind, "id": record_id, "revision": item.revision,
+                             "title": summary_title, "detail": summary_detail, "matches": matches})
+            records.clear()
+        if len(rows) > 100_000:
+            return _BackupWorkerResult("REQUEST_TOO_LARGE")
+        current = {(item["kind"], item["id"]): item["revision"] for item in rows}
+        changed = [key for key, revision in entries.items() if key[0] in loaded_kinds and current.get(key) != revision]
+        for key in changed:
+            entries.pop(key)
+        filtered = [item for item in rows if item.pop("matches")]
+        filtered.sort(key=lambda item: (item["kind"] == "NOTE", item["id"]))
+        if bulk_action == "ALL":
+            entries.update(((item["kind"], item["id"]), item["revision"]) for item in filtered)
+        elif bulk_action == "REMOVE_FILTERED":
+            for item in filtered:
+                entries.pop((item["kind"], item["id"]), None)
+        if len(entries) > 100_000:
+            return _BackupWorkerResult("REQUEST_TOO_LARGE")
+        offset = min(offset, max(0, (len(filtered) - 1) // limit * limit))
+        page = {"query": query, "kind": kind, "offset": offset, "limit": limit, "total": len(filtered),
+                "filteredSelectedCount": sum((item["kind"], item["id"]) in entries for item in filtered),
+                "items": filtered[offset:offset + limit], "changedCount": min(100_000, value.changed_count + len(changed))}
+        if cancelled.is_set():
+            return _BackupWorkerResult("CANCELLED")
+        return _BackupWorkerResult("OK", selection_update=(value, generation, entries, page))
+
+    @classmethod
+    def _export_record_revision(cls, revision_key, kind, row):
+        if kind == "NOTE":
+            item = cls._note_from_row(revision_key, row)
+            if item is None:
+                raise BackupRejected("DATABASE_IO_FAILED")
+            return item.revision
+        return cls._record_revision(revision_key, {
+            "record_id": row["id"], "platform": row["platform"], "account": row["account"],
+            "password": row["password"], "notes": row["notes"], "totp_secret": row["totp_secret"],
+            "recovery_codes": row["recovery_codes"], "favorite": bool(row["is_favorite"]),
+            "password_changed_at": cls._timestamp_value(row.get("password_changed_at")),
+            "updated_at": cls._timestamp_value(row.get("updated_at")),
+        })
+
     def _backup_operation_error_locked(self, request: AdapterRequest) -> str | None:
         error = self._session_read_error_locked(request)
         if error:
@@ -4942,12 +5073,16 @@ class M4ApplicationAdapter:
         password: str,
         cancelled: threading.Event,
         authorize: Callable[[], str | None],
+        export_selection=None,
+        revision_key=None,
     ) -> _BackupWorkerResult:
         if cancelled.is_set():
             return _BackupWorkerResult("CANCELLED")
-        payload = database.export_backup_snapshot(scope)
+        payload = database.export_backup_snapshot(scope, selection=export_selection,
+            revision_for_row=lambda kind, row: ApplicationAdapter._export_record_revision(revision_key, kind, row),
+            should_cancel=cancelled.is_set)
         if not payload:
-            return _BackupWorkerResult(M4ApplicationAdapter._database_core_error(database))
+            return _BackupWorkerResult(ApplicationAdapter._database_core_error(database))
         if cancelled.is_set():
             return _BackupWorkerResult("CANCELLED")
         try:
@@ -4971,7 +5106,7 @@ class M4ApplicationAdapter:
     @staticmethod
     def _transfer_snapshot_worker(database: DatabaseService, revision_key: bytes, scope: str,
                                   encoded: bytes | None, password_count: int, note_count: int,
-                                  receiving: bool, cancelled: threading.Event) -> _BackupWorkerResult:
+                                  receiving: bool, cancelled: threading.Event, selection=None) -> _BackupWorkerResult:
         def guard() -> None:
             if cancelled.is_set():
                 raise BackupRejected("CANCELLED")
@@ -4981,14 +5116,16 @@ class M4ApplicationAdapter:
             if receiving:
                 payload = parse_received_payload(encoded, scope, password_count, note_count)
                 guard()
-                return M4ApplicationAdapter._preview_payload(database, None, revision_key, payload,
+                return ApplicationAdapter._preview_payload(database, None, revision_key, payload,
                                                              hashlib.sha256(encoded).hexdigest(), cancelled)
-            payload = database.export_backup_snapshot(scope)
+            payload = database.export_backup_snapshot(scope, selection=selection,
+                revision_for_row=lambda kind, row: ApplicationAdapter._export_record_revision(revision_key, kind, row),
+                should_cancel=cancelled.is_set)
             if not payload:
-                return _BackupWorkerResult(M4ApplicationAdapter._database_core_error(database))
+                return _BackupWorkerResult(ApplicationAdapter._database_core_error(database))
             try:
                 encoded = encode_transfer_payload(payload, guard)
-                return _BackupWorkerResult("OK", {"rawPayload": encoded,
+                return _BackupWorkerResult("OK", {"rawPayload": encoded, "scope": scope,
                     "passwordCount": len(payload["passwords"]), "noteCount": len(payload["notes"])})
             finally:
                 payload.clear()
@@ -5024,7 +5161,7 @@ class M4ApplicationAdapter:
             )
         finally:
             password = ""
-        return M4ApplicationAdapter._preview_payload(database, selection, revision_key, payload, digest, cancelled)
+        return ApplicationAdapter._preview_payload(database, selection, revision_key, payload, digest, cancelled)
 
     @staticmethod
     def _preview_payload(database: DatabaseService, selection: BackupSelection | None, revision_key: bytes,
@@ -5033,13 +5170,13 @@ class M4ApplicationAdapter:
             return _BackupWorkerResult("CANCELLED")
         rows = database.get_all_passwords()
         if database.last_error:
-            return _BackupWorkerResult(M4ApplicationAdapter._database_core_error(database))
+            return _BackupWorkerResult(ApplicationAdapter._database_core_error(database))
         if cancelled.is_set():
             return _BackupWorkerResult("CANCELLED")
         by_name = {str(row["platform"]): row for row in rows}
         notes = database.get_all_notes() if payload["notes"] else []
         if database.last_error:
-            return _BackupWorkerResult(M4ApplicationAdapter._database_core_error(database))
+            return _BackupWorkerResult(ApplicationAdapter._database_core_error(database))
         bindings = [
             [item["platform"], by_name[str(item["platform"])], item]
             for item in payload["passwords"]
@@ -5110,7 +5247,7 @@ class M4ApplicationAdapter:
             return _BackupWorkerResult(
                 "SECRET_LEASE_EXPIRED"
                 if database.last_error_kind == "backup_conflict_changed"
-                else M4ApplicationAdapter._database_core_error(database)
+                else ApplicationAdapter._database_core_error(database)
             )
         result["changed"] = (
             int(result["imported"]) + int(result["overwritten"]) > 0
@@ -5137,9 +5274,12 @@ class M4ApplicationAdapter:
                     self._scrub_backup_worker_result(result)
                     return
                 operation = candidate
+                if (operation.command_id in {CommandId.C88, CommandId.C89}
+                        and operation.database is self._database and not operation.database.bound_identity_is_current()):
+                    self._release_session_locked()
                 stale = (
                     self._closed
-                    or operation.native_transfer and operation.cancelled.is_set()
+                    or (operation.native_transfer or operation.command_id in {CommandId.C88, CommandId.C89}) and operation.cancelled.is_set()
                     or operation.page_epoch not in self._valid_pages
                     or operation.session_epoch != self._session_epoch
                     or operation.database is not self._database
@@ -5153,6 +5293,9 @@ class M4ApplicationAdapter:
                         "CANCELLED",
                     )
                 elif result.error_code != "OK":
+                    if (operation.command_id is CommandId.C51 and operation.selection is not None
+                            and result.error_code == "REVISION_CONFLICT" and not operation.commit_started):
+                        self._backup.restore_export_destination(operation.selection)
                     if (
                         operation.command_id is CommandId.C53
                         and operation.selection is not None
@@ -5172,6 +5315,22 @@ class M4ApplicationAdapter:
                         operation.token,
                         result.error_code,
                     )
+                elif operation.command_id in {CommandId.C88, CommandId.C89}:
+                    try:
+                        value, generation, entries, page = result.selection_update
+                        current = self._backup.export_selection(value.ticket, operation.page_epoch, operation.session_epoch, draft=True)
+                        if current is not value or generation != value.generation:
+                            raise BackupRejected("CANCELLED")
+                        value.entries = entries
+                        value.generation += 1
+                        value.query, value.kind, value.offset, value.limit = page["query"], page["kind"], page["offset"], page["limit"]
+                        value.total, value.items, value.changed_count = page["total"], page["items"], page["changedCount"]
+                        value.filtered_selected_count = page["filteredSelectedCount"]
+                        completion = AdapterCompletion(operation.command_id, operation.request_id, operation.token, "OK", result=value.page())
+                        result.selection_update = None
+                    except BackupRejected as exc:
+                        self._scrub_backup_worker_result(result)
+                        completion = AdapterCompletion(operation.command_id, operation.request_id, operation.token, str(exc))
                 elif operation.command_id is CommandId.C53:
                     try:
                         preview_result = (
@@ -5229,6 +5388,10 @@ class M4ApplicationAdapter:
 
     @staticmethod
     def _scrub_backup_worker_result(result: _BackupWorkerResult) -> None:
+        if result.selection_update is not None:
+            result.selection_update[2].clear()
+            result.selection_update[3].clear()
+            result.selection_update = None
         draft = result.preview_draft
         if draft is not None:
             draft.payload.clear()
@@ -7796,7 +7959,7 @@ class M4ApplicationAdapter:
     @staticmethod
     def _quickbar_generate_and_copy(
         length: int,
-        clipboard: M4ClipboardController,
+        clipboard: ProductClipboardController,
         cancelled: threading.Event,
         *,
         publication_token: int | None = None,
@@ -7838,7 +8001,7 @@ class M4ApplicationAdapter:
         command_id: CommandId,
         record_id: int,
         revision: str,
-        clipboard: M4ClipboardController,
+        clipboard: ProductClipboardController,
         cancelled: threading.Event,
         *,
         wall_clock: Callable[[], float] = time.time,
@@ -8221,6 +8384,7 @@ class M4ApplicationAdapter:
             "resource_limit": "DATABASE_LIMIT_EXCEEDED",
             "insufficient_space": "DATABASE_SPACE_INSUFFICIENT",
             "cancelled": "CANCELLED",
+            "revision_conflict": "REVISION_CONFLICT",
         }.get(str(getattr(database, "last_error_kind", None)), fallback)
 
     @staticmethod
@@ -8233,7 +8397,7 @@ class M4ApplicationAdapter:
             "revision_conflict": "REVISION_CONFLICT",
             "invalid_argument": "INVALID_ARGUMENT",
             "database_io_failed": "DATABASE_IO_FAILED",
-        }.get(str(database.last_error_kind), M4ApplicationAdapter._database_core_error(database))
+        }.get(str(database.last_error_kind), ApplicationAdapter._database_core_error(database))
 
     @classmethod
     def _note_from_row(
@@ -8453,7 +8617,7 @@ class M4ApplicationAdapter:
 
     @staticmethod
     def _scrub_revision_source(value: dict[str, object]) -> None:
-        M4ApplicationAdapter._scrub_record_dict(value)
+        ApplicationAdapter._scrub_record_dict(value)
 
     @staticmethod
     def _vault_summary(item: _VaultRecord) -> dict[str, object]:
@@ -8482,12 +8646,12 @@ class M4ApplicationAdapter:
             "title": field_preview("NOTE_TITLE", item.title),
             "contentPreview": item.content[:160],
             "favorite": item.favorite,
-            "longFields": M4ApplicationAdapter._note_long_fields(item),
+            "longFields": ApplicationAdapter._note_long_fields(item),
             "previewTruncated": (
                 len(item.content) > 160
                 or field_is_long("NOTE_TITLE", item.title)
             ),
-            "updatedDate": M4ApplicationAdapter._date_value(
+            "updatedDate": ApplicationAdapter._date_value(
                 item.updated_at
             ),
         }
@@ -8712,7 +8876,7 @@ class M4ApplicationAdapter:
         offset = int(matched.group(1))
         if offset >= total:
             return None
-        expected = M4ApplicationAdapter._encode_cursor(
+        expected = ApplicationAdapter._encode_cursor(
             offset,
             revision_key,
             scope,
@@ -9686,7 +9850,7 @@ class M4ApplicationAdapter:
 
     @staticmethod
     def _bounded_hotkey(value: object) -> str:
-        normalized = M4ApplicationAdapter._normalize_hotkey(value)
+        normalized = ApplicationAdapter._normalize_hotkey(value)
         return normalized if normalized is not None else "Alt+P"
 
     @staticmethod
@@ -9816,4 +9980,4 @@ class M4ApplicationAdapter:
         )
 
 
-__all__ = ["M4ApplicationAdapter", "SettingsCommitPublication"]
+__all__ = ["ApplicationAdapter", "SettingsCommitPublication"]

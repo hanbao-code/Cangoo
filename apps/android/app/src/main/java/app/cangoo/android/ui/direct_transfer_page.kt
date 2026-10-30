@@ -58,7 +58,7 @@ import app.cangoo.android.data.BackupScope
 @Composable
 internal fun BDirectTransferPage(controller: DirectTransferController, onStart: () -> Unit, onCancel: () -> Unit,
                                  onOpenSettings: (DirectTransferSettings) -> Unit, modifier: Modifier = Modifier,
-                                 onCopyPairingCode: () -> Unit) {
+                                 onCopyPairingCode: () -> Unit, onSelectCustom: () -> Unit = {}) {
     val state = controller.state
     val colors = LocalBThemeColors.current
     val focus = LocalFocusManager.current
@@ -128,7 +128,7 @@ internal fun BDirectTransferPage(controller: DirectTransferController, onStart: 
                     DirectTransferPhase.WAIT_APPROVAL -> TransferCopy(stringResource(if (state.role == DirectTransferRole.RECEIVER)
                         R.string.transfer_approval_hint else R.string.transfer_wait_approval_hint))
                     DirectTransferPhase.PREPARING, DirectTransferPhase.REVIEW, DirectTransferPhase.TRANSFERRING,
-                    DirectTransferPhase.VERIFYING, DirectTransferPhase.RECEIVED, DirectTransferPhase.SENT -> TransferReview(state, controller)
+                    DirectTransferPhase.VERIFYING, DirectTransferPhase.RECEIVED, DirectTransferPhase.SENT -> TransferReview(state, controller, onSelectCustom)
                     DirectTransferPhase.CONFIG, DirectTransferPhase.FAILED -> Unit
                 }
                 when (state.phase) {
@@ -181,7 +181,7 @@ internal fun BDirectTransferPage(controller: DirectTransferController, onStart: 
                 DirectTransferPhase.REVIEW -> {
                     if (state.role == DirectTransferRole.SENDER) PrimaryButton(stringResource(if (state.offerPrepared)
                         R.string.transfer_wait_start else R.string.transfer_start_send), false,
-                        enabled = state.peerVaultName != null && !state.offerPrepared, onClick = controller::prepareOffer)
+                        enabled = state.peerVaultName != null && !state.offerPrepared && (!state.custom || !state.selection.empty), onClick = controller::prepareOffer)
                     else PrimaryButton(stringResource(R.string.transfer_offer_wait), false, enabled = false, onClick = {})
                 }
                 DirectTransferPhase.FAILED -> PrimaryButton(stringResource(R.string.transfer_restart), false, onClick = controller::reset)
@@ -229,7 +229,7 @@ private fun TransferManualAddress(state: DirectTransferUiState, controller: Dire
 }
 
 @Composable
-private fun TransferReview(state: DirectTransferUiState, controller: DirectTransferController) {
+private fun TransferReview(state: DirectTransferUiState, controller: DirectTransferController, onSelectCustom: () -> Unit) {
     if (state.peerVaultName == null) {
         TransferCopy(stringResource(R.string.transfer_metadata_wait))
         return
@@ -242,12 +242,19 @@ private fun TransferReview(state: DirectTransferUiState, controller: DirectTrans
             TransferHeading(stringResource(R.string.transfer_scope))
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 BackupScope.entries.forEach { scope ->
-                    TransferChoice(stringResource(transferScopeLabel(scope)), state.scope == scope) { controller.configure(scope = scope) }
+                    TransferChoice(stringResource(transferScopeLabel(scope)), !state.custom && state.scope == scope) { controller.configure(scope = scope) }
                 }
+                TransferChoice(stringResource(R.string.scope_custom), state.custom, onClick = onSelectCustom)
             }
-        } else TransferValue(stringResource(R.string.transfer_scope), stringResource(transferScopeLabel(state.scope)))
+            if (state.custom) {
+                TransferCopy(stringResource(R.string.export_selection_summary,
+                    pluralStringResource(R.plurals.password_count, state.selection.passwords.size, state.selection.passwords.size),
+                    pluralStringResource(R.plurals.note_count, state.selection.notes.size, state.selection.notes.size)))
+                TransferTextButton(stringResource(R.string.export_change_selection), onSelectCustom)
+            }
+        } else TransferValue(stringResource(R.string.transfer_scope), stringResource(if (state.custom) R.string.scope_custom else transferScopeLabel(state.scope)))
     } else if (state.offerPrepared) {
-        TransferValue(stringResource(R.string.transfer_scope), stringResource(transferScopeLabel(state.scope)))
+        TransferValue(stringResource(R.string.transfer_scope), stringResource(if (state.custom) R.string.scope_custom else transferScopeLabel(state.scope)))
         state.passwordCount?.let { TransferCopy(pluralStringResource(R.plurals.password_count, it, it)) }
         state.noteCount?.let { TransferCopy(pluralStringResource(R.plurals.note_count, it, it)) }
         if (state.phase == DirectTransferPhase.REVIEW && state.role == DirectTransferRole.SENDER) TransferCopy(stringResource(R.string.transfer_scope_locked))

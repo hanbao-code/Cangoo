@@ -61,9 +61,10 @@ _ASSET_SOURCES: Mapping[str, tuple[str, bytes]] = MappingProxyType(
         "/assets/help/content.json": ("assets/help/content.json", b"application/json"),
         "/scripts/help_content.js": ("scripts/help_content.js", b"text/javascript; charset=utf-8"),
         "/scripts/help.js": ("scripts/help.js", b"text/javascript; charset=utf-8"),
+        "/scripts/export_selection.js": ("scripts/export_selection.js", b"text/javascript; charset=utf-8"),
         "/styles/help.css": ("styles/help.css", b"text/css; charset=utf-8"),
-        "/scripts/demo_runtime.js": (
-            "scripts/demo_runtime.js",
+        "/scripts/canvas_runtime.js": (
+            "scripts/canvas_runtime.js",
             b"text/javascript; charset=utf-8",
         ),
         "/scripts/event_dispatcher.js": (
@@ -74,8 +75,8 @@ _ASSET_SOURCES: Mapping[str, tuple[str, bytes]] = MappingProxyType(
             "scripts/security_lifecycle.js",
             b"text/javascript; charset=utf-8",
         ),
-        "/scripts/product_entry.js": (
-            "scripts/product_entry.js",
+        "/scripts/preview_entry.js": (
+            "scripts/preview_entry.js",
             b"text/javascript; charset=utf-8",
         ),
         "/vendor/zxcvbn.js": (
@@ -143,8 +144,8 @@ def _compose_product(root: Path, shell_path: str) -> bytes:
 class ResourceCatalog:
     """A closed resource map; request paths are never translated to disk paths."""
 
-    PRODUCT_SHELL_PATH = "product_shell.html"
-    PRODUCT_OUTPUT_KEY = "product.html"
+    PRODUCT_SHELL_PATH = "preview_shell.html"
+    PRODUCT_OUTPUT_KEY = "preview.html"
     ASSET_SOURCES = _ASSET_SOURCES
 
     def __init__(self, root: Path | None = None) -> None:

@@ -1,8 +1,7 @@
 """原生宿主唯一可写路径端口及生产部署路径解析。
 
-本模块不切换任何应用入口。正式 WebEngine 入口获批后，只需把这里解析出的
-``ProductRuntimePaths`` 显式注入现有 Host → Runtime → Adapter 链；M4 隔离
-路径继续实现同一端口，避免复制业务栈。
+正式入口将 ``ProductRuntimePaths`` 注入 Host → Runtime → Adapter 链；
+隔离验收路径实现同一端口，复用业务栈而不接触用户状态。
 """
 
 from __future__ import annotations

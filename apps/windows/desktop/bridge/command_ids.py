@@ -1,4 +1,4 @@
-"""Generated frozen command identifiers; do not edit by hand."""
+"""由 tools/generate_bridge_surface.py 生成；请修改合同来源。"""
 
 from enum import Enum
 
@@ -78,6 +78,10 @@ class CommandId(str, Enum):
     C72 = "C72"
     C73 = "C73"
     C74 = "C74"
+    C87 = "C87"
+    C88 = "C88"
+    C89 = "C89"
+    C90 = "C90"
     N01 = "N01"
     N02 = "N02"
     N03 = "N03"

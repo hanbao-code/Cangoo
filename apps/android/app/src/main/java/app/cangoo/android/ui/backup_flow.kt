@@ -14,10 +14,35 @@ import app.cangoo.android.data.BackupImportPreview
 import app.cangoo.android.data.BackupImportResult
 import app.cangoo.android.data.BackupImportRow
 import app.cangoo.android.data.BackupScope
+import app.cangoo.android.data.BackupSelection
 import app.cangoo.android.data.BackupPreviewTextField
 
 internal enum class BackupStep { HOME, EXPORT, IMPORT, PREVIEW, RESULT }
 internal enum class BackupSource { FILE, TRANSFER }
+internal data class ExportSelectionRow(val kind: BackupImportKind, val id: String, val revision: Long,
+                                      val title: String, val subtitle: String, val updatedAt: String) {
+    override fun toString() = "ExportSelectionRow(内容已隐藏)"
+}
+internal data class ExportSelectionUiState(val token: Long, val permission: Long, val input: Long, val vaultId: String,
+    val origin: Page, val selected: BackupSelection, val query: String = "", val kind: BrowseKind = BrowseKind.ALL,
+    val rows: List<ExportSelectionRow> = emptyList(), val loading: Boolean = true, val error: UiText = UiText.Empty) {
+    val visibleRows: List<ExportSelectionRow> get() = when (kind) {
+        BrowseKind.ALL -> rows
+        BrowseKind.PASSWORD -> rows.filter { it.kind == BackupImportKind.PASSWORD }
+        BrowseKind.NOTE -> rows.filter { it.kind == BackupImportKind.NOTE }
+    }
+    fun isSelected(row: ExportSelectionRow): Boolean = row.id in if (row.kind == BackupImportKind.PASSWORD) selected.passwords else selected.notes
+    val allVisibleSelected: Boolean get() = visibleRows.let { it.isNotEmpty() && it.all(::isSelected) }
+    fun toggledVisibleSelection(): BackupSelection {
+        val current = visibleRows
+        if (current.isEmpty()) return selected
+        val passwords = current.filter { it.kind == BackupImportKind.PASSWORD }.associate { it.id to it.revision }
+        val notes = current.filter { it.kind == BackupImportKind.NOTE }.associate { it.id to it.revision }
+        return if (current.all(::isSelected)) BackupSelection(selected.passwords - passwords.keys, selected.notes - notes.keys)
+            else BackupSelection(selected.passwords + passwords, selected.notes + notes)
+    }
+    override fun toString() = "ExportSelectionUiState(内容已隐藏)"
+}
 internal data class BackupTextRequest(val kind: BackupImportKind, val sourceIndex: Int, val targetId: String?, val field: BackupPreviewTextField)
 internal data class BackupDetail(val kind: BackupImportKind, val sourceIndex: Int, val token: Long)
 internal data class BackupFieldRequest(val field: BackupComparisonField, val offset: Int, val targetId: String?)
@@ -35,6 +60,8 @@ internal data class BackupCommitReview(val token: Long, val summary: BackupImpor
 internal data class BackupUiState(
     val step: BackupStep = BackupStep.HOME,
     val scope: BackupScope = BackupScope.ALL,
+    val custom: Boolean = false,
+    val selection: BackupSelection = BackupSelection(),
     val documentName: String = "",
     val source: BackupSource = BackupSource.FILE,
     val password: String = "",

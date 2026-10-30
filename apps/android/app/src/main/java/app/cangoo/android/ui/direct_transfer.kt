@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import app.cangoo.android.R
 import app.cangoo.android.data.BackupScope
+import app.cangoo.android.data.BackupSelection
 import app.cangoo.android.data.BackupTransferSnapshot
 import app.cangoo.android.data.BackupProblem
 import app.cangoo.android.data.BackupProtocolException
@@ -64,6 +65,8 @@ internal data class DirectTransferUiState(
     val manualAddressExpanded: Boolean = false,
     val manualSearching: Boolean = false,
     val manualError: UiText = UiText.Empty,
+    val custom: Boolean = false,
+    val selection: BackupSelection = BackupSelection(),
 ) {
     override fun toString() = "DirectTransferUiState(内容已隐藏)"
 }
@@ -76,9 +79,10 @@ internal class DirectTransferController(
     private val qualified: () -> Boolean,
     private val interact: () -> Boolean,
     private val transferHold: (Boolean) -> Boolean,
-    private val exportSnapshot: suspend (BackupScope, () -> Boolean) -> BackupTransferSnapshot,
+    private val exportSnapshot: suspend (BackupScope, BackupSelection?, () -> Boolean) -> BackupTransferSnapshot,
     private val receiveSnapshot: suspend (ByteArray, BackupScope, Int, Int, () -> Boolean) -> Unit,
     private val received: () -> Unit,
+    private val selectionEnded: (DirectTransferController) -> Unit = {},
 ) {
     var state by mutableStateOf(DirectTransferUiState(localVaultName))
         private set
@@ -125,7 +129,14 @@ internal class DirectTransferController(
         if (!interact() || closed || state.manualSearching) return
         if (state.phase == DirectTransferPhase.CONFIG) state = state.copy(role = role ?: state.role, channel = channel ?: state.channel)
         else if (role == null && channel == null && scope != null && state.phase == DirectTransferPhase.REVIEW &&
-            state.role == DirectTransferRole.SENDER && !state.offerPrepared) state = state.copy(scope = scope)
+            state.role == DirectTransferRole.SENDER && !state.offerPrepared) state = state.copy(scope = scope, custom = false, error = UiText.Empty)
+    }
+
+    fun selectRecords(selection: BackupSelection): Boolean {
+        if (!interact() || closed || state.phase != DirectTransferPhase.REVIEW || state.role != DirectTransferRole.SENDER || state.offerPrepared) return false
+        if (selection.empty) { state = state.copy(error = UiText(R.string.export_selection_empty)); return false }
+        state = state.copy(custom = true, selection = selection.copy(passwords = selection.passwords.toMap(), notes = selection.notes.toMap()), error = UiText.Empty)
+        return true
     }
 
     fun start() {
@@ -258,19 +269,22 @@ internal class DirectTransferController(
         if (!interact() || !current(owner) || owner.role != DirectTransferRole.SENDER || state.phase != DirectTransferPhase.REVIEW ||
             state.peerVaultName == null || state.offerPrepared) return
         owner.offerScope = state.scope
+        val selected = state.selection.takeIf { state.custom }
+        if (selected?.empty == true) { state = state.copy(error = UiText(R.string.export_selection_empty)); return }
         state = state.copy(phase = DirectTransferPhase.PREPARING)
         work(owner) {
             // 即使取消已到达，也先接回数据层返回对象的清理责任。
-            val snapshot = withContext(NonCancellable) { exportSnapshot(owner.offerScope) { current(owner) } }
+            val snapshot = withContext(NonCancellable) { exportSnapshot(owner.offerScope, selected) { current(owner) } }
             if (!current(owner)) { snapshot.bytes.fill(0); return@work }
             owner.snapshot = snapshot
+            owner.offerScope = snapshot.scope
             val digest = withContext(Dispatchers.Default) { MessageDigest.getInstance("SHA-256").digest(snapshot.bytes).joinToString("") { "%02x".format(it) } }
             if (!current(owner)) return@work
             owner.offerHash = digest
             owner.passwordCount = snapshot.passwordCount
             owner.noteCount = snapshot.noteCount
             owner.totalBytes = snapshot.bytes.size.toLong()
-            state = state.copy(phase = DirectTransferPhase.REVIEW, offerPrepared = true,
+            state = state.copy(phase = DirectTransferPhase.REVIEW, offerPrepared = true, scope = snapshot.scope,
                 totalBytes = owner.totalBytes, passwordCount = owner.passwordCount, noteCount = owner.noteCount)
             owner.serial.withLock {
                 result(owner, requireNotNull(owner.protocol).sendMessage(mapOf("type" to "offer", "scope" to owner.offerScope.name,
@@ -315,6 +329,7 @@ internal class DirectTransferController(
         releaseOwner()
         state = state.copy(phase = DirectTransferPhase.FAILED, pairingCode = "", peersSelectable = false, error = UiText(R.string.transfer_error_permissions),
             settings = DirectTransferSettings.APPLICATION)
+        selectionEnded(this)
     }
 
     fun settingsUnavailable() {
@@ -327,6 +342,7 @@ internal class DirectTransferController(
         releaseOwner()
         state = DirectTransferUiState(state.localVaultName, state.role, state.channel, state.scope,
             manualAddress = state.manualAddress, manualAddressExpanded = state.manualAddressExpanded)
+        selectionEnded(this)
     }
 
     fun close() {
@@ -334,6 +350,7 @@ internal class DirectTransferController(
         closed = true
         releaseOwner()
         state = DirectTransferUiState(state.localVaultName)
+        selectionEnded(this)
     }
 
     private suspend fun connected(owner: Owner, connection: DirectTransferConnection) {
@@ -557,6 +574,11 @@ internal class DirectTransferController(
     }
 
     private fun handleFailure(owner: Owner, error: Exception) {
+        if (owner.role == DirectTransferRole.SENDER && state.phase == DirectTransferPhase.PREPARING && !state.offerPrepared &&
+            error is BackupStoreException && error.problem in setOf(BackupStoreProblem.EXPORT_EMPTY, BackupStoreProblem.EXPORT_CHANGED)) {
+            state = state.copy(phase = DirectTransferPhase.REVIEW, error = error.problem.uiText())
+            return
+        }
         if (owner.role == DirectTransferRole.SENDER && !owner.authenticatedOnce &&
             (error is DirectTransferException && error.code == "AUTH" || error is IOException && error !is DirectTransferTransportException)) {
             retryPairing(owner)
@@ -620,8 +642,9 @@ internal class DirectTransferController(
         val completed = owner.localVerified || phase == DirectTransferPhase.RECEIVED
         state = state.copy(phase = if (completed) DirectTransferPhase.RECEIVED else phase,
             error = if (completed) UiText.Empty else error, peers = emptyList(), peersSelectable = false, pairingCode = "",
-            settings = if (completed) null else settings)
+            settings = if (completed) null else settings, selection = BackupSelection())
         releaseOwner()
+        selectionEnded(this)
         if (completed && !closed && qualified()) received()
     }
 

@@ -1,4 +1,4 @@
-"""接收已验证运行路径的 M4 产品宿主。"""
+"""接收运行路径端口并装配产品运行时的原生窗口。"""
 
 from __future__ import annotations
 
@@ -51,8 +51,8 @@ from .database_targets import (
 from .backup import BackupFileSelector, NativeBackupFileSelector
 from desktop.runtime_paths import RuntimePaths
 from .quickbar import QuickbarFocusPort
-from .resources import M4ResourceCatalog
-from .runtime import M4BridgeRuntime
+from .resources import ProductResourceCatalog
+from .runtime import ProductRuntime
 
 
 _M4_RENDERER_PRESENTATION_ARM = """
@@ -316,7 +316,7 @@ _ACCESSIBLE_OPERATION_ERROR_TEXT = {
 }
 
 
-class _M4SuspendLockState(str, Enum):
+class _SuspendLockState(str, Enum):
     """One suspend transaction; COMPLETE must never be replayed."""
 
     NONE = "none"
@@ -325,14 +325,14 @@ class _M4SuspendLockState(str, Enum):
     FAILED = "failed"
 
 
-class _M4PowerRebindState(str, Enum):
+class _PowerRebindState(str, Enum):
     NONE = "none"
     CLEARING = "clearing"
     WAITING_REGISTRATION = "waiting_registration"
 
 
-class M4HostWindow(HostWindow):
-    """M4 产品宿主；构造时必须显式注入已验证的运行路径。"""
+class ProductWindow(HostWindow):
+    """产品宿主，构造时显式注入经过验证的运行路径。"""
 
     # 宿主在后台准备好首个安全表面后才允许顶层窗口出现。
     defers_initial_show = True
@@ -359,7 +359,7 @@ class M4HostWindow(HostWindow):
         update_client_factory=None,
     ) -> None:
         if not isinstance(isolation, RuntimePaths):
-            raise TypeError("M4HostWindow requires validated runtime paths")
+            raise TypeError("ProductWindow requires validated runtime paths")
         self._m4_isolation = isolation
         self._m4_target_selector = target_selector
         self._m4_hotkey_backend = hotkey_backend
@@ -367,17 +367,17 @@ class M4HostWindow(HostWindow):
         self._m4_backup_selector = backup_selector
         self._m4_startup_update_check = startup_update_check
         self._m4_update_client_factory = update_client_factory
-        self._m4_runtime: M4BridgeRuntime | None = None
+        self._m4_runtime: ProductRuntime | None = None
         self._m4_direct_transfer = None
         self._m4_transfer_core = None
         self._m4_transfer_hold_epoch = 0
         self._m4_auto_lock_enabled = True
         self._m4_auto_lock_minutes = 5
-        self._m4_suspend_lock_state = _M4SuspendLockState.NONE
+        self._m4_suspend_lock_state = _SuspendLockState.NONE
         self._m4_power_suspended = False
         self._m4_power_registration_ready = False
         self._m4_power_protection_failed = False
-        self._m4_power_rebind_state = _M4PowerRebindState.NONE
+        self._m4_power_rebind_state = _PowerRebindState.NONE
         self._m4_last_security_resume_count = -1
         self._m4_suspended_canvas_probe_generation = 0
         self._m4_suspended_initial_probe_generation = 0
@@ -408,7 +408,7 @@ class M4HostWindow(HostWindow):
         # H06 清理路径操作同一个对象。
         self._m4_native_clipboard = native_clipboard or NativeClipboard()
         super().__init__(
-            M4ResourceCatalog(),
+            ProductResourceCatalog(),
             enable_tray=True,
             close_to_tray=True,
             tray_controller_factory=tray_controller_factory,
@@ -466,7 +466,7 @@ class M4HostWindow(HostWindow):
         return runtime is not None and runtime.attached
 
     @property
-    def m4_runtime(self) -> M4BridgeRuntime:
+    def m4_runtime(self) -> ProductRuntime:
         runtime = self._m4_runtime
         if runtime is None:
             raise RuntimeError("M4 runtime has not been initialized")
@@ -498,7 +498,7 @@ class M4HostWindow(HostWindow):
                     self._m4_isolation.database_chooser_directory,
                 )
             self._m4_backup_selector = backup_selector
-            runtime = M4BridgeRuntime(
+            runtime = ProductRuntime(
                 self,
                 self._m4_isolation,
                 selector,
@@ -520,7 +520,7 @@ class M4HostWindow(HostWindow):
                 hold=self._set_transfer_hold, adopt_received=self._adopt_transfer_preview, parent=self,
                 lan_access=LanAccess(self), clipboard=runtime.clipboard)
             self._m4_transfer_core = core
-            transfer = DirectTransferWindowController(core, authority=authority, busy=busy,
+            transfer = DirectTransferWindowController(core, catalog=runtime.backup_window.catalog, authority=authority, busy=busy,
                 view_factory=lambda: self.create_m4_editor_view("/transfer.html"),
                 renderer_failed=runtime._on_editor_renderer_failed, parent=self)
             self._m4_direct_transfer = transfer
@@ -612,7 +612,7 @@ class M4HostWindow(HostWindow):
                 str(presentation_token),
             ).replace(
                 "__PDM_LOCKED_CONNECTION_READY__",
-                M4HostWindow._locked_connection_ready_expression(self),
+                ProductWindow._locked_connection_ready_expression(self),
             )
         )
 
@@ -688,7 +688,7 @@ class M4HostWindow(HostWindow):
             self.isVisible()
             and not self.isMinimized()
             and not self._m4_power_suspended
-            and not M4HostWindow.m4_power_rebind_pending(self)
+            and not ProductWindow.m4_power_rebind_pending(self)
             and not self._tray_hide_settling
         )
 
@@ -747,7 +747,7 @@ class M4HostWindow(HostWindow):
     def _suspend_technical_probes(self) -> None:
         """只作废睡眠前的网页检查身份，不重建处理过程。"""
 
-        M4HostWindow._clear_suspended_technical_probes(self)
+        ProductWindow._clear_suspended_technical_probes(self)
         generation = getattr(self, "_renderer_page_generation", 0)
         if type(generation) is not int or generation <= 0:
             return
@@ -791,7 +791,7 @@ class M4HostWindow(HostWindow):
             "_m4_suspended_initial_processing_token",
             None,
         )
-        M4HostWindow._clear_suspended_technical_probes(self)
+        ProductWindow._clear_suspended_technical_probes(self)
         generation = getattr(self, "_renderer_page_generation", 0)
         if type(generation) is not int or generation <= 0:
             return
@@ -824,7 +824,7 @@ class M4HostWindow(HostWindow):
     def _prepare_renderer_page_for_presentation(self, generation: int) -> bool:
         """准备用户可见交接，并把协调器切入可呈现阶段。"""
 
-        return M4HostWindow._prepare_renderer_page_for_processing(
+        return ProductWindow._prepare_renderer_page_for_processing(
             self,
             generation,
             enter_visible_stage=True,
@@ -836,7 +836,7 @@ class M4HostWindow(HostWindow):
     ) -> bool:
         """仅为隐藏首表面静态预检激活页面，不创建可见呈现阶段。"""
 
-        return M4HostWindow._prepare_renderer_page_for_processing(
+        return ProductWindow._prepare_renderer_page_for_processing(
             self,
             generation,
             enter_visible_stage=False,
@@ -1311,8 +1311,8 @@ class M4HostWindow(HostWindow):
         HostWindow._on_renderer_curtain_hidden(self, generation)
         self.confirm_renderer_curtain_sidebar_width()
         self._locked_presentation_ready_token = None
-        M4HostWindow._sync_transient_toast_presentation(self)
-        if M4HostWindow._show_claimed_change_key_success_toast_if_presentable(
+        ProductWindow._sync_transient_toast_presentation(self)
+        if ProductWindow._show_claimed_change_key_success_toast_if_presentable(
             self,
             generation,
         ):
@@ -1367,7 +1367,7 @@ class M4HostWindow(HostWindow):
             return
         QTimer.singleShot(
             0,
-            lambda: M4HostWindow._sync_transient_toast_presentation(self),
+            lambda: ProductWindow._sync_transient_toast_presentation(self),
         )
         QTimer.singleShot(0, self._resume_processing_presentation_if_possible)
         QTimer.singleShot(
@@ -1383,7 +1383,7 @@ class M4HostWindow(HostWindow):
         super().hideEvent(event)
         if getattr(self, "_exit_cleanup_started", False):
             return
-        M4HostWindow._sync_transient_toast_presentation(self)
+        ProductWindow._sync_transient_toast_presentation(self)
         # 此时 Qt 的隐藏状态已经生效；只作废本轮可见检查，恢复显示
         # 后再由 show/restore 入口建立新身份。
         self._pause_processing_presentation()
@@ -1403,12 +1403,12 @@ class M4HostWindow(HostWindow):
         )
         if entering_minimized:
             # 原生最小化状态生效后只作废本轮技术检查，不排后台绘制。
-            M4HostWindow._sync_transient_toast_presentation(self)
+            ProductWindow._sync_transient_toast_presentation(self)
             self._pause_processing_presentation()
         if restoring_from_minimized:
             QTimer.singleShot(
                 0,
-                lambda: M4HostWindow._sync_transient_toast_presentation(self),
+                lambda: ProductWindow._sync_transient_toast_presentation(self),
             )
             QTimer.singleShot(
                 0,
@@ -1498,9 +1498,9 @@ class M4HostWindow(HostWindow):
         if not self.ensure_m4_power_protection():
             return
         suspend_lock_required = self._m4_suspend_lock_state in {
-            _M4SuspendLockState.IN_PROGRESS,
-            _M4SuspendLockState.COMPLETE,
-            _M4SuspendLockState.FAILED,
+            _SuspendLockState.IN_PROGRESS,
+            _SuspendLockState.COMPLETE,
+            _SuspendLockState.FAILED,
         }
         self.security.session_authorized(session_epoch)
         if suspend_lock_required:
@@ -1508,7 +1508,7 @@ class M4HostWindow(HostWindow):
             self.set_tray_state(TraySessionState.LOCKED)
             self._lock_m4_session_opened_during_suspend(session_epoch)
             return
-        self._m4_suspend_lock_state = _M4SuspendLockState.NONE
+        self._m4_suspend_lock_state = _SuspendLockState.NONE
         self.set_tray_state(TraySessionState.CONNECTED)
         self._m4_idle_monitor.arm_session(
             self._m4_auto_lock_enabled,
@@ -1553,8 +1553,8 @@ class M4HostWindow(HostWindow):
             pass
         self._m4_idle_monitor.disarm_session()
         self.set_tray_state(TraySessionState.LOCKED)
-        if self._m4_suspend_lock_state is _M4SuspendLockState.IN_PROGRESS:
-            self._m4_suspend_lock_state = _M4SuspendLockState.FAILED
+        if self._m4_suspend_lock_state is _SuspendLockState.IN_PROGRESS:
+            self._m4_suspend_lock_state = _SuspendLockState.FAILED
         self.ready = False
         self.load_ok = False
         self.view.setEnabled(False)
@@ -1781,8 +1781,8 @@ class M4HostWindow(HostWindow):
 
     def m4_power_rebind_pending(self) -> bool:
         return (
-            getattr(self, "_m4_power_rebind_state", _M4PowerRebindState.NONE)
-            is not _M4PowerRebindState.NONE
+            getattr(self, "_m4_power_rebind_state", _PowerRebindState.NONE)
+            is not _PowerRebindState.NONE
         )
 
     def _on_power_registration_lost(self) -> None:
@@ -1794,7 +1794,7 @@ class M4HostWindow(HostWindow):
         ):
             return
         runtime = self.m4_runtime
-        self._m4_power_rebind_state = _M4PowerRebindState.CLEARING
+        self._m4_power_rebind_state = _PowerRebindState.CLEARING
         try:
             complete = (
                 runtime.bridge.active_page_epoch <= 0
@@ -1805,16 +1805,16 @@ class M4HostWindow(HostWindow):
         if complete is not True:
             self._on_power_registration_failed()
             return
-        self._m4_power_rebind_state = _M4PowerRebindState.WAITING_REGISTRATION
+        self._m4_power_rebind_state = _PowerRebindState.WAITING_REGISTRATION
         self._on_power_registration_available()
 
     def _on_power_registration_available(self) -> None:
         if (
-            self._m4_power_rebind_state is not _M4PowerRebindState.WAITING_REGISTRATION
+            self._m4_power_rebind_state is not _PowerRebindState.WAITING_REGISTRATION
             or not self.power.is_registered_for(int(self.internalWinId()))
         ):
             return
-        self._m4_power_rebind_state = _M4PowerRebindState.NONE
+        self._m4_power_rebind_state = _PowerRebindState.NONE
         self._resume_processing_presentation_if_possible()
 
     def _on_power_registration_failed(self) -> None:
@@ -1898,8 +1898,8 @@ class M4HostWindow(HostWindow):
         """先记录窗口状态，再同步完成或确认既有锁定。"""
 
         self._m4_power_suspended = True
-        M4HostWindow._sync_transient_toast_presentation(self)
-        M4HostWindow._suspend_technical_probes(self)
+        ProductWindow._sync_transient_toast_presentation(self)
+        ProductWindow._suspend_technical_probes(self)
         self._pause_processing_presentation()
         HostWindow._on_power_suspending(self, count)
         runtime = self._m4_runtime
@@ -1907,22 +1907,22 @@ class M4HostWindow(HostWindow):
             return
         if runtime.active_session_epoch <= 0:
             if runtime.active_page_epoch <= 0:
-                self._m4_suspend_lock_state = _M4SuspendLockState.COMPLETE
+                self._m4_suspend_lock_state = _SuspendLockState.COMPLETE
                 return
-            self._m4_suspend_lock_state = _M4SuspendLockState.IN_PROGRESS
+            self._m4_suspend_lock_state = _SuspendLockState.IN_PROGRESS
             complete = runtime.lock_public_page_for_suspend()
             self._m4_suspend_lock_state = (
-                _M4SuspendLockState.COMPLETE
+                _SuspendLockState.COMPLETE
                 if complete
-                else _M4SuspendLockState.FAILED
+                else _SuspendLockState.FAILED
             )
             return
-        self._m4_suspend_lock_state = _M4SuspendLockState.IN_PROGRESS
+        self._m4_suspend_lock_state = _SuspendLockState.IN_PROGRESS
         complete = runtime.lock_session_from_native("SUSPEND_LOCK")
         self._m4_suspend_lock_state = (
-            _M4SuspendLockState.COMPLETE
+            _SuspendLockState.COMPLETE
             if complete
-            else _M4SuspendLockState.FAILED
+            else _SuspendLockState.FAILED
         )
 
     def _lock_m4_session_opened_during_suspend(
@@ -1933,20 +1933,20 @@ class M4HostWindow(HostWindow):
 
         runtime = self._m4_runtime
         if runtime is None:
-            self._m4_suspend_lock_state = _M4SuspendLockState.FAILED
+            self._m4_suspend_lock_state = _SuspendLockState.FAILED
             self.on_m4_lock_failed()
             return
         if runtime.active_session_epoch == 0:
-            self._m4_suspend_lock_state = _M4SuspendLockState.FAILED
+            self._m4_suspend_lock_state = _SuspendLockState.FAILED
             self.on_m4_lock_failed()
             return
         if runtime.active_session_epoch != session_epoch:
-            self._m4_suspend_lock_state = _M4SuspendLockState.FAILED
+            self._m4_suspend_lock_state = _SuspendLockState.FAILED
             self.on_m4_lock_failed()
             return
-        self._m4_suspend_lock_state = _M4SuspendLockState.IN_PROGRESS
+        self._m4_suspend_lock_state = _SuspendLockState.IN_PROGRESS
         runtime.lock_session_from_native("SUSPEND_LOCK")
-        self._m4_suspend_lock_state = _M4SuspendLockState.FAILED
+        self._m4_suspend_lock_state = _SuspendLockState.FAILED
         self.on_m4_lock_failed()
 
     def _on_power_resumed(self, event_name: str, count: int) -> None:
@@ -1961,23 +1961,23 @@ class M4HostWindow(HostWindow):
             and runtime is not None
             and runtime.active_session_epoch > 0
         ):
-            self._m4_suspend_lock_state = _M4SuspendLockState.IN_PROGRESS
+            self._m4_suspend_lock_state = _SuspendLockState.IN_PROGRESS
             complete = runtime.lock_session_from_native("SUSPEND_LOCK")
             self._m4_suspend_lock_state = (
-                _M4SuspendLockState.COMPLETE
+                _SuspendLockState.COMPLETE
                 if complete
-                else _M4SuspendLockState.FAILED
+                else _SuspendLockState.FAILED
             )
-        failed = self._m4_suspend_lock_state is _M4SuspendLockState.FAILED
+        failed = self._m4_suspend_lock_state is _SuspendLockState.FAILED
         if not failed:
-            self._m4_suspend_lock_state = _M4SuspendLockState.NONE
+            self._m4_suspend_lock_state = _SuspendLockState.NONE
         self._m4_power_suspended = False
         HostWindow._on_power_resumed(self, event_name, count)
-        M4HostWindow._sync_transient_toast_presentation(self)
+        ProductWindow._sync_transient_toast_presentation(self)
         if failed:
-            M4HostWindow._clear_suspended_technical_probes(self)
+            ProductWindow._clear_suspended_technical_probes(self)
         else:
-            M4HostWindow._resume_suspended_technical_probes(self)
+            ProductWindow._resume_suspended_technical_probes(self)
             QTimer.singleShot(
                 0,
                 self._resume_processing_presentation_if_possible,
@@ -1994,7 +1994,7 @@ class M4HostWindow(HostWindow):
             hidden = super().hide_to_tray()
             return hidden
         finally:
-            M4HostWindow._sync_transient_toast_presentation(self)
+            ProductWindow._sync_transient_toast_presentation(self)
             if not hidden and self._window_is_presentable_for_processing():
                 self._resume_processing_presentation_if_possible()
 
@@ -2006,7 +2006,7 @@ class M4HostWindow(HostWindow):
         super().restore_from_tray()
         QTimer.singleShot(
             0,
-            lambda: M4HostWindow._sync_transient_toast_presentation(self),
+            lambda: ProductWindow._sync_transient_toast_presentation(self),
         )
         QTimer.singleShot(0, self._resume_processing_presentation_if_possible)
         QTimer.singleShot(
@@ -2101,7 +2101,7 @@ class M4HostWindow(HostWindow):
             self._clear_processing_curtain_presentation()
         self._locked_presentation_ready_token = None
         super()._show_renderer_curtain(state)
-        M4HostWindow._sync_transient_toast_presentation(self)
+        ProductWindow._sync_transient_toast_presentation(self)
         if startup_failure:
             # 失败幕布已经完整安装，入口现在可以安全地显示一次窗口。
             self._emit_initial_surface_ready()
@@ -2129,8 +2129,8 @@ class M4HostWindow(HostWindow):
 
         super()._prepare_for_true_exit()
         self._terminate_processing_curtain()
-        self._m4_suspend_lock_state = _M4SuspendLockState.NONE
+        self._m4_suspend_lock_state = _SuspendLockState.NONE
         self.hide()
 
 
-__all__ = ["M4HostWindow"]
+__all__ = ["ProductWindow"]

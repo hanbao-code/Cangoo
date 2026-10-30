@@ -7733,6 +7733,8 @@
       sourceKind: 'FILE',
       sourceDisplayName: '',
       scope: 'ALL',
+      exportSelection: null,
+      picker: null,
       kind: 'PASSWORD',
       destinationTicket: '',
       sourceTicket: '',
@@ -7817,6 +7819,7 @@
 
   function clearBackupPreviewState(backup, reason, keepDraft = false, releaseNativeReads = true) {
     if (!backup) return;
+    backup.picker?.dispose(); backup.picker = null;
     backup.generation += 1;
     clearBackupReads(backup, reason, false, releaseNativeReads);
     backup.previewTicket = '';
@@ -7875,6 +7878,7 @@
     closeBackupPreview(backup, reason);
     backup.destinationTicket = '';
     backup.sourceTicket = '';
+    backup.exportSelection = null;
     scrubBackupInputs();
     runtime.backup = null;
     closeDemoModal();
@@ -7907,6 +7911,7 @@
       control.setAttribute('aria-busy', busy ? 'true' : 'false');
     });
     updateBackupProgress(backup, busy, message);
+    updateBackupExportSelection(backup);
   }
 
   function updateBackupProgress(backup, busy, message = '') {
@@ -8567,18 +8572,19 @@
     const head = document.createElement('div'); head.className = 'ie-comparison-heading';
     const name = document.createElement('strong'); name.textContent = item.platform; head.append(name);
     const actions = document.createElement('div'); actions.className = 'ie-conflict-actions';
+    const targets = document.createElement('div'); targets.className = 'ie-comparison-targets ie-conflict-actions';
     if (item.decisionRequired) {
       if (item.targetCount > 0 && !item.targetSelected) {
         const select = backupButton('decision', fixedText('选择首个目标', 'Select first target'), `backup-conflict:${item.conflictId}:SELECT_TARGET`);
         setEnabled(select, !backup.pending);
-        select.dataset.pdmBackupDecision = 'SELECT_TARGET'; actions.append(select);
+        select.dataset.pdmBackupDecision = 'SELECT_TARGET'; targets.append(select);
       }
       if (item.targetCount > 1 && item.targetSelected) {
         for (const [decision, zh, en] of [['PREVIOUS_TARGET', '上个目标', 'Previous target'], ['NEXT_TARGET', '下个目标', 'Next target']]) {
           const button = backupButton('decision', fixedText(zh, en), `backup-conflict:${item.conflictId}:${decision}`);
           button.dataset.pdmBackupDecision = decision;
           setEnabled(button, !backup.pending && (decision === 'PREVIOUS_TARGET' ? item.targetIndex > 0 : item.targetIndex + 1 < item.targetCount));
-          actions.append(button);
+          targets.append(button);
         }
       }
       for (const decision of (item.kind === 'NOTE' ? ['OVERWRITE', 'KEEP', 'SKIP'] : ['OVERWRITE', 'SKIP'])) {
@@ -8589,6 +8595,7 @@
       }
     }
     head.append(actions); content.append(head);
+    if (targets.childElementCount) content.append(targets);
     if (item.status === 'IDENTICAL' || item.targetProtected) {
       const protectedText = document.createElement('div'); protectedText.className = 'ie-conflict-help';
       protectedText.textContent = item.status === 'IDENTICAL' ? fixedText('业务内容相同，保留当前记录及其时间、排序。', 'Identical content. Keep the existing record, dates and order.') :
@@ -8670,6 +8677,37 @@
     }
   }
 
+  function updateBackupExportSelection(backup) {
+    if (!backup || runtime.backup !== backup || backup.mode !== 'export') return;
+    const custom = backup.scope === 'CUSTOM', summary = byId('ie-custom-selection');
+    const counts = window.PdmExportSelection.counts(backup.exportSelection);
+    const option = byId('ie-scope')?.querySelector('[value="CUSTOM"]');
+    if (option) option.textContent = fixedText('自定义', 'Custom');
+    if (byId('ie-select-records')) byId('ie-select-records').textContent = fixedText('选择记录', 'Choose records');
+    if (summary) {
+      summary.hidden = !custom;
+      summary.firstElementChild.textContent = fixedText(`密码 ${counts.passwordCount} · 记事 ${counts.noteCount}`,
+        `${counts.passwordCount} passwords · ${counts.noteCount} notes`);
+    }
+    // 在途禁用由 setBackupBusy 管理，避免打断回车提交后的焦点保持。
+    if (!backup.pending) setEnabled(byId('ie-execute-btn'), !custom || counts.passwordCount + counts.noteCount > 0);
+  }
+
+  function chooseBackupExportSelection(previousScope) {
+    const backup = backupState();
+    if (!backup || backup.pending || backup.picker || backup.mode !== 'export') return;
+    const generation = backup.generation;
+    backup.scope = 'CUSTOM'; updateBackupExportSelection(backup);
+    backup.picker = window.PdmExportSelection.openNative(activeBackupModal().querySelector('.modal'), runtime.bridge,
+      runtime.pageEpoch, runtime.sessionEpoch, state.lang === 'en' ? 'EN' : 'ZH', backup.exportSelection, result => {
+        if (!backupCurrent(backup,generation)) return;
+        backup.picker = null;
+        if (result !== null) backup.exportSelection = result;
+        else backup.scope = previousScope;
+        byId('ie-scope').value = backup.scope; updateBackupExportSelection(backup);
+      });
+  }
+
   function openDirectTransferDialog() {
     if (!runtime.ready || runtime.state !== 'UNLOCKED' || !runtime.transferLauncher || runtime.transferOpening) return;
     const page = runtime.pageEpoch, session = runtime.sessionEpoch;
@@ -8701,7 +8739,7 @@
         <div class="modal-field"><label class="modal-field-label" data-i18n="dialog.ie.format.label">${t('dialog.ie.format.label')}</label><div class="ie-format-info"><span class="ie-format-name" data-i18n="dialog.ie.format.encrypted">${t('dialog.ie.format.encrypted')}</span><span class="modal-field-hint" data-i18n="dialog.ie.format.encrypted.hint">${t('dialog.ie.format.encrypted.hint')}</span></div></div>
         <div class="modal-field"><label class="modal-field-label" data-i18n="dialog.ie.path.label">${t('dialog.ie.path.label')}</label><div class="modal-field-row"><input class="modal-field-input" id="ie-path" readonly><button class="btn btn-sm" id="ie-browse-btn" type="button" data-pdm-backup-action="choose" data-i18n="dialog.ie.browse">${t('dialog.ie.browse')}</button></div></div>
         <div class="modal-field"><label class="modal-field-label" data-i18n="dialog.ie.password.label">${t('dialog.ie.password.label')}</label><div class="password-field-wrap"><input class="modal-field-input" id="ie-password" type="password"><div class="pw-actions"><button class="pw-action-btn" type="button" data-pdm-backup-action="toggle-password" data-pdm-backup-input="ie-password">${svgIcon('eye', 16)}</button></div></div><span class="modal-field-hint" data-i18n="dialog.ie.password.hint">${t('dialog.ie.password.hint')}</span></div>
-        <div class="ie-mode-stack"><div class="ie-mode-page" id="ie-export-page"><div class="modal-field"><label class="modal-field-label" data-i18n="dialog.ie.password.confirm.label">${t('dialog.ie.password.confirm.label')}</label><div class="password-field-wrap"><input class="modal-field-input" id="ie-confirm" type="password"><div class="pw-actions"><button class="pw-action-btn" type="button" data-pdm-backup-action="toggle-password" data-pdm-backup-input="ie-confirm">${svgIcon('eye', 16)}</button></div></div><div class="match-indicator empty" id="ie-match-indicator"></div></div><div class="modal-field"><label class="modal-field-label" data-i18n="dialog.ie.scope.label">${t('dialog.ie.scope.label')}</label><select class="modal-field-input" id="ie-scope"><option value="ALL" data-i18n="dialog.ie.scope.all">${t('dialog.ie.scope.all')}</option><option value="PASSWORDS" data-i18n="dialog.ie.scope.passwords">${t('dialog.ie.scope.passwords')}</option><option value="NOTES" data-i18n="dialog.ie.scope.notes">${t('dialog.ie.scope.notes')}</option></select></div><div class="ie-warning-box" data-i18n="dialog.ie.warning.export">${t('dialog.ie.warning.export')}</div></div><div class="ie-mode-page" id="ie-import-page"><div class="modal-field"><label class="modal-field-label" data-i18n="dialog.ie.preview.label">${t('dialog.ie.preview.label')}</label><div class="ie-preview-box" id="ie-preview"></div><button class="btn btn-sm" id="ie-preview-btn" type="button" data-pdm-backup-action="preview" data-i18n="dialog.ie.preview.button">${t('dialog.ie.preview.button')}</button></div></div></div>
+        <div class="ie-mode-stack"><div class="ie-mode-page" id="ie-export-page"><div class="modal-field"><label class="modal-field-label" data-i18n="dialog.ie.password.confirm.label">${t('dialog.ie.password.confirm.label')}</label><div class="password-field-wrap"><input class="modal-field-input" id="ie-confirm" type="password"><div class="pw-actions"><button class="pw-action-btn" type="button" data-pdm-backup-action="toggle-password" data-pdm-backup-input="ie-confirm">${svgIcon('eye', 16)}</button></div></div><div class="match-indicator empty" id="ie-match-indicator"></div></div><div class="modal-field"><label class="modal-field-label" data-i18n="dialog.ie.scope.label">${t('dialog.ie.scope.label')}</label><select class="modal-field-input" id="ie-scope"><option value="ALL" data-i18n="dialog.ie.scope.all">${t('dialog.ie.scope.all')}</option><option value="PASSWORDS" data-i18n="dialog.ie.scope.passwords">${t('dialog.ie.scope.passwords')}</option><option value="NOTES" data-i18n="dialog.ie.scope.notes">${t('dialog.ie.scope.notes')}</option><option value="CUSTOM">${fixedText('自定义', 'Custom')}</option></select><div class="export-selection-summary" id="ie-custom-selection" hidden><span></span><button type="button" class="btn btn-sm" id="ie-select-records">${fixedText('选择记录', 'Choose records')}</button></div></div><div class="ie-warning-box" data-i18n="dialog.ie.warning.export">${t('dialog.ie.warning.export')}</div></div><div class="ie-mode-page" id="ie-import-page"><div class="modal-field"><label class="modal-field-label" data-i18n="dialog.ie.preview.label">${t('dialog.ie.preview.label')}</label><div class="ie-preview-box" id="ie-preview"></div><button class="btn btn-sm" id="ie-preview-btn" type="button" data-pdm-backup-action="preview" data-i18n="dialog.ie.preview.button">${t('dialog.ie.preview.button')}</button></div></div></div>
         <div class="ie-inline-status" id="ie-inline-status" role="status" aria-live="polite" aria-atomic="true" hidden></div>
       </div>
       <div class="modal-footer"><button class="btn btn-sm" type="button" data-pdm-backup-action="cancel" data-i18n="dialog.button.cancel">${t('dialog.button.cancel')}</button><div class="modal-footer-right"><button class="btn btn-sm" id="ie-back-btn" type="button" data-pdm-backup-action="back-passwords" hidden></button><button class="btn btn-primary btn-sm" id="ie-execute-btn" type="button" data-pdm-backup-action="execute"></button></div></div>`;
@@ -8756,11 +8794,15 @@
       if (
         backup &&
         event.target instanceof HTMLSelectElement &&
-        ['ALL', 'PASSWORDS', 'NOTES'].includes(event.target.value)
+        ['ALL', 'PASSWORDS', 'NOTES', 'CUSTOM'].includes(event.target.value)
       ) {
+        const previous = backup.scope;
         backup.scope = event.target.value;
+        if (backup.scope === 'CUSTOM') chooseBackupExportSelection(previous);
+        else updateBackupExportSelection(backup);
       }
     });
+    byId('ie-select-records')?.addEventListener('click', () => chooseBackupExportSelection('CUSTOM'));
     arrangeBackupWindow(modal);
     projectBackupMode(initial);
     byId('ie-browse-btn')?.focus({preventScroll: true});
@@ -8813,6 +8855,8 @@
       button.setAttribute('aria-pressed', buttonMode === mode ? 'true' : 'false');
     });
     updateBackupPasswordMatch(); renderBackupPreview(backup);
+    updateBackupExportSelection(backup);
+    backup.picker?.appearance(state.lang === 'en' ? 'EN' : 'ZH');
   }
 
   function chooseBackupPath() {
@@ -9323,6 +9367,8 @@
     const backup = backupState(); const password = byId('ie-password'); const confirm = byId('ie-confirm');
     if (!backup || backup.pending || !(password instanceof HTMLInputElement) || !(confirm instanceof HTMLInputElement)) return;
     if (backup.mode === 'export') {
+      const counts = window.PdmExportSelection.counts(backup.exportSelection);
+      if (backup.scope === 'CUSTOM' && counts.passwordCount + counts.noteCount === 0) return;
       if (!backup.destinationTicket) {
         showBackupMessage(
           backup,
@@ -9399,6 +9445,11 @@
     const backup = runtime.backup;
     if (!finishBackupPending(backup, request, pageEpoch, sessionEpoch, 'export')) return;
     if (errorCode !== 'OK' || !isBackupExportResult(result)) {
+      if (errorCode === 'REVISION_CONFLICT' && backup.scope === 'CUSTOM') {
+        showBackupStatus(backup, fixedText('所选记录已修改或删除，请重新选择并核对后再导出。',
+          'Selected records changed or were removed. Choose and review them again before exporting.'), '#ie-select-records');
+        return;
+      }
       showBackupError(
         backup,
         errorCode || 'INTERNAL_FAILURE',

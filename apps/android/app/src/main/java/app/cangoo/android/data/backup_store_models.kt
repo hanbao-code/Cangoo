@@ -1,6 +1,11 @@
 package app.cangoo.android.data
 
 internal enum class BackupImportKind { PASSWORD, NOTE }
+internal data class BackupSelection(val passwords: Map<String, Long> = emptyMap(), val notes: Map<String, Long> = emptyMap()) {
+    val empty: Boolean get() = passwords.isEmpty() && notes.isEmpty()
+    val scope: BackupScope get() = when { notes.isEmpty() -> BackupScope.PASSWORDS; passwords.isEmpty() -> BackupScope.NOTES; else -> BackupScope.ALL }
+    override fun toString() = "BackupSelection(记录身份已隐藏)"
+}
 internal enum class PasswordImportAction { OVERWRITE, SKIP }
 internal enum class NoteImportAction { KEEP_BOTH, OVERWRITE, SKIP }
 internal enum class BackupPreviewTextField { TITLE, ACCOUNT, NOTES, CONTENT }
@@ -115,6 +120,8 @@ internal enum class BackupStoreProblem(val text: String) {
     LIMIT("备份大小、记录数量或记事排序位置超出可接收范围。"),
     INPUT("备份预览读取参数无效，请重新打开。"),
     VERIFICATION("备份校验未通过，本次导出未完成，请重试。"),
+    EXPORT_EMPTY("请至少选择一条密码或记事。"),
+    EXPORT_CHANGED("所选资料已修改或删除，请重新选择并核对。"),
 }
 
 internal class BackupStoreException(val problem: BackupStoreProblem) : IllegalStateException(problem.text)

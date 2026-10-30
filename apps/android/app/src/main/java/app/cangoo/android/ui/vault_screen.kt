@@ -267,7 +267,7 @@ private fun CangooContent(model: VaultModel, contentVisible: Boolean, onLeave: (
             }
             else if (state.page == Page.HOME || state.page == Page.PASSWORDS) BLookupToolbar(state.busy, model::startSearch, model::showAdd) { model.lock() }
             else if (state.page != Page.LOCKED) Header(state, onBack = { back() }, onAdd = model::showAdd,
-                titleOverride = if (state.page == Page.HELP) texts.getString(when (helpSection) {
+                titleOverride = if (model.exportSelectionState != null) texts.getString(R.string.export_select_records) else if (state.page == Page.HELP) texts.getString(when (helpSection) {
                     "manual" -> R.string.help_manual; "terms" -> R.string.help_terms; "about" -> R.string.help_about
                     "licenses" -> R.string.third_party_licenses; "terms_licenses" -> R.string.terms_third_party_notices
                     "agpl" -> R.string.terms_full_license; "openssl" -> R.string.terms_openssl_permission; else -> R.string.help
@@ -281,7 +281,9 @@ private fun CangooContent(model: VaultModel, contentVisible: Boolean, onLeave: (
                 Text(model.securitySettingsError, Modifier.padding(horizontal = 24.dp).semantics { liveRegion = LiveRegionMode.Polite }, color = Error, lineHeight = (24f / 13).em, fontSize = businessSp(13.sp))
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                if (state.page == Page.HOME) {
+                if (model.exportSelectionState != null) {
+                    BExportSelectionPage(model)
+                } else if (state.page == Page.HOME) {
                     val entries = state.passwords.map { HomeEntry(it.id, it.title, it.account, false, it.favorite) } + state.notes.map { HomeEntry(it.id, it.title, it.preview, true, it.favorite) }
                     val favorites = entries.filter { it.favorite }
                     BHomeContent(favorites, state.recentKeys.mapNotNull { key -> entries.firstOrNull { it.id == key.first && it.isNote == key.second } },
@@ -295,7 +297,7 @@ private fun CangooContent(model: VaultModel, contentVisible: Boolean, onLeave: (
                 } else if (state.page == Page.TRANSFER) {
                     model.directTransfer?.let { controller ->
                         BDirectTransferPage(controller, onStartTransfer, model::closeDirectTransfer, onTransferSettings,
-                            Modifier.fillMaxSize(), model::copyTransferPairingCode)
+                            Modifier.fillMaxSize(), model::copyTransferPairingCode, { model.openExportSelection(model.editGeneration) })
                     }
                 } else if (state.page == Page.CHECKS) {
                     ChecksPage(state, listState, model)
@@ -432,7 +434,7 @@ private fun CangooContent(model: VaultModel, contentVisible: Boolean, onLeave: (
                     }
                 }
             }
-            if (state.page == Page.BACKUP) {
+            if (state.page == Page.BACKUP && model.exportSelectionState == null) {
                 Column(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(horizontal = 24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Feedback(state)

@@ -39,6 +39,8 @@ internal fun BackupStoreProblem.uiText(): UiText = UiText(when (this) {
     BackupStoreProblem.LIMIT -> R.string.backup_store_error_limit
     BackupStoreProblem.INPUT -> R.string.backup_store_error_input
     BackupStoreProblem.VERIFICATION -> R.string.backup_store_error_verification
+    BackupStoreProblem.EXPORT_EMPTY -> R.string.export_selection_empty
+    BackupStoreProblem.EXPORT_CHANGED -> R.string.export_selection_changed
 })
 
 internal fun BackupProblem.uiText(): UiText = UiText(when (this) {

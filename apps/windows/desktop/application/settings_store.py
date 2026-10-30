@@ -1,9 +1,4 @@
-"""Strict atomic settings persistence for the isolated M4 candidate.
-
-The legacy :class:`core.config.ConfigManager` remains the in-memory settings
-container.  This port supplies the stronger M4 write contract without changing
-the save semantics used by the frozen QWidget checkpoint.
-"""
+"""设备设置的原子提交、读取及进程间文件协调。"""
 
 from __future__ import annotations
 
@@ -22,15 +17,15 @@ from collections.abc import Callable, Iterator
 from core.config import ConfigManager, DEFAULT_SETTINGS
 
 
-class M4SettingsCommitError(RuntimeError):
-    """One M4 settings commit failed without publishing a new authority."""
+class SettingsCommitError(RuntimeError):
+    """设置提交失败，尚未发布新的设置权威值。"""
 
 
-class M4SettingsReadError(M4SettingsCommitError):
+class SettingsReadError(SettingsCommitError):
     """设置读取或锁内计算失败，未开始写入。"""
 
 
-class M4AtomicSettingsStore:
+class AtomicSettingsStore:
     """Serialize, atomically replace, and read back one complete JSON file."""
 
     def __init__(self, manager: ConfigManager, settings_file: Path) -> None:
@@ -54,7 +49,7 @@ class M4AtomicSettingsStore:
 
         with self._commit_lock:
             if self._uncertain:
-                raise M4SettingsCommitError("settings authority is uncertain")
+                raise SettingsCommitError("settings authority is uncertain")
             old_settings = copy.deepcopy(self._manager.settings)
             with self._exclusive_file_transaction():
                 _exists, _bytes, latest = self._read_latest_settings(old_settings)
@@ -81,7 +76,7 @@ class M4AtomicSettingsStore:
             raise TypeError("settings key must be a non-empty string")
         with self._commit_lock:
             if self._uncertain:
-                raise M4SettingsCommitError("settings authority is uncertain")
+                raise SettingsCommitError("settings authority is uncertain")
             old_settings = copy.deepcopy(self._manager.settings)
             try:
                 with self._exclusive_file_transaction():
@@ -100,7 +95,7 @@ class M4AtomicSettingsStore:
                     )
             except Exception as exc:
                 self._manager.settings = old_settings
-                raise M4SettingsCommitError(
+                raise SettingsCommitError(
                     "atomic settings commit failed"
                 ) from exc
             self._manager.settings = copy.deepcopy(readback)
@@ -129,7 +124,7 @@ class M4AtomicSettingsStore:
             raise TypeError("settings values must be one non-empty key group")
         with self._commit_lock:
             if self._uncertain:
-                raise M4SettingsCommitError("settings authority is uncertain")
+                raise SettingsCommitError("settings authority is uncertain")
             old_settings = copy.deepcopy(self._manager.settings)
             try:
                 with self._exclusive_file_transaction():
@@ -159,7 +154,7 @@ class M4AtomicSettingsStore:
                     )
             except Exception as exc:
                 self._manager.settings = old_settings
-                raise M4SettingsCommitError(
+                raise SettingsCommitError(
                     "atomic settings commit failed"
                 ) from exc
             self._manager.settings = copy.deepcopy(readback)
@@ -171,7 +166,7 @@ class M4AtomicSettingsStore:
         except FileNotFoundError:
             return False, b""
         except OSError as exc:
-            raise M4SettingsCommitError(
+            raise SettingsCommitError(
                 "existing settings authority is unreadable"
             ) from exc
 
@@ -185,7 +180,7 @@ class M4AtomicSettingsStore:
             raise TypeError("settings computation must be callable")
         with self._commit_lock:
             if self._uncertain:
-                raise M4SettingsReadError("settings authority is uncertain")
+                raise SettingsReadError("settings authority is uncertain")
             old_settings = copy.deepcopy(self._manager.settings)
             writing = False
             try:
@@ -213,7 +208,7 @@ class M4AtomicSettingsStore:
                         )
             except Exception as exc:
                 self._manager.settings = old_settings
-                error = M4SettingsCommitError if writing else M4SettingsReadError
+                error = SettingsCommitError if writing else SettingsReadError
                 raise error("atomic settings computation failed") from exc
             self._manager.settings = copy.deepcopy(latest)
             return changed, copy.deepcopy(latest)
@@ -239,13 +234,13 @@ class M4AtomicSettingsStore:
             value = json.loads(previous_bytes.decode("utf-8"), **options)
         except (UnicodeError, ValueError) as exc:
             if strict:
-                raise M4SettingsReadError("existing settings JSON is invalid") from exc
+                raise SettingsReadError("existing settings JSON is invalid") from exc
             if not isinstance(exc, (UnicodeError, json.JSONDecodeError)):
                 raise
             return True, previous_bytes, copy.deepcopy(missing_fallback)
         if not isinstance(value, dict):
             if strict:
-                raise M4SettingsReadError("existing settings JSON is not an object")
+                raise SettingsReadError("existing settings JSON is not an object")
             return True, previous_bytes, copy.deepcopy(missing_fallback)
         merged = copy.deepcopy(DEFAULT_SETTINGS)
         merged["theme"] = "dark"
@@ -303,12 +298,12 @@ class M4AtomicSettingsStore:
         )
         handle = kernel32.CreateMutexW(None, False, name)
         if not handle:
-            raise M4SettingsCommitError("settings mutex creation failed")
+            raise SettingsCommitError("settings mutex creation failed")
         acquired = False
         try:
             result = int(kernel32.WaitForSingleObject(handle, 10_000))
             if result not in {0x00000000, 0x00000080}:
-                raise M4SettingsCommitError("settings mutex wait failed")
+                raise SettingsCommitError("settings mutex wait failed")
             acquired = True
             yield
         finally:
@@ -332,7 +327,7 @@ class M4AtomicSettingsStore:
             temp_path = self._write_temp_json(parent, settings_file, candidate)
             temp_readback = self._read_json_object(temp_path)
             if not self._exact_json_equal(temp_readback, candidate):
-                raise M4SettingsCommitError(
+                raise SettingsCommitError(
                     "temporary settings readback mismatch"
                 )
             replacement_started = True
@@ -340,7 +335,7 @@ class M4AtomicSettingsStore:
             temp_path = None
             readback = self._read_json_object(settings_file)
             if not self._exact_json_equal(readback, candidate):
-                raise M4SettingsCommitError(
+                raise SettingsCommitError(
                     "settings readback mismatch"
                 )
             return readback
@@ -355,7 +350,7 @@ class M4AtomicSettingsStore:
                     )
                 except Exception as rollback_exc:
                     self._uncertain = True
-                    raise M4SettingsCommitError(
+                    raise SettingsCommitError(
                         "settings authority rollback could not be confirmed"
                     ) from rollback_exc
             raise
@@ -412,7 +407,7 @@ class M4AtomicSettingsStore:
         with path.open("r", encoding="utf-8") as handle:
             value = json.load(handle)
         if not isinstance(value, dict):
-            raise M4SettingsCommitError("settings readback is not an object")
+            raise SettingsCommitError("settings readback is not an object")
         return value
 
     @staticmethod
@@ -421,7 +416,7 @@ class M4AtomicSettingsStore:
             return False
         if isinstance(left, dict):
             return left.keys() == right.keys() and all(
-                M4AtomicSettingsStore._exact_json_equal(
+                AtomicSettingsStore._exact_json_equal(
                     left[key],
                     right[key],
                 )
@@ -429,7 +424,7 @@ class M4AtomicSettingsStore:
             )
         if isinstance(left, list):
             return len(left) == len(right) and all(
-                M4AtomicSettingsStore._exact_json_equal(a, b)
+                AtomicSettingsStore._exact_json_equal(a, b)
                 for a, b in zip(left, right)
             )
         return left == right
@@ -444,7 +439,7 @@ class M4AtomicSettingsStore:
         if not previous_exists:
             settings_file.unlink(missing_ok=True)
             if settings_file.exists():
-                raise M4SettingsCommitError(
+                raise SettingsCommitError(
                     "new settings authority could not be rolled back"
                 )
             return
@@ -461,7 +456,7 @@ class M4AtomicSettingsStore:
                 os.fsync(handle.fileno())
             os.replace(rollback_path, settings_file)
             if settings_file.read_bytes() != previous_bytes:
-                raise M4SettingsCommitError(
+                raise SettingsCommitError(
                     "previous settings authority was not restored"
                 )
         finally:
@@ -471,4 +466,4 @@ class M4AtomicSettingsStore:
                 pass
 
 
-__all__ = ["M4AtomicSettingsStore", "M4SettingsCommitError", "M4SettingsReadError"]
+__all__ = ["AtomicSettingsStore", "SettingsCommitError", "SettingsReadError"]

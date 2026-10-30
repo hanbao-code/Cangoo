@@ -32,8 +32,8 @@
       "bytes": 80881
     },
     "assets/help/content.json": {
-      "sha256": "fef6cf0546e4fa7aa7c34ce26e9fa22030edb6a3f7923306bdf938496d3a9561",
-      "bytes": 1299000
+      "sha256": "bc0329691621bacfbd44e16a74dfa7b0517b68e4b6ce3463bb106ae201475bbe",
+      "bytes": 1304911
     },
     "assets/help/health_en.png": {
       "sha256": "6d92032c7099bc0404cfb66349f57ed9f88eba3215f911583254678b0c582358",
@@ -83,21 +83,21 @@
       "sha256": "9faf0249d6d2db7331baa7c864683dd6fa62e8690c6c3c5d667449fe1c725566",
       "bytes": 6174
     },
-    "m4_product_shell.html": {
-      "sha256": "801233fbcb94121b30f4c1815d73d644e2f49dc640c1fb5f7d97cf3f481fcec9",
-      "bytes": 1499
-    },
     "note_editor_shell.html": {
       "sha256": "5b3337f8b3e9721fc8995a96b03192ef03d313c1ae8fc73d0fdb9c7d31369a05",
       "bytes": 3373
     },
-    "scripts/demo_runtime.js": {
-      "sha256": "d5a05d98d72c390ef99845414766460bef0f3db63ed8f7ce882a82a9af70ff98",
-      "bytes": 411296
+    "product_shell.html": {
+      "sha256": "4501bdc5cfb265f0881efffb4373e33fd534ad4d022c82bd95aca6322041e21d",
+      "bytes": 1564
+    },
+    "scripts/canvas_runtime.js": {
+      "sha256": "a34cb7622abe6a8b5191452ade65c765b166b03a5772245732a19e68460659d0",
+      "bytes": 415904
     },
     "scripts/direct_transfer.js": {
-      "sha256": "774ea8268456e3e22bf22991963efc23d478f9ed1bd3d15473f339e06e9d2f10",
-      "bytes": 53391
+      "sha256": "feebb4aeee17eff2228be658363a2011ea154902efc69ef2dcdbfb250a1f1a79",
+      "bytes": 56882
     },
     "scripts/editor_appearance.js": {
       "sha256": "bc040cbf68ec8c8ab0b6c904881975340122e0e737a8357efbce19620263cd82",
@@ -111,6 +111,10 @@
       "sha256": "45d101faed05896ceaa21c8f815a0d8978be694304007daa8c8fd1a9ee9656a5",
       "bytes": 8147
     },
+    "scripts/export_selection.js": {
+      "sha256": "7e7bdb107a78ef845e168316fa850b60f9f9fc1623649264c369c38b458f81c8",
+      "bytes": 18506
+    },
     "scripts/focus_visibility.js": {
       "sha256": "a3dcae6dcf83cc10dea2ff39134fea95f01dbc675bdd7881c878cb673a1127ee",
       "bytes": 14585
@@ -120,28 +124,28 @@
       "bytes": 10072
     },
     "scripts/help_content.js": {
-      "sha256": "dd0984ad638d99039eee8ce43840e491269c1cf0be82d0637bf50ed9b3fb1f0e",
-      "bytes": 1299108
-    },
-    "scripts/m4_runtime.js": {
-      "sha256": "1235e7962746fb675a740336d899c00ff8c72965dae1c77d0bed3651e73937d5",
-      "bytes": 687847
+      "sha256": "38527b81f540cd630705d8452ae370eb5b15c7ec9a2e83bb32fd5be401447e0a",
+      "bytes": 1305019
     },
     "scripts/note_editor_runtime.js": {
       "sha256": "6bd3e24bd608eec00b4559f2717b31e3280f046d003f6e5326648d7299f1f64e",
       "bytes": 17870
     },
-    "scripts/product_entry.js": {
+    "scripts/preview_entry.js": {
       "sha256": "11aa66a3db9f677b90afbaacb53eef108fc85ac2ac2b23796df9bacf5750db61",
       "bytes": 247
+    },
+    "scripts/product_runtime.js": {
+      "sha256": "d66cf37070d30ad25b653cf141d5de56436ad6a356b68d7b0c9ed1a814b31d14",
+      "bytes": 691213
     },
     "scripts/security_lifecycle.js": {
       "sha256": "eea4b30bc339f539a08b1a503c01623bcf628a5eb6ffb114d5eed46ae79b9a38",
       "bytes": 8039
     },
     "styles/canvas.css": {
-      "sha256": "b0ebf12ce7532251165fd2d6614bcbf3ca5941544c312d3180bfbc92644de558",
-      "bytes": 99522
+      "sha256": "7c786360fdde01573d4fdff03f60813b4637168f97dcfadad3a4f0af3eeb0f4a",
+      "bytes": 103183
     },
     "styles/direct_transfer.css": {
       "sha256": "d7941382684a0b63854865017c83be5126f84a7201f5132ddb984a62e210b13e",
@@ -172,8 +176,8 @@
       "bytes": 5519
     },
     "transfer_shell.html": {
-      "sha256": "1ede69c599d8122a8f376b7eb17309ce3bd5fb8bc57063ad4e22467cdef6db91",
-      "bytes": 1133
+      "sha256": "a0c9a89194a5904137e6f8b6a1586f811c65f8390e112c0edfade8e291ae5129",
+      "bytes": 1193
     },
     "vendor/dictionaries.js": {
       "sha256": "37eb94d04609062adfa167cf3200272f1eebfb9e257a6545e35c2b3eead99a46",
@@ -193,8 +197,8 @@
     }
   },
   "outputs": {
-    "m4_product.html": {
-      "sha256": "9b5c1db8faf3b1750da5b7a462d5b58b6ec5587835fa61e78e9db72ef81f224f",
+    "product.html": {
+      "sha256": "185d02d0cd560aa7d1df79f12acc0bddc5690326161dceabd332f912b620b6b2",
       "role": "product canvas shell"
     }
   }

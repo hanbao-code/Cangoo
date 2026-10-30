@@ -1,4 +1,4 @@
-# Cangoo for Android 1.0.1 — User Guide
+# Cangoo for Android 1.0.2 — User Guide
 
 [简体中文](user_guide_zh.md) · [Project home](../../README.md) · [Release notes](../../release_notes.md) · [Third-party sources and licenses](../../third_party/android/README.md)
 
@@ -52,11 +52,20 @@ Records with no password are excluded. Results help you spot issues; they do not
 ## Create an encrypted backup
 
 1. Unlock the vault to back up. Open Settings → Backup and restore, or the same entry under Tools, then choose Create backup.
-2. Check the current vault. Choose all records, passwords only or notes only, then set a separate password for this backup and enter it again to confirm. The backup password cannot be empty.
-3. Choose Create backup and select a local destination in the system file picker. After the saved confirmation, check the file. Create another vault with no data and try restoring the backup there to check that both the file and password work.
+2. Check the current vault and choose All items, Passwords only, Notes only or Custom.
+3. For Custom, use Select items to search or switch between All, Passwords and Notes, then select the records you need. You can mix passwords and notes. Select at least one item, check both counts at the bottom and choose Done to return.
+4. Set a separate password for this backup and enter it again to confirm. The backup password cannot be empty.
+5. Choose Create backup and select a local destination in the system file picker. After “The backup file was saved.” appears, check the file. Try restoring it into a new empty vault to confirm that both the file and password work.
 
-Backups contain the selected records, but not the master password or app settings. Fingerprint or face quick unlock is not transferred either. Opening this backup requires the password set when it was exported. Keep that password separately from the file. Use encrypted backups or Device transfer to move data to another device or between Windows and Android; do not exchange native vault files.
-A failed or cancelled export may leave an empty or incomplete file. Check it in the file manager as instructed. The local recent-backup entry only records an operation; it does not guarantee the file still exists or can be restored.
+Custom starts with no items selected. Search matches names, accounts and note bodies. Changing the search or type keeps earlier selections. Select all results adds the current results. Once they are all selected, Deselect all removes only those results; selected items outside the filter are kept. Clear all selections removes every selection. Cancel or Back keeps the range confirmed before you opened Select items. On the backup page, choose Change selection to adjust it.
+
+Selections last only for this backup. After completion or leaving the backup page, choose again next time. Newly added records are not included automatically. If a selected record changes or is deleted, the backup stops; choose Change selection, review the records and retry.
+
+If the vault locks while choosing a destination, unlock the original vault on return. The range and destination are retained, but enter and confirm the backup password again, then choose Continue backup. Cancelling unlock does not continue the export. Start again after switching vaults, quitting or the app being closed by the system.
+
+Backups contain the full selected records, including authenticator setup keys, recovery codes and their used marks. They do not contain the master password, app settings or fingerprint and face quick-unlock settings. Opening a backup requires its own password; keep that password separately from the file. Use encrypted backups or Device transfer to move data to another device or between Windows and Android, rather than exchanging native vault files.
+
+A failed or cancelled export may leave an empty or incomplete file. Check it in the file manager as instructed. The local recent-backup entry shows the export time and range recorded on this device. Custom does not mean the whole vault was backed up, and the entry does not guarantee that the file still exists or can be restored.
 
 ## Restore a backup and compare changes
 
@@ -76,13 +85,23 @@ If the file picker does not show a file, browse to its saved folder through the 
 1. Unlock the intended vault on each device and open Settings → Device transfer. Choose Send data on one and Receive data on the other, using the same connection method. The vault names do not need to match.
 2. For LAN, connect both devices to the same Wi-Fi or to a hotspot turned on manually on one device. If Windows needs permission, choose Allow local device connections there and confirm its system prompt. For Bluetooth Classic, pair in system settings first, keep Bluetooth on and allow connection permissions when prompted.
 3. The receiver chooses Wait to receive (Wait for sender on Windows) to show an 8-digit temporary pairing code. The sender chooses Find receiving devices (Find nearby devices on Windows), selects the receiver and enters its current code, including any leading zeros. Choose Connect device (Pair devices on Windows). The code expires after 10 minutes or successful pairing. Starting a new receiving session generates a new code.
-4. After the code is verified, the receiver checks the other device and chooses Allow receiving (Allow sending on Windows) once. Device names are for recognition only. The sender waits for this approval.
-5. The sender selects the data range and chooses Send this batch (Send contents on Windows). The receiver automatically receives this batch without another confirmation.
-6. After complete receipt and validation, the connection closes. The receiver compares differences and confirms import as described above. The sender may now leave. Receipt does not mean the data has been imported into the vault.
+4. After the code is verified, the receiver checks the other device and chooses Allow receiving (Allow sending on Windows) once. Device names are for recognition only; the sender waits for approval.
+5. The sender chooses All items, Passwords only, Notes only or Custom. For Custom, select the passwords and notes to send, check both counts and choose Done. At least one item is required.
+6. Check the range, then choose Send this batch (Send contents on Windows). The receiver automatically receives this batch without another range confirmation.
+7. After complete receipt and validation, the connection closes. The receiver reviews the items and confirms import as described under “Restore a backup and compare changes”. The sender may now leave. Receipt does not mean the data has been imported into the vault.
 
-If a LAN device is not found, expand Connect manually on the sender, enter an IPv4 address from the receiver’s waiting screen without a port and choose Find device. Enter the pairing code after the device is found. If connection still fails, check that the receiver is waiting and check the network or system pairing. You can also try the other connection method.
-If pairing fails, check the current code and retry on the sender; the receiver keeps waiting. Code expiry, receiver rejection, disconnection after pairing or cancellation ends this session. Start receiving again and use the new code; the app does not reconnect automatically. Both apps must support temporary pairing codes. If the other device shows no 8-digit code, update its app first. Existing encrypted backup files can still be exported and imported in the usual way.
+Custom supports search and type filters. Changing the search or type keeps earlier selections. Select all results adds the current results. Once they are all selected, Deselect all removes only those results; selected items outside the filter are kept. Clear all selections removes every selection. Cancel or Back in Select items keeps the range confirmed before opening that page. After the transfer completes or you leave it, choose again next time.
+
+Newly added records are not included automatically. If a selected record changes or is deleted before sending, sending stops; choose Change selection, review and retry. If the receiver cancels, locks its vault or disconnects, Select items closes. Start again as prompted.
+
+If a LAN device is not found, expand Connect manually on the sender, enter an IPv4 address from the waiting screen of the receiver without a port and choose Find device. Enter the pairing code after the device is found. If connection still fails, check that the receiver is waiting and check the network or system pairing. You can also try the other connection method.
+
+If pairing fails, check the current code and retry on the sender; the receiver keeps waiting. Code expiry, receiver rejection, disconnection after pairing or cancellation ends this transfer. Start receiving again and use the new code; the app does not reconnect automatically. Both apps must support temporary pairing codes. If the other device shows no 8-digit code, update its app first. Existing encrypted backup files can still be exported and imported in the usual way.
+
+Older receivers may still show an original range label such as All items. Only the selected records are sent; check the actual counts and comparison list.
+
 A transfer sends data in one direction; it does not automatically make both vaults identical. The sending vault stays unchanged, and existing destination records not included in this transfer are not deleted. Master passwords, app settings and quick-unlock settings are not transferred.
+
 Normal locking rules apply while entering the code, waiting for approval and preparing data. Idle-lock and lock-on-leave are temporarily paused during transfer and complete validation. Keep the apps in the foreground where possible. Locking the phone or vault, switching vaults or quitting ends the transfer. The idle timer restarts afterwards and normal locking applies during comparison. Failed validation does not open import; start a new transfer.
 
 ## Manage vaults and change the master password

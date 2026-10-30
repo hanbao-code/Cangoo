@@ -180,6 +180,37 @@ class BackupRejected(ValueError):
     pass
 
 
+@dataclass(slots=True)
+class ExportSelection:
+    ticket: str
+    page_epoch: int
+    session_epoch: int
+    entries: dict[tuple[str, int], str] = field(default_factory=dict, repr=False)
+    previous_ticket: str = ""
+    confirmed: bool = False
+    generation: int = 0
+    query: str = ""
+    kind: str = "ALL"
+    offset: int = 0
+    limit: int = 20
+    total: int = 0
+    filtered_selected_count: int = 0
+    changed_count: int = 0
+    items: list[dict[str, object]] = field(default_factory=list, repr=False)
+
+    def info(self) -> dict[str, object]:
+        return {"selectionTicket": self.ticket,
+                "passwordCount": sum(kind == "PASSWORD" for kind, _ in self.entries),
+                "noteCount": sum(kind == "NOTE" for kind, _ in self.entries)}
+
+    def page(self) -> dict[str, object]:
+        return {**self.info(), "query": self.query, "kind": self.kind, "offset": self.offset,
+                "limit": self.limit, "total": self.total,
+                "allSelected": self.total > 0 and self.filtered_selected_count == self.total,
+                "changedCount": self.changed_count,
+                "items": [{**item, "selected": (item["kind"], item["id"]) in self.entries} for item in self.items]}
+
+
 class BackupController:
     def __init__(
         self,
@@ -195,6 +226,105 @@ class BackupController:
         self._reads: dict[str, _BackupRead] = {}
         self._active_read: tuple[str, int] | None = None
         self._detail: tuple[str, str, int] | None = None
+        self._export_selections: dict[str, ExportSelection] = {}
+
+    def begin_export_selection(self, page_epoch: int, session_epoch: int) -> dict[str, object]:
+        previous = None
+        for value in tuple(self._export_selections.values()):
+            if (value.page_epoch, value.session_epoch) == (page_epoch, session_epoch):
+                if value.confirmed:
+                    previous = value
+                else:
+                    self._export_selections.pop(value.ticket)
+                    value.entries.clear()
+                    value.items.clear()
+        if len(self._export_selections) >= 8:
+            raise BackupRejected("REQUEST_BUSY")
+        value = ExportSelection(secrets.token_urlsafe(24), page_epoch, session_epoch,
+                                dict(previous.entries) if previous else {}, previous.ticket if previous else "")
+        self._export_selections[value.ticket] = value
+        return value.info()
+
+    def export_selection(self, ticket: str, page_epoch: int, session_epoch: int, *, draft=False) -> ExportSelection:
+        value = self._export_selections.get(ticket)
+        if value is None or (value.page_epoch, value.session_epoch) != (page_epoch, session_epoch):
+            raise BackupRejected("SELECTION_EXPIRED")
+        if draft and value.confirmed:
+            raise BackupRejected("INVALID_ARGUMENT")
+        return value
+
+    def change_export_selection(self, value: ExportSelection, action: str, kind: str,
+                                record_id: int, revision: str) -> dict[str, object]:
+        if (value.confirmed or type(action) is not str or type(kind) is not str
+                or type(record_id) is not int or type(revision) is not str):
+            raise BackupRejected("INVALID_ARGUMENT")
+        if action == "CLEAR":
+            if kind != "ALL" or record_id or revision:
+                raise BackupRejected("INVALID_ARGUMENT")
+            value.entries.clear()
+            value.filtered_selected_count = 0
+        elif action in {"ADD", "REMOVE"}:
+            item = next((item for item in value.items if item["kind"] == kind and item["id"] == record_id
+                         and item["revision"] == revision), None)
+            if item is None:
+                raise BackupRejected("REVISION_CONFLICT")
+            selected_before = len(value.entries)
+            if action == "ADD":
+                if (kind, record_id) not in value.entries and len(value.entries) >= BACKUP_RECORD_MAX_ITEMS:
+                    raise BackupRejected("REQUEST_TOO_LARGE")
+                value.entries[(kind, record_id)] = revision
+            else:
+                value.entries.pop((kind, record_id), None)
+            value.filtered_selected_count += len(value.entries) - selected_before
+        else:
+            raise BackupRejected("INVALID_ARGUMENT")
+        value.generation += 1
+        return value.page()
+
+    def finish_export_selection(self, value: ExportSelection, action: str) -> dict[str, object]:
+        if action == "CONFIRM":
+            if value.confirmed or not value.entries:
+                raise BackupRejected("INVALID_ARGUMENT")
+            self._export_selections.pop(value.previous_ticket, None)
+            value.previous_ticket = ""
+            value.confirmed = True
+            value.items.clear()
+            return value.info()
+        if action not in {"CANCEL", "DISCARD"} or action == "CANCEL" and value.confirmed:
+            raise BackupRejected("INVALID_ARGUMENT")
+        self._export_selections.pop(value.ticket, None)
+        previous = self._export_selections.get(value.previous_ticket) if action == "CANCEL" else None
+        value.entries.clear()
+        value.items.clear()
+        return previous.info() if previous else {"selectionTicket": "", "passwordCount": 0, "noteCount": 0}
+
+    def export_choice(self, page_epoch: int, session_epoch: int, scope: str):
+        if scope in {"ALL", "PASSWORDS", "NOTES"}:
+            return scope, None
+        if scope != "CUSTOM":
+            raise BackupRejected("INVALID_ARGUMENT")
+        value = next((value for value in self._export_selections.values()
+                      if value.confirmed and (value.page_epoch, value.session_epoch) == (page_epoch, session_epoch)), None)
+        if value is None or not value.entries:
+            raise BackupRejected("INVALID_ARGUMENT")
+        selection = {kind: {record_id: revision for (entry_kind, record_id), revision in value.entries.items()
+                            if entry_kind == kind} for kind in ("PASSWORD", "NOTE")}
+        wire_scope = "ALL" if selection["PASSWORD"] and selection["NOTE"] else "PASSWORDS" if selection["PASSWORD"] else "NOTES"
+        return wire_scope, selection
+
+    def clear_export_selection(self, page_epoch: int, session_epoch: int | None = None) -> None:
+        for value in tuple(self._export_selections.values()):
+            if value.page_epoch == page_epoch and (session_epoch is None or value.session_epoch == session_epoch):
+                value.entries.clear()
+                value.items.clear()
+                self._export_selections.pop(value.ticket, None)
+
+    def discard_export_draft(self, ticket: str) -> None:
+        value = self._export_selections.get(ticket)
+        if value is not None and not value.confirmed:
+            self._export_selections.pop(ticket)
+            value.entries.clear()
+            value.items.clear()
 
     def choose(self, kind: str, page_epoch: int, session_epoch: int) -> dict[str, object]:
         selected = (
@@ -259,6 +389,11 @@ class BackupController:
         if consume:
             self._selections.pop(ticket, None)
         return value
+
+    def restore_export_destination(self, value: BackupSelection) -> None:
+        # 内容版本拒绝尚未写文件；保留原截止时间与文件身份，不重新授予路径权限。
+        if value.kind == "DESTINATION" and value.expires_at > self._clock():
+            self._selections[value.ticket] = value
 
     def install_preview(self, draft: BackupPreviewDraft) -> dict[str, object]:
         if draft.selection is None:
@@ -677,6 +812,7 @@ class BackupController:
             self.discard_selection(source_ticket)
 
     def clear_page(self, page_epoch: int) -> None:
+        self.clear_export_selection(page_epoch)
         self._selections = {
             key: value for key, value in self._selections.items()
             if value.page_epoch != page_epoch
@@ -689,6 +825,9 @@ class BackupController:
         self._clear_reads()
 
     def clear_session(self, session_epoch: int) -> None:
+        for value in tuple(self._export_selections.values()):
+            if value.session_epoch == session_epoch:
+                self.clear_export_selection(value.page_epoch, session_epoch)
         self._selections = {
             key: value for key, value in self._selections.items()
             if value.session_epoch != session_epoch
@@ -701,6 +840,8 @@ class BackupController:
         self._clear_reads()
 
     def clear(self) -> None:
+        for value in tuple(self._export_selections.values()):
+            self.clear_export_selection(value.page_epoch)
         self._selections.clear()
         self._drop_previews(lambda _value: True)
         self._retry_sources.clear()

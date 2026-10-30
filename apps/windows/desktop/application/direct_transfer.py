@@ -91,6 +91,7 @@ class DirectTransferController(QObject):
             "receiverAccepted": False, "offerReady": False, "preparing": False,
             "peerDeviceName": "", "localVaultName": vault, "peerVaultName": "",
             "transferredBytes": 0, "totalBytes": 0, "errorCode": "NONE",
+            "passwordCount": 0, "noteCount": 0,
             "localAddresses": [], "manualAddress": "", "manualSearching": False,
         }
         self._publish()
@@ -220,12 +221,12 @@ class DirectTransferController(QObject):
                 return self._ack()
             if action == "send":
                 scope, = arguments
-                if scope not in ("ALL", "PASSWORDS", "NOTES") or type(scope) is not str:
+                if scope not in ("ALL", "PASSWORDS", "NOTES", "CUSTOM") or type(scope) is not str:
                     return self._ack("INVALID_ARGUMENT")
                 if (self._state["role"] != "SEND" or self._state["phase"] != "REVIEW"
                         or self._state["offerReady"] or self._state["preparing"] or not self._state["peerVaultName"]):
                     return self._ack("REQUEST_BUSY")
-                self._state.update(scope=scope, preparing=True)
+                self._state.update(scope=scope, preparing=True, errorCode="NONE")
                 run = self._run
                 self._job = self.adapter.export_transfer_snapshot(self._page, self._session, scope,
                     lambda completion: self._deliver_snapshot(run, "send", completion))
@@ -448,7 +449,8 @@ class DirectTransferController(QObject):
                 self._state["peerVaultName"] = fields["vaultName"]
             elif event.type == "offer":
                 self._offer = dict(fields)
-                self._state.update(scope=fields["scope"], totalBytes=fields["byteCount"], offerReady=True)
+                self._state.update(scope=fields["scope"], totalBytes=fields["byteCount"], offerReady=True,
+                                   passwordCount=fields["passwordCount"], noteCount=fields["noteCount"])
                 self._consume(self._protocol.send_message({"type": "accept", "sha256": self._offer["sha256"]}))
                 self._state["receiverAccepted"] = True
             elif event.type == "accept":
@@ -578,6 +580,10 @@ class DirectTransferController(QObject):
         self._state["preparing"] = False
         if completion.error_code != "OK":
             self._discard_completion(completion)
+            if kind == "send" and completion.error_code == "REVISION_CONFLICT":
+                self._state.update(errorCode="REVISION_CONFLICT", preparing=False)
+                self._publish()
+                return
             code = "REQUEST_BUSY" if completion.error_code == "REQUEST_BUSY" else "LIMIT_EXCEEDED" if "LIMIT" in completion.error_code else "INVALID_DATA"
             self._fail(code)
             return
@@ -588,12 +594,13 @@ class DirectTransferController(QObject):
                 if type(payload) is not bytes or not 1 <= len(payload) <= MAX_PAYLOAD:
                     raise DirectTransferError("LIMIT")
                 self._payload = payload
-                self._offer = {"scope": self._state["scope"], "byteCount": len(payload),
+                self._offer = {"scope": result.get("scope", self._state["scope"]), "byteCount": len(payload),
                     "passwordCount": result["passwordCount"], "noteCount": result["noteCount"],
                     "sha256": hashlib.sha256(payload).hexdigest()}
                 result.clear()
                 self._consume(self._protocol.send_message({"type": "offer", **self._offer}))
-                self._state.update(offerReady=True, totalBytes=len(payload))
+                self._state.update(offerReady=True, totalBytes=len(payload),
+                                   passwordCount=self._offer["passwordCount"], noteCount=self._offer["noteCount"])
             else:
                 if not self._adopt_received(result, self._page, self._session,
                                             self._state["peerDeviceName"]):
@@ -763,6 +770,7 @@ class DirectTransferController(QObject):
             except Exception:
                 failed = True
         for cleanup in (
+            lambda: self.adapter.close_export_selection(self._page, self._session) if self._page > 0 and self._session > 0 else None,
             lambda: self.adapter.cancel_transfer_snapshot(job) if job else None,
             lambda: self._discard_completion(pending) if pending is not None else None,
             lambda: protocol.close() if protocol is not None else None,

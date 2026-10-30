@@ -1,4 +1,4 @@
-"""Fixed native database-target selection for the isolated M4 candidate."""
+"""原生数据库目标选择及单次文件访问能力。"""
 
 from __future__ import annotations
 

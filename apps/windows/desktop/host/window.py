@@ -1,4 +1,4 @@
-"""Isolated native window that hosts the shared product canvas."""
+"""承载共享网页画布和原生系统能力的基础窗口。"""
 
 from __future__ import annotations
 

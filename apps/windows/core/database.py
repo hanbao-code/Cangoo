@@ -68,6 +68,7 @@ import sqleet
 from core.backup import (
     BACKUP_PAYLOAD_TYPE,
     BACKUP_PAYLOAD_VERSION,
+    BACKUP_RECORD_MAX_ITEMS,
     BackupError,
     backup_identical_note_targets,
     backup_note_groups,
@@ -2513,8 +2514,9 @@ class DatabaseService:
     # 导入导出
     # ------------------------------------------------------------------
 
-    def export_backup_snapshot(self, scope: str) -> dict:
-        """从单个读事务返回一份严格备份载荷。"""
+    def export_backup_snapshot(self, scope: str, *, selection=None, revision_for_row=None,
+                               should_cancel=None) -> dict:
+        """在同一读事务内筛选、核对内容版本并返回完整备份载荷。"""
 
         self.last_error = None
         self.last_error_kind = None
@@ -2522,24 +2524,61 @@ class DatabaseService:
             self.last_error = "备份范围无效"
             self.last_error_kind = "invalid_argument"
             return {}
+        if selection is not None:
+            if (type(selection) is not dict or set(selection) != {"PASSWORD", "NOTE"}
+                    or any(type(values) is not dict for values in selection.values())
+                    or not 0 < sum(len(values) for values in selection.values()) <= BACKUP_RECORD_MAX_ITEMS
+                    or not callable(revision_for_row)
+                    or any(type(record_id) is not int or not 1 <= record_id <= 2_147_483_647
+                           or type(revision) is not str or re.fullmatch(r"[0-9a-f]{16,64}", revision) is None
+                           for values in selection.values() for record_id, revision in values.items())
+                    or scope != ("ALL" if selection["PASSWORD"] and selection["NOTE"]
+                                 else "PASSWORDS" if selection["PASSWORD"] else "NOTES")):
+                self.last_error = "自定义备份选择无效"
+                self.last_error_kind = "invalid_argument"
+                return {}
+            selection = {kind: dict(values) for kind, values in selection.items()}
         if not self.is_connected():
             self.last_error = "数据库未连接"
             self.last_error_kind = "not_connected"
             return {}
 
         con = None
+        password_rows = note_rows = ()
         try:
             con = self._connect_bound()
             con.execute("BEGIN")
-            budget = DatabaseMemoryBudget()
+            budget = DatabaseMemoryBudget(should_cancel)
+
+            def rows(table, columns, kind, order):
+                if selection is None:
+                    yield from bounded_rows(con, table, columns, budget=budget,
+                                            suffix=f"ORDER BY {order}", retain=True)
+                    return
+                ids = sorted(selection[kind])
+                batch_size = 500
+                found = 0
+                for offset in range(0, len(ids), batch_size):
+                    batch = tuple(ids[offset:offset + batch_size])
+                    reader = bounded_rows(con, table, columns, budget=budget,
+                                          suffix=f"WHERE ID IN ({','.join('?' for _ in batch)}) ORDER BY {order}",
+                                          parameters=batch, retain=True)
+                    try:
+                        for row in reader:
+                            found += 1
+                            yield row
+                    finally:
+                        reader.close()
+                if found != len(ids):
+                    raise _BackupConflictChanged()
+
             password_rows = (
-                bounded_rows(con, "TTable", self._PASSWORD_SELECT_COLUMNS, budget=budget, suffix="ORDER BY ID", retain=True)
+                rows("TTable", self._PASSWORD_SELECT_COLUMNS, "PASSWORD", "ID")
                 if scope in {"ALL", "PASSWORDS"}
                 else []
             )
             note_rows = (
-                bounded_rows(con, "NotesTable", self._NOTE_SELECT_COLUMNS, budget=budget,
-                             suffix="ORDER BY sort_order ASC, ID DESC", retain=True)
+                rows("NotesTable", self._NOTE_SELECT_COLUMNS, "NOTE", "sort_order ASC, ID DESC")
                 if scope in {"ALL", "NOTES"}
                 else []
             )
@@ -2548,6 +2587,9 @@ class DatabaseService:
                 item = self._decrypt_password_row(row)
                 if item is None:
                     raise RuntimeError("密码记录解密失败")
+                if selection is not None and not hmac.compare_digest(
+                        revision_for_row("PASSWORD", item), selection["PASSWORD"][item["id"]]):
+                    raise _BackupConflictChanged()
                 passwords.append(
                     {
                         "platform": item["platform"],
@@ -2567,16 +2609,20 @@ class DatabaseService:
                 item = self._decrypt_note(row)
                 if item is None:
                     raise RuntimeError("记事解密失败")
+                if selection is not None and not hmac.compare_digest(
+                        revision_for_row("NOTE", item), selection["NOTE"][item["id"]]):
+                    raise _BackupConflictChanged()
                 notes.append(
-                    {
+                    (item["sort_order"], -item["id"], {
                         "title": item["title"],
                         "content": item["content"],
                         "created_at": item["created_at"],
                         "updated_at": item["updated_at"],
                         "sort_order": item["sort_order"],
                         "is_favorite": bool(item["is_favorite"]),
-                    }
+                    })
                 )
+            check_cancelled(should_cancel)
             self._assert_bound_identity()
             con.rollback()
             payload = {
@@ -2585,7 +2631,7 @@ class DatabaseService:
                 "export_time": datetime.datetime.now().isoformat(),
                 "scope": scope,
                 "passwords": passwords,
-                "notes": notes,
+                "notes": [value[2] for value in sorted(notes, key=lambda value: value[:2])],
             }
             validate_backup_payload(payload)
             return payload
@@ -2597,12 +2643,17 @@ class DatabaseService:
                     pass
             self.last_error = f"导出备份失败: {exc}"
             self.last_error_kind = (
-                "backup_invalid"
+                "revision_conflict"
+                if isinstance(exc, _BackupConflictChanged)
+                else "backup_invalid"
                 if isinstance(exc, BackupError)
                 else self._operation_error_kind(exc)
             )
             return {}
         finally:
+            for source in (password_rows, note_rows):
+                if hasattr(source, "close"):
+                    source.close()
             if con is not None:
                 try:
                     con.close()

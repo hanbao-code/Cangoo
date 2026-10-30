@@ -1,10 +1,4 @@
-"""Independent native QWidget QuickBar for the isolated M4 candidate.
-
-The widget only receives bounded public summaries. Account/password copy and
-password generation stay behind the typed native port and never return secret
-text to this object. The top-level window is intentionally outside the main
-window tree: global invocation cannot restore or foreground the full product.
-"""
+"""独立原生快速栏及当前会话内的搜索、生成和复制编排。"""
 
 from __future__ import annotations
 

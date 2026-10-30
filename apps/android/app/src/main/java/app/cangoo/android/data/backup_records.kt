@@ -10,22 +10,28 @@ import java.util.UUID
 /** 备份记录映射与内容复核；会话、取消和事务始终由VaultStore持有。 */
 internal object BackupRecords {
     fun export(database: VaultDatabase, scope: BackupScope, guard: () -> Unit, encryptedEnvelope: Boolean = true,
-               memory: BackupMemoryBudget = BackupMemoryBudget()): BackupPayload {
+               memory: BackupMemoryBudget = BackupMemoryBudget(), selection: BackupSelection? = null): BackupPayload {
         val passwords = mutableListOf<BackupPassword>()
         val notes = mutableListOf<BackupNote>()
         guard()
-        val passwordCount = if (scope != BackupScope.NOTES) database.passwords().backupCount() else 0
+        validateExportSelection(database, selection, guard)
+        val actualScope = selection?.scope ?: scope
+        val passwordCount = selection?.passwords?.size?.toLong() ?: if (scope != BackupScope.NOTES) database.passwords().backupCount() else 0
         guard()
-        val count = passwordCount + (if (scope != BackupScope.PASSWORDS) database.notes().backupCount() else 0)
+        val count = passwordCount + (selection?.notes?.size?.toLong() ?: if (scope != BackupScope.PASSWORDS) database.notes().backupCount() else 0)
         guard()
         if (count > BackupProtocol.MAX_RECORDS) failLimit()
+        fun ids(kind: BackupImportKind, read: (String) -> Unit) {
+            if (selection == null) eachId(database, kind, guard, read)
+            else (if (kind == BackupImportKind.PASSWORD) selection.passwords else selection.notes).keys.forEach { guard(); read(it) }
+        }
         var lowerBytes = 128L
         fun budget(bytes: Long) {
             lowerBytes = Math.addExact(lowerBytes, bytes)
             // 原UTF-8与必要结构是JSON下界；文件算封装开销，直传只算业务字节。
             if ((if (encryptedEnvelope) ((lowerBytes + 28 + 2) / 3) * 4 else lowerBytes) > BackupProtocol.MAX_BYTES) failLimit()
         }
-        if (scope != BackupScope.NOTES) eachId(database, BackupImportKind.PASSWORD, guard) { id ->
+        if (actualScope != BackupScope.NOTES) ids(BackupImportKind.PASSWORD) { id ->
             val textBytes = database.passwords().backupTextBytes(id)
             budget(textBytes + 146)
             val allocation = textBytes + database.passwords().backupRecoveryBytes(id)
@@ -43,7 +49,7 @@ internal object BackupRecords {
             memory.release((128 - item.recoveryCodes.size) * BackupMemoryBudget.RECOVERY_CODE_BYTES)
             passwords.add(item)
         }
-        if (scope != BackupScope.PASSWORDS) eachId(database, BackupImportKind.NOTE, guard) { id ->
+        if (actualScope != BackupScope.PASSWORDS) ids(BackupImportKind.NOTE) { id ->
             val bytes = database.notes().backupTextBytes(id)
             budget(bytes + 89)
             memory.reserve(2 * bytes + BackupMemoryBudget.RECORD_BYTES)
@@ -56,7 +62,21 @@ internal object BackupRecords {
             })
         }
         guard()
-        return BackupPayload(BackupProtocol.exportTime(System.currentTimeMillis()), scope, passwords, notes)
+        return BackupPayload(BackupProtocol.exportTime(System.currentTimeMillis()), actualScope, passwords, notes)
+    }
+
+    fun validateExportSelection(database: VaultDatabase, selection: BackupSelection?, guard: () -> Unit) {
+        if (selection == null) return
+        if (selection.empty) throw BackupStoreException(BackupStoreProblem.EXPORT_EMPTY)
+        if (selection.passwords.size.toLong() + selection.notes.size > BackupProtocol.MAX_RECORDS) failLimit()
+        fun check(values: Map<String, Long>, revision: (String) -> Long?) = values.forEach { (id, expected) ->
+            guard()
+            if (expected < 1 || runCatching { UUID.fromString(id).toString() == id }.getOrDefault(false).not() || revision(id) != expected)
+                throw BackupStoreException(BackupStoreProblem.EXPORT_CHANGED)
+        }
+        check(selection.passwords, database.passwords()::backupRevision)
+        check(selection.notes, database.notes()::backupRevision)
+        guard()
     }
 
     fun snapshot(database: VaultDatabase, payload: BackupPayload, guard: () -> Unit): BackupTargetSnapshot {

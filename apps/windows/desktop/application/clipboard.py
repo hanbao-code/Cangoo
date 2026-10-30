@@ -1,4 +1,4 @@
-"""Native clipboard state owner for the isolated M4 vertical slice."""
+"""产品剪贴板状态及复制任务的原生所有者。"""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ class _PendingCopy:
     result: dict[str, object] | None = None
 
 
-class M4ClipboardController(QObject):
+class ProductClipboardController(QObject):
     """Keep clipboard content, timer and renderer-visible state native-owned."""
 
     state_changed = Signal(int, int, str, str, int, bool)
@@ -383,4 +383,4 @@ class M4ClipboardController(QObject):
         }
 
 
-__all__ = ["M4ClipboardController"]
+__all__ = ["ProductClipboardController"]

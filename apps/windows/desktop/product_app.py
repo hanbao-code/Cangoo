@@ -138,9 +138,9 @@ def _configure_product_rendering() -> None:
 
 
 def _create_product_window(paths: RuntimePaths, *, update_client_factory=None):
-    from desktop.m4.window import M4HostWindow
+    from desktop.application.window import ProductWindow
 
-    return M4HostWindow(paths, standard_window_frame=True, startup_update_check=True,
+    return ProductWindow(paths, standard_window_frame=True, startup_update_check=True,
                         update_client_factory=update_client_factory)
 
 

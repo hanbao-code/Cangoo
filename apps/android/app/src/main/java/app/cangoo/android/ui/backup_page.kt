@@ -249,7 +249,7 @@ internal fun BBackupFooter(model: VaultModel, onChooseFile: (BackupDocumentKind,
                 } else {
                     val selected = exporting && model.documentIntent?.uri != null
                     BackupAction(if (exporting) if (selected) texts.getString(R.string.continue_backup) else texts.getString(R.string.create_backup) else texts.getString(R.string.preview_contents),
-                        !model.exportSelectionPending && (!selected || backup.documentName.isNotEmpty()), primary = true) {
+                        !model.exportSelectionPending && (!selected || backup.documentName.isNotEmpty()) && (!exporting || !backup.custom || !backup.selection.empty), primary = true) {
                         if (exporting) {
                             focus.clearFocus(); keyboard?.hide()
                             if (selected) model.exportBackup(input) else onChooseFile(BackupDocumentKind.EXPORT, input)
@@ -381,10 +381,21 @@ private fun BackupConfigurationBody(model: VaultModel, input: Long, enabled: Boo
     if (exporting) {
         BackupCopy(texts.getString(R.string.backup_scope), size = 13, color = LocalBThemeColors.current.ink, weight = FontWeight.SemiBold)
         val scopes = listOf(BackupScope.ALL to texts.getString(R.string.scope_all), BackupScope.PASSWORDS to texts.getString(R.string.scope_passwords), BackupScope.NOTES to texts.getString(R.string.scope_notes))
-        if (selected) BackupCopy(scopes.first { it.first == backup.scope }.second, size = 16, color = LocalBThemeColors.current.ink)
+        if (selected) BackupCopy(if (backup.custom) texts.getString(R.string.scope_custom) else scopes.first { it.first == backup.scope }.second, size = 16, color = LocalBThemeColors.current.ink)
         else Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             scopes.forEach { (scope, label) ->
-                BackupAction(label, enabled && !model.exportSelectionPending, selected = backup.scope == scope) { model.changeBackup(input) { copy(scope = scope) } }
+                BackupAction(label, enabled && !model.exportSelectionPending, selected = !backup.custom && backup.scope == scope) { model.changeBackup(input) { copy(scope = scope, custom = false) } }
+            }
+            BackupAction(texts.getString(R.string.scope_custom), enabled && !model.exportSelectionPending, selected = backup.custom) {
+                focus.clearFocus(); keyboard?.hide(); model.openExportSelection(input)
+            }
+        }
+        if (backup.custom) {
+            BackupCopy(texts.getString(R.string.export_selection_summary,
+                texts.getQuantityString(R.plurals.password_count, backup.selection.passwords.size, backup.selection.passwords.size),
+                texts.getQuantityString(R.plurals.note_count, backup.selection.notes.size, backup.selection.notes.size)), size = 14)
+            if (!selected) TextButton(onClick = { focus.clearFocus(); keyboard?.hide(); model.openExportSelection(input) }, enabled = enabled && !model.exportSelectionPending) {
+                Text(texts.getString(R.string.export_change_selection), fontSize = businessSp(14.sp), lineHeight = 1.5.em)
             }
         }
     }

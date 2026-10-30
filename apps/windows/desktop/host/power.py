@@ -1,4 +1,4 @@
-"""Native Windows suspend/resume lifecycle state for the candidate host."""
+"""Windows 会话锁屏、睡眠及恢复事件的原生接入。"""
 
 from __future__ import annotations
 

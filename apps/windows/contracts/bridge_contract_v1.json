@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "contract_version": "1.1.0",
-  "status": "frozen_v1_1_m4_path_resolution_correction_m4_c49_atomic_recovery_correction_m4_theme_language_commit_order_correction_m4_tray_failure_recovery_correction_m4_d19_suspend_lock_correction_m4_quickbar_policy_correction_stage5_record_field_reads_stage11_ui_font_scale",
+  "status": "frozen",
   "wire": {
     "webchannel_object": "pdmBridgeV1",
     "request_encoding": "positional_typed_arguments",
@@ -101,19 +101,19 @@
   "truth_sources": [
     {
       "path": "tests/reference/frontend/scope_matrix.json",
-      "sha256": "4ea8e6789c7204e065cbaad9a5f0c3c7c7ace862fea7e47aa7dd7dc04ae1e3c3"
+      "sha256": "7f17f1b9332ec861ae09ffd222ffa16faecfe5e1fd19dc8b13d5ef9600fb1fdc"
     },
     {
       "path": "../../docs/product/product_brief.md",
-      "sha256": "ab838a7b8b316bc25cb4e26bab46a3b941ab30d5bb495e846c1b99c5b85221fd"
+      "sha256": "0690d4b87c2f54efeef540525fe35a27c079d9440d782b47a6931bb25429e2ab"
     },
     {
       "path": "../../docs/product/user_scenarios.md",
-      "sha256": "d9b147f2eba7f90eec41b5af48adf971deecb96b38bd18687f1f4f05358ff751"
+      "sha256": "e273364b277e94e06524953755fe4efcc4833bbd229f843e6baf7b5ebaf792fe"
     },
     {
       "path": "../../docs/decisions/product_decisions.md",
-      "sha256": "41e1a44e7e1b559a798007689f57bf5438127f60a096ed1ee4d352ea377735ed"
+      "sha256": "fc5e8f47c016237858cfd500fbdb9517d3f0b58e6fd560de26147e7321c965ce"
     },
     {
       "path": "../../docs/platforms/windows/webengine_security.md",
@@ -1375,7 +1375,8 @@
       "values": [
         "ALL",
         "PASSWORDS",
-        "NOTES"
+        "NOTES",
+        "CUSTOM"
       ]
     },
     "ConflictDecision": {
@@ -3857,6 +3858,161 @@
         {
           "name": "expiresInMs",
           "type": "Milliseconds",
+          "required": true
+        }
+      ]
+    },
+    "ExportSelectionKind": {
+      "kind": "enum",
+      "values": [
+        "ALL",
+        "PASSWORD",
+        "NOTE"
+      ]
+    },
+    "ExportSelectionAction": {
+      "kind": "enum",
+      "values": [
+        "ADD",
+        "REMOVE",
+        "ALL",
+        "REMOVE_FILTERED",
+        "CLEAR"
+      ]
+    },
+    "ExportSelectionFinish": {
+      "kind": "enum",
+      "values": [
+        "CONFIRM",
+        "CANCEL",
+        "DISCARD"
+      ]
+    },
+    "ExportSelectionRecordId": {
+      "kind": "integer",
+      "minimum": 0,
+      "maximum": 2147483647
+    },
+    "ExportSelectionInfo": {
+      "kind": "object",
+      "additional_properties": false,
+      "fields": [
+        {
+          "name": "selectionTicket",
+          "type": "OptionalOpaqueId",
+          "required": true
+        },
+        {
+          "name": "passwordCount",
+          "type": "Count",
+          "required": true
+        },
+        {
+          "name": "noteCount",
+          "type": "Count",
+          "required": true
+        }
+      ]
+    },
+    "ExportSelectionSummary": {
+      "kind": "object",
+      "additional_properties": false,
+      "summary_type": true,
+      "fields": [
+        {
+          "name": "kind",
+          "type": "BackupConflictKind",
+          "required": true
+        },
+        {
+          "name": "id",
+          "type": "EntityId",
+          "required": true
+        },
+        {
+          "name": "revision",
+          "type": "Revision",
+          "required": true
+        },
+        {
+          "name": "title",
+          "type": "NoteTitlePreview",
+          "required": true
+        },
+        {
+          "name": "detail",
+          "type": "AccountPreview",
+          "required": true
+        },
+        {
+          "name": "selected",
+          "type": "Bool",
+          "required": true
+        }
+      ]
+    },
+    "ExportSelectionItems": {
+      "kind": "array",
+      "items": "ExportSelectionSummary",
+      "max_items": 100
+    },
+    "ExportSelectionPage": {
+      "kind": "object",
+      "additional_properties": false,
+      "fields": [
+        {
+          "name": "selectionTicket",
+          "type": "OpaqueId",
+          "required": true
+        },
+        {
+          "name": "passwordCount",
+          "type": "Count",
+          "required": true
+        },
+        {
+          "name": "noteCount",
+          "type": "Count",
+          "required": true
+        },
+        {
+          "name": "query",
+          "type": "Query",
+          "required": true
+        },
+        {
+          "name": "kind",
+          "type": "ExportSelectionKind",
+          "required": true
+        },
+        {
+          "name": "offset",
+          "type": "Count",
+          "required": true
+        },
+        {
+          "name": "limit",
+          "type": "PageLimit",
+          "required": true
+        },
+        {
+          "name": "total",
+          "type": "Count",
+          "required": true
+        },
+        {
+          "name": "allSelected",
+          "type": "Bool",
+          "required": true
+        },
+        {
+          "name": "changedCount",
+          "type": "Count",
+          "required": true
+        },
+        {
+          "name": "items",
+          "type": "ExportSelectionItems",
           "required": true
         }
       ]
@@ -6719,7 +6875,8 @@
         "CANCELLED",
         "DATABASE_LIMIT_EXCEEDED",
         "INTERNAL_FAILURE",
-        "BACKUP_TARGET_IS_DATABASE"
+        "BACKUP_TARGET_IS_DATABASE",
+        "REVISION_CONFLICT"
       ],
       "truth": {
         "scenarios": [
@@ -6735,7 +6892,8 @@
         "backupPassword is explicit, independent of MasterPassword, and is never defaulted or persisted",
         "only the authenticated encrypted backup envelope is written",
         "X2 plaintext JSON and CSV are not representable",
-        "temporary plaintext files are forbidden"
+        "temporary plaintext files are forbidden",
+        "CUSTOM只消费本页本会话原生已确认非空选择，在同一读事务核对所选内容版本；交换负载仍仅使用ALL/PASSWORDS/NOTES"
       ]
     },
     {
@@ -8144,6 +8302,262 @@
         ]
       },
       "notes": "Removes exactly one native-known recent entry by opaque ID. It never deletes a database or changes the current path input, last-connected path, lock record, or an already-issued selection ticket. The atomic write must succeed before the page-known bounded recent projection is returned without the target; no post-commit state read can turn a committed removal into a reported failure. Concurrent external additions appear on the next authoritative refresh."
+    },
+    {
+      "id": "C87",
+      "method": "beginExportSelectionV1",
+      "surface": "webchannel",
+      "completion_signal": "beginExportSelectionCompletedV1",
+      "authority": "PYTHON_CORE",
+      "auth": "SESSION",
+      "arguments": [
+        [
+          "requestId",
+          "RequestId"
+        ],
+        [
+          "pageEpoch",
+          "PageEpoch"
+        ],
+        [
+          "sessionEpoch",
+          "SessionEpoch"
+        ]
+      ],
+      "result": "ExportSelectionInfo",
+      "writes": "BOUNDED_SESSION_SELECTION",
+      "input_sensitivity": "SESSION_SELECTION_CAPABILITY",
+      "output_sensitivity": "BOUNDED_RECORD_SUMMARIES_AND_COUNTS",
+      "lifecycle": "session_ticket_state",
+      "errors": [
+        "INVALID_ARGUMENT",
+        "STALE_PAGE",
+        "STALE_SESSION",
+        "SESSION_REQUIRED",
+        "REQUEST_BUSY",
+        "DUPLICATE_REQUEST",
+        "SELECTION_EXPIRED",
+        "REVISION_CONFLICT",
+        "DATABASE_IO_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
+        "REQUEST_TOO_LARGE",
+        "CANCELLED",
+        "INTERNAL_FAILURE"
+      ],
+      "truth": {
+        "scenarios": [
+          "6.5",
+          "8.5"
+        ],
+        "flows": [
+          "U4.4"
+        ]
+      },
+      "notes": "复制本页本会话已确认选择为独立草稿；原生只保留类型、ID和内容版本，不持久保存。"
+    },
+    {
+      "id": "C88",
+      "method": "listExportSelectionV1",
+      "surface": "webchannel",
+      "completion_signal": "listExportSelectionCompletedV1",
+      "authority": "PYTHON_CORE",
+      "auth": "SESSION",
+      "arguments": [
+        [
+          "requestId",
+          "RequestId"
+        ],
+        [
+          "pageEpoch",
+          "PageEpoch"
+        ],
+        [
+          "sessionEpoch",
+          "SessionEpoch"
+        ],
+        [
+          "selectionTicket",
+          "OpaqueId"
+        ],
+        [
+          "query",
+          "Query"
+        ],
+        [
+          "kind",
+          "ExportSelectionKind"
+        ],
+        [
+          "offset",
+          "Count"
+        ],
+        [
+          "limit",
+          "PageLimit"
+        ]
+      ],
+      "result": "ExportSelectionPage",
+      "writes": "BOUNDED_SESSION_SELECTION",
+      "input_sensitivity": "SESSION_SELECTION_CAPABILITY",
+      "output_sensitivity": "BOUNDED_RECORD_SUMMARIES_AND_COUNTS",
+      "lifecycle": "session_read",
+      "errors": [
+        "INVALID_ARGUMENT",
+        "STALE_PAGE",
+        "STALE_SESSION",
+        "SESSION_REQUIRED",
+        "REQUEST_BUSY",
+        "DUPLICATE_REQUEST",
+        "SELECTION_EXPIRED",
+        "REVISION_CONFLICT",
+        "DATABASE_IO_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
+        "REQUEST_TOO_LARGE",
+        "CANCELLED",
+        "INTERNAL_FAILURE"
+      ],
+      "truth": {
+        "scenarios": [
+          "6.5",
+          "8.5"
+        ],
+        "flows": [
+          "U4.4"
+        ]
+      },
+      "notes": "原生执行筛选并只投影至多100项摘要；选择集合和版本留在原生，变化项移出草稿并明确返回数量。allSelected表示非空筛选全集是否全部选中，不能按当前页推断。"
+    },
+    {
+      "id": "C89",
+      "method": "changeExportSelectionV1",
+      "surface": "webchannel",
+      "completion_signal": "changeExportSelectionCompletedV1",
+      "authority": "PYTHON_CORE",
+      "auth": "SESSION",
+      "arguments": [
+        [
+          "requestId",
+          "RequestId"
+        ],
+        [
+          "pageEpoch",
+          "PageEpoch"
+        ],
+        [
+          "sessionEpoch",
+          "SessionEpoch"
+        ],
+        [
+          "selectionTicket",
+          "OpaqueId"
+        ],
+        [
+          "action",
+          "ExportSelectionAction"
+        ],
+        [
+          "kind",
+          "ExportSelectionKind"
+        ],
+        [
+          "recordId",
+          "ExportSelectionRecordId"
+        ],
+        [
+          "revision",
+          "OptionalRevision"
+        ]
+      ],
+      "result": "ExportSelectionPage",
+      "writes": "BOUNDED_SESSION_SELECTION",
+      "input_sensitivity": "SESSION_SELECTION_CAPABILITY",
+      "output_sensitivity": "BOUNDED_RECORD_SUMMARIES_AND_COUNTS",
+      "lifecycle": "session_read",
+      "errors": [
+        "INVALID_ARGUMENT",
+        "STALE_PAGE",
+        "STALE_SESSION",
+        "SESSION_REQUIRED",
+        "REQUEST_BUSY",
+        "DUPLICATE_REQUEST",
+        "SELECTION_EXPIRED",
+        "REVISION_CONFLICT",
+        "DATABASE_IO_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
+        "REQUEST_TOO_LARGE",
+        "CANCELLED",
+        "INTERNAL_FAILURE"
+      ],
+      "truth": {
+        "scenarios": [
+          "6.5",
+          "8.5"
+        ],
+        "flows": [
+          "U4.4"
+        ]
+      },
+      "notes": "ADD/REMOVE只接受最近一页实际投影的类型、ID和版本；ALL/REMOVE_FILTERED/CLEAR必须使用ALL、0、空版本。ALL与REMOVE_FILTERED由原生查询当前筛选全集，分别补齐或移除匹配记录并保留筛选外选择；CLEAR清空全部选择。"
+    },
+    {
+      "id": "C90",
+      "method": "finishExportSelectionV1",
+      "surface": "webchannel",
+      "completion_signal": "finishExportSelectionCompletedV1",
+      "authority": "PYTHON_CORE",
+      "auth": "SESSION",
+      "arguments": [
+        [
+          "requestId",
+          "RequestId"
+        ],
+        [
+          "pageEpoch",
+          "PageEpoch"
+        ],
+        [
+          "sessionEpoch",
+          "SessionEpoch"
+        ],
+        [
+          "selectionTicket",
+          "OpaqueId"
+        ],
+        [
+          "action",
+          "ExportSelectionFinish"
+        ]
+      ],
+      "result": "ExportSelectionInfo",
+      "writes": "BOUNDED_SESSION_SELECTION",
+      "input_sensitivity": "SESSION_SELECTION_CAPABILITY",
+      "output_sensitivity": "BOUNDED_RECORD_SUMMARIES_AND_COUNTS",
+      "lifecycle": "session_ticket_state",
+      "errors": [
+        "INVALID_ARGUMENT",
+        "STALE_PAGE",
+        "STALE_SESSION",
+        "SESSION_REQUIRED",
+        "REQUEST_BUSY",
+        "DUPLICATE_REQUEST",
+        "SELECTION_EXPIRED",
+        "REVISION_CONFLICT",
+        "DATABASE_IO_FAILED",
+        "DATABASE_LIMIT_EXCEEDED",
+        "REQUEST_TOO_LARGE",
+        "CANCELLED",
+        "INTERNAL_FAILURE"
+      ],
+      "truth": {
+        "scenarios": [
+          "6.5",
+          "8.5"
+        ],
+        "flows": [
+          "U4.4"
+        ]
+      },
+      "notes": "CONFIRM仅接受非空草稿并替换已确认集合；CANCEL只丢草稿并返回原集合；DISCARD释放指定集合。锁库、关闭或切库同步清理。"
     },
     {
       "id": "N01",
